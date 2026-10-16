@@ -1,0 +1,56 @@
+# Dependencies, builds and caches in every workspace
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+.nyc_output/
+.vite/
+.cache/
+*.tsbuildinfo
+
+# Secrets (keep configuration templates)
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+
+# Logs and runtime files
+logs/
+*.log
+pids/
+*.pid
+*.pid.lock
+report.[0-9]*.[0-9]*.[0-9]*.json
+.temp/
+.tmp/
+
+# Editor and OS files
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.project
+.classpath
+.settings/
+.c9/
+*.launch
+*.sublime-workspace
+
+# Research notebook caches; source data and documents remain tracked
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+
+docs/data

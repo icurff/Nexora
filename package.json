@@ -1,0 +1,31 @@
+{
+  "name": "nexora",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Nexora microservices monorepo",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "packageManager": "npm@11.17.0",
+  "workspaces": [
+    "frontend",
+    "api-gateway",
+    "*-service"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@nexora/frontend",
+    "dev:gateway": "npm run start:dev --workspace=@nexora/api-gateway",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}
