@@ -6,11 +6,11 @@ description: Configure or troubleshoot Nexora Docker Compose, Nest container sta
 # Nexora Docker and PostgreSQL
 
 Read [AGENTS.md](../../../AGENTS.md), the [development rules](../../../AGENTS.md#development-rules), and
-the [operations README](../../../README.md). Run commands from the repository root.
+the [operations README](../../../README.md). Run Docker Compose commands from the repository root.
 
 ## Gather evidence
 
-1. Inspect relevant parts of `compose.yaml`, `Dockerfile`, `.dockerignore`,
+1. Inspect relevant parts of `docker-compose.yml`, the affected service folder's `Dockerfile` and `.dockerignore`,
    `.env.example`, and `docker/postgres/init-databases.sh`.
 2. Use `docker compose config --quiet`, `docker compose ps`, and affected service
    logs. Avoid printing configuration with interpolated passwords.
@@ -19,15 +19,20 @@ the [operations README](../../../README.md). Run commands from the repository ro
 
 ## Preserve operational behavior
 
-- Compose starts only PostgreSQL by default; applications use the `apps` profile.
-  `docker compose up -d --build auth-service` also starts PostgreSQL.
-  Gateway/frontend have larger dependency chains; inspect `depends_on` before
-  starting them to understand the resource impact.
-- Containers connect to `postgres:5432`; host processes use `localhost` and
-  `POSTGRES_PORT`. Host application scripts do not yet load `.env` automatically.
-- The shared development image installs Linux dependencies from the root lockfile.
+- `docker compose up` starts the full stack. Select only the services needed for
+  a task to limit resource use; `docker compose up -d --build auth-service`
+  also starts PostgreSQL.
+- Containers connect to `postgres:5432`; host processes use `localhost` and the
+  fixed PostgreSQL port `5432`. Compose publishes the Gateway on `3000`, each
+  backend on `3001`–`3005` (container port `3000`), and the frontend on `5173`.
+  Host application scripts do not yet load `.env` automatically; each Nest app has a
+  distinct default port in `src/main.ts`.
+- Compose publishes each backend's container port 3000 on its own loopback host
+  port so it can be tested directly; service-to-service calls still use the
+  Compose service name and port 3000.
+- Each application has its own Dockerfile, build context, and lockfile. Its image installs dependencies from that folder's lockfile.
   Do not mount Windows `node_modules` into containers. Backend source is mounted;
-  dependency/backend configuration changes require rebuilding the image.
+  dependency/backend configuration changes require rebuilding that service image.
 - Nest watch uses `--no-shell` to restart child processes in the slim image. When
   changing commands, signals, or shutdown behavior, verify reload and shutdown,
   not just initial startup. Runtime executes built JavaScript without watch mode.

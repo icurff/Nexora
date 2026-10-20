@@ -1,6 +1,6 @@
 ---
 name: nexora-backend
-description: Implement or debug Nexora NestJS APIs and business logic in the gateway and five backend workspaces. Use for backend features, service contracts and regression fixes; future FastAPI recommendation work needs its own workflow.
+description: Implement or debug Nexora NestJS APIs and business logic in the gateway and five backend service folders. Use for backend features, service contracts and regression fixes; future FastAPI recommendation work needs its own workflow.
 ---
 
 # Nexora Backend Development
@@ -11,7 +11,7 @@ to this file.
 
 ## Establish the scope
 
-1. Inspect the affected workspace's package, modules, controllers, providers, and
+1. Inspect the affected service folder's package, modules, controllers, providers, and
    tests. Backends are currently scaffolds; do not assume an ORM, guards, DTO
    validation, HTTP client, or messaging infrastructure already exists.
 2. Find relevant requirements and acceptance cases in `docs/SRS.md`. Read
@@ -40,10 +40,10 @@ to this file.
 
 ## Validate and hand off
 
-Use the [validation matrix](../../../.codex/README.md#available-validation-commands) for affected workspace
-checks: typecheck, lint, tests, and build. Expand validation when shared contracts
-change. Use existing Vitest and `@nestjs/testing` conventions. E2E configuration
-is absent; claim e2e validation only after a real suite is present and has run.
+Run relevant checks from the affected service folder: typecheck, lint, tests, and
+build. Expand validation when shared contracts change. Use existing Vitest and
+`@nestjs/testing` conventions. E2E configuration is absent; claim e2e validation
+only after a real suite is present and has run.
 
 Add a regression test for behavioral bugs or meaningful success/error tests for
 new features. State whether DB/provider tests use mocks or real integration.

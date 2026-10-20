@@ -1,4 +1,4 @@
-# Dependencies, builds and caches in every workspace
+# Dependencies, builds and caches in every application
 node_modules/
 dist/
 dist-ssr/

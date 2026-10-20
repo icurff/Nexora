@@ -9,4 +9,10 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  // Process liveness only; dependency readiness belongs to each adapter.
+  @Get('health')
+  getHealth() {
+    return { status: 'ok', service: 'payment-service' };
+  }
 }

@@ -10,7 +10,7 @@
 | Trạng thái | Draft — sẵn sàng rà soát trước triển khai |
 | Tài liệu nghiệp vụ | [BRD](BRD.md) |
 | Thiết kế dữ liệu | [Database baseline](DATABASE_DESIGN.md); ownership phân tán theo [Architecture](Folder-ARCHITECTURE.md) |
-| Kiến trúc | [Microservices, Saga và monorepo](Folder-ARCHITECTURE.md) |
+| Kiến trúc | [Microservices và Saga](Folder-ARCHITECTURE.md) |
 | Phạm vi | Ecommerce đa ngành local, catalog synthetic/placeholder, COD, payOS, email khôi phục mật khẩu/thông báo, tracking và gợi ý theo quy tắc |
 | Ngoài phạm vi AI | Training, benchmark và tích hợp dịch vụ model thật |
 
@@ -968,8 +968,8 @@ Các ca tracking/gợi ý trong bảng là tiêu chí cho giai đoạn Python/Fa
 - Luồng payOS cần client ID, API key, checksum key, return/cancel URL và webhook URL được cấu hình phía backend. Thiếu cấu hình hoặc provider lỗi thì báo lỗi thanh toán, giữ đơn UNPAID; không giả lập thành công.
 - Email cần cấu hình nhà cung cấp SMTP/API và địa chỉ gửi phía backend; thiếu cấu hình thì báo trạng thái gửi lỗi/thử lại, không làm sai giao dịch đơn hàng.
 - Việc tải dữ liệu ban đầu có thể cần Internet/quyền truy cập nguồn; chạy demo sau chuẩn bị không cần gọi nguồn đó trực tiếp.
-- Frontend ReactJS + Vite, Gateway và năm scaffold NestJS hiện có sẽ được mở rộng; module upload nằm trong Catalog. Recommendation dùng Python/FastAPI triển khai sau, không thuộc npm workspaces. ORM/migration/token phải đáp ứng SRS.
-- Monorepo/workspaces, service ownership, Kafka topic, Compose và CI theo [Architecture](Folder-ARCHITECTURE.md). CD AWS là giai đoạn sau; từng service có database/migration riêng, không dùng FK xuyên service của baseline.
+- Frontend ReactJS + Vite, Gateway và năm scaffold NestJS hiện có sẽ được mở rộng; module upload nằm trong Catalog. Recommendation dùng Python/FastAPI triển khai sau với môi trường dependency riêng. Mỗi ứng dụng Node có package và lockfile riêng. ORM/migration/token phải đáp ứng SRS.
+- Cấu trúc repository, service ownership, Kafka topic, Compose và CI theo [Architecture](Folder-ARCHITECTURE.md). CD AWS là giai đoạn sau; từng service có database/migration riêng, không dùng FK xuyên service của baseline.
 
 ### 10.3. Điều kiện hoàn thành phần mềm
 
