@@ -1,8 +1,8 @@
 # AI Agent Guide - Nexora
 
 Read this file when starting work in this repository. Development rules are
-included below so Codex discovers them with the project instructions. See the
-[Codex setup guide](.codex/README.md) for configuration, roles, skills, and checks.
+included below so Codex discovers them with the project instructions. Project
+Codex settings and agent roles are in `.codex/config.toml` and `.codex/agents/`.
 
 ## Scope and working agreements
 
@@ -29,20 +29,19 @@ Last reviewed: 2026-10-20. Verify and update this table as the code evolves.
 | `frontend`                                                                                    | React/Vite/TypeScript scaffold                                                                           |
 | `api-gateway`                                                                                 | NestJS scaffold with `/health`; business routes are not implemented                                      |
 | `auth-service`, `catalog-service`, `order-service`, `payment-service`, `notification-service` | Five NestJS backend scaffolds with `/health`                                                             |
-| Docker/PostgreSQL                                                                             | Compose, a shared Dockerfile, and one PostgreSQL instance with five separate application databases/users |
-| Application persistence                                                                       | Compose provides `DATABASE_URL`; adapters, ORM, migrations, and seeds are not implemented                |
+| Docker/PostgreSQL                                                                             | Compose, one Dockerfile per application, and PostgreSQL with five separate application databases/users |
+| Application persistence                                                                       | Compose provides `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`; adapters, ORM, migrations, and seeds are not implemented |
 | Recommendation                                                                                | Planned as Python/FastAPI; no code, container, or database yet                                           |
 | Kafka, Redis, Elasticsearch                                                                   | Planned infrastructure; not provisioned in the current stack                                             |
 
 Image uploads, metadata, and Cloudinary integration belong to Catalog. Do not
-introduce a separate image service. Future Recommendation code is independent
-of npm workspaces; do not create a NestJS scaffold for it.
+introduce a separate image service. Future Recommendation will be a separate Python/FastAPI application; do not create a NestJS scaffold for it.
 
 ## Documentation map
 
 | Question                                                        | Source                                                               |
 | --------------------------------------------------------------- | -------------------------------------------------------------------- |
-| How does the project run today?                                 | [README](README.md), `package.json`, `compose.yaml`, and actual code |
+| How does the project run today?                                 | [README](README.md), each app folder's `package.json`, `docker-compose.yml`, and actual code |
 | Who owns data and coordinates services?                         | [Architecture](docs/Folder-ARCHITECTURE.md)                          |
 | What are the user flows, planned APIs, and acceptance criteria? | [SRS](docs/SRS.md), relevant FR/UC/TC entries                        |
 | What are the business rules and scope?                          | [BRD](docs/BRD.md)                                                   |
@@ -94,11 +93,12 @@ implemented.
 
 ## 2. Code and dependencies
 
-- Use npm workspaces and the root `package-lock.json`. Follow root `package.json`
-  and `.nvmrc` for Node/npm versions. Do not create per-workspace Node lockfiles.
-- Install dependencies in the owning workspace, for example
-  `npm install <package> --workspace=@nexora/auth-service`, and update the root
-  lockfile. Avoid package-manager changes or broad upgrades within small tasks.
+- Each application is independent and has its own `package.json` and
+  `package-lock.json`. Run npm commands from that application folder. Use Node 24
+  and npm 11 as recorded in `.nvmrc` and each package's `engines`.
+- Install a dependency only in the application that needs it, for example, from
+  `auth-service`: `npm install <package>`. Avoid package-manager changes or broad
+  upgrades within small tasks. Do not import source files from another service.
 - Backend code uses strict TypeScript and ESM/NodeNext. Preserve `.js` extensions
   on relative imports. Frontend code follows its own Vite configuration.
 - Keep controllers thin, business logic in providers/services, and persistence
@@ -107,8 +107,9 @@ implemented.
   established convention.
 - Create modules and abstractions for current features. Do not generate empty
   files from the illustrative Architecture directory tree.
-- Use existing tools: Prettier, backend Oxlint, and frontend ESLint. Format only
-  relevant files; avoid repository-wide `npm run format` during small tasks.
+- Use ESLint in every Node application and Prettier for formatting. Each app has
+  its own config and development dependencies. Format only relevant files; avoid
+  formatting every app during small tasks.
 
 ## 3. Contracts and business data
 
@@ -136,8 +137,7 @@ implemented.
 
 ## 4. Local environment, data, and configuration
 
-- Run only PostgreSQL by default. Start applications needed for the task; the
-  `apps` profile starts the whole stack and multiple watch processes.
+- `docker compose up` starts the full stack. To limit resource use, start only the services needed for the task, such as `docker compose up -d postgres`.
 - Preserve existing `.env` values. Add nonsecret examples to `.env.example` and
   document how the application loads configuration.
 - Keep secrets out of logs and reports. Use `docker compose config --quiet` for
@@ -153,9 +153,9 @@ implemented.
 
 ## 5. Validation and reporting
 
-- Select checks using [Codex setup guide](.codex/README.md). A declared script may lack its
-  required config or tests: backend e2e scripts currently have no
-  `vitest.config.e2e.ts`, and frontend has no test script.
+- Select checks using the scripts in the affected application's `package.json`.
+  A declared script may lack its required config or tests: backend e2e scripts
+  currently have no `vitest.config.e2e.ts`, and frontend has no test script.
 - Test observable behavior and relevant errors, races, and retries. Mock tests do
   not demonstrate real database or provider integration.
 - For Markdown-only changes, check content, links, formatting, and diffs. Do not

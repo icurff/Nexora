@@ -10,7 +10,7 @@
 | Trạng thái | Bản dự thảo để rà soát trước triển khai |
 | Phạm vi | Ecommerce đa ngành chạy local, catalog synthetic từ RetailRocket, chuẩn bị tích hợp recommendation |
 | Cơ sở | Yêu cầu web đã thống nhất và phần tiền xử lý trong tài liệu Build cùng hai notebook; catalog đa ngành, metadata demo và placeholder |
-| Tài liệu liên quan | [SRS](SRS.md), [Kiến trúc microservices và monorepo](Folder-ARCHITECTURE.md), [Database baseline](DATABASE_DESIGN.md) |
+| Tài liệu liên quan | [SRS](SRS.md), [Kiến trúc microservices](Folder-ARCHITECTURE.md), [Database baseline](DATABASE_DESIGN.md) |
 
 ## Mục lục
 
@@ -32,7 +32,7 @@ Nexora là đồ án ecommerce có định hướng tích hợp hệ thống g�
 
 Tiến độ AI chưa sẵn sàng, vì vậy giai đoạn hiện tại phải tạo được một cửa hàng hoạt động độc lập. Website cần hoàn chỉnh luồng mua hàng COD, thanh toán trực tuyến qua payOS và vận hành của admin, đồng thời thu thập hành vi nhất quán để tránh phải thiết kế lại khi tích hợp AI.
 
-Tại thời điểm cập nhật, workspace có frontend React + Vite, API gateway và năm scaffold NestJS: Auth, Catalog, Order, Payment, Notification, cùng Docker/Compose và PostgreSQL. Catalog sẽ sở hữu upload/metadata ảnh. Recommendation dự kiến dùng Python/FastAPI ở giai đoạn sau, chưa có mã nguồn. Các nghiệp vụ bên dưới là yêu cầu cần triển khai.
+Tại thời điểm cập nhật, repository có frontend React + Vite, API gateway và năm scaffold NestJS độc lập: Auth, Catalog, Order, Payment, Notification, cùng Docker/Compose và PostgreSQL. Mỗi ứng dụng Node có package và lockfile riêng. Catalog sẽ sở hữu upload/metadata ảnh. Recommendation dự kiến dùng Python/FastAPI ở giai đoạn sau, chưa có mã nguồn. Các nghiệp vụ bên dưới là yêu cầu cần triển khai.
 
 <a id="objectives"></a>
 ## 2. Mục tiêu và tiêu chí thành công

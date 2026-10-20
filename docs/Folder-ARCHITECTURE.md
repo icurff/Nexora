@@ -1,18 +1,18 @@
-# Kiến trúc microservices và monorepo — Nexora
+# Kiến trúc microservices — Nexora
 
 | Thông tin | Giá trị |
 |---|---|
-| Phiên bản | 1.7 |
+| Phiên bản | 1.9 |
 | Ngày | 20/10/2026 |
 | Trạng thái | Frontend, Gateway và năm dịch vụ NestJS ở mức scaffold; Docker/Compose và PostgreSQL đã có; Recommendation FastAPI, messaging, cache/search, nghiệp vụ và CI triển khai sau |
 | Stack | Hiện tại ReactJS + Vite, NestJS, PostgreSQL; dự kiến Kafka, Elasticsearch, Redis, Cloudinary và Python/FastAPI cho Recommendation |
-| Phát triển | Monorepo bằng npm workspaces; Docker Compose local là môi trường chính |
+| Phát triển | Mỗi ứng dụng Node độc lập trong thư mục riêng; Docker Compose local dùng khi cần |
 | Triển khai sau | AWS; giai đoạn đầu có thể dùng EC2 + Compose, sau đó chuyển ứng dụng sang ECS |
 | Liên quan | [BRD](BRD.md), [SRS](SRS.md), [Database baseline](DATABASE_DESIGN.md) |
 
 ## 1. Các quyết định chính
 
-Hiện tại có **5 service NestJS, 1 API gateway và 1 frontend**. Recommendation dự kiến là dịch vụ Python/FastAPI độc lập ở giai đoạn sau. npm workspaces chỉ quản lý các ứng dụng Node; Dockerfile dùng chung tại root cho Gateway và các backend NestJS.
+Hiện tại có **5 service NestJS, 1 API gateway và 1 frontend**. Recommendation dự kiến là dịch vụ Python/FastAPI độc lập ở giai đoạn sau. Mỗi ứng dụng Node có package, lockfile, cấu hình và Dockerfile riêng. Người mới có thể chạy từng ứng dụng từ thư mục tương ứng.
 
 Các quyết định để giữ khối lượng phù hợp với đồ án:
 
@@ -28,15 +28,15 @@ Các yêu cầu đã chốt vẫn được áp dụng: đăng nhập trước kh
 
 ## 2. Service và quyền sở hữu dữ liệu
 
-| Thành phần | Trách nhiệm | Dữ liệu sở hữu | Cổng container |
+| Thành phần | Trách nhiệm | Dữ liệu sở hữu | Cổng container / local |
 |---|---|---|---|
-| `frontend` | Web Customer/Admin, gọi API gateway, theo dõi kết quả checkout | Trạng thái giao diện | 5173 ở local dev |
-| `api-gateway` | Route API, CORS, xác thực đầu vào, rate limit, request ID, chuyển webhook payOS | Không có database nghiệp vụ | 3000 |
-| `auth-service` | Đăng ký/đăng nhập, phiên, khóa tài khoản, hồ sơ, địa chỉ, địa giới, token reset mật khẩu | `auth_db` | 3000 nội bộ |
-| `catalog-service` | Danh mục, Product/SKU, giá, upload/metadata/liên kết ảnh, tồn kho/reservation, import và tìm kiếm | `catalog_db`; Cloudinary adapter và index Elasticsearch dự kiến | 3000 nội bộ |
-| `order-service` | Giỏ tài khoản, quote, checkout, Saga orchestrator, đơn/snapshot/lịch sử/ghi chú, dashboard | `order_db` | 3000 nội bộ |
-| `payment-service` | Payment intent COD/payOS, payment link, webhook, đối chiếu provider, ghi nhận thu COD | `payment_db` | 3000 nội bộ |
-| `notification-service` | Mẫu email, nhận yêu cầu gửi, retry, trạng thái gửi và adapter SMTP/API | `notification_db` | 3000 nội bộ |
+| `frontend` | Web Customer/Admin, gọi API gateway, theo dõi kết quả checkout | Trạng thái giao diện | 5173 |
+| `api-gateway` | Route API, CORS, xác thực đầu vào, rate limit, request ID, chuyển webhook payOS | Không có database nghiệp vụ | container 3000 / local 3000 |
+| `auth-service` | Đăng ký/đăng nhập, phiên, khóa tài khoản, hồ sơ, địa chỉ, địa giới, token reset mật khẩu | `auth_db` | container 3000 / local 3001 |
+| `catalog-service` | Danh mục, Product/SKU, giá, upload/metadata/liên kết ảnh, tồn kho/reservation, import và tìm kiếm | `catalog_db`; Cloudinary adapter và index Elasticsearch dự kiến | container 3000 / local 3002 |
+| `order-service` | Giỏ tài khoản, quote, checkout, Saga orchestrator, đơn/snapshot/lịch sử/ghi chú, dashboard | `order_db` | container 3000 / local 3003 |
+| `payment-service` | Payment intent COD/payOS, payment link, webhook, đối chiếu provider, ghi nhận thu COD | `payment_db` | container 3000 / local 3004 |
+| `notification-service` | Mẫu email, nhận yêu cầu gửi, retry, trạng thái gửi và adapter SMTP/API | `notification_db` | container 3000 / local 3005 |
 | Recommendation (dự kiến) | Python/FastAPI: tracking, export, gợi ý, adapter AI | `recommendation_db` sẽ tạo khi triển khai | 8000 nội bộ, chưa có container |
 
 Ở local hiện dùng **một PostgreSQL container với 5 database và 5 tài khoản ứng dụng riêng**: Auth, Catalog, Order, Payment, Notification. Mỗi tài khoản chỉ truy cập database của mình. Database của Recommendation sẽ được tạo cùng dịch vụ FastAPI sau này.
@@ -108,7 +108,7 @@ Email được kích hoạt bởi service nội bộ/sự kiện, không có API
 
 - Auth sở hữu session/refresh token và trạng thái ACTIVE/LOCKED. Gateway gọi introspection nội bộ cho request cần đăng nhập để việc logout/khóa/đổi mật khẩu có hiệu lực với token cũ.
 - Gateway xóa header danh tính do client tự gửi, rồi chuyển context được ký hoặc service credential được kiểm chứng. Service đích vẫn kiểm tra role và quyền sở hữu tài nguyên.
-- Endpoint nội bộ không được frontend truy cập trực tiếp; Compose chỉ publish frontend và gateway. Không dùng một header `X-User-Id` không xác thực làm bằng chứng danh tính.
+- Endpoint nghiệp vụ backend không được frontend gọi trực tiếp; browser dùng Gateway. Compose publish các backend trên mọi interface của host để developer test trực tiếp bằng Postman/curl. Không dùng một header `X-User-Id` không xác thực làm bằng chứng danh tính.
 - Quyền tạo checkout được kiểm tra lúc tiếp nhận. Khóa tài khoản sau khi checkout đã được tiếp nhận không tự hủy nghiệp vụ đang chạy, tương tự quy tắc không tự hủy đơn cũ.
 
 ## 4. Saga orchestration tại Order
@@ -348,9 +348,9 @@ Job seed gọi module ảnh trong Catalog hoặc API nội bộ Catalog đã xá
 
 Cloudinary là provider bên ngoài. CI dùng test double cho adapter; nghiệm thu upload thật cần credential và kết nối mạng. Backup Nexora giữ metadata/URL; phục hồi bytes ảnh phụ thuộc chính sách lưu trữ của provider. Tham khảo [Cloudinary Node upload](https://cloudinary.com/documentation/node_image_and_video_upload).
 
-## 8. Cấu trúc monorepo
+## 8. Cấu trúc repository
 
-Repository hiện gồm frontend, Gateway và năm dịch vụ NestJS. Một root Dockerfile dùng chung build context monorepo, một root lockfile cho các workspace npm. Nghiệp vụ, migration, shared packages và CI là các bước tiếp theo.
+Repository hiện gồm frontend, Gateway và năm dịch vụ NestJS. Mỗi ứng dụng có `package.json`, `package-lock.json` và Dockerfile riêng; Compose nằm ở root để chạy PostgreSQL và kết hợp các ứng dụng khi cần. Nghiệp vụ, migration và CI là các bước tiếp theo.
 
 ```text
 nexora/
@@ -363,14 +363,15 @@ nexora/
 ├── notification-service/     # NestJS: email
 ├── docker/postgres/          # init năm DB/user; migration miền làm sau
 ├── docs/
-├── Dockerfile                # development/build/runtime dùng chung
-├── compose.yaml              # ứng dụng và PostgreSQL
-├── .dockerignore
+├── docker-compose.yml        # PostgreSQL và các ứng dụng
 ├── .env.example
-├── package.json
-├── package-lock.json
-└── tsconfig.base.json
+├── .nvmrc
+└── .prettierrc               # cấu hình format chung
 ```
+
+Mỗi thư mục frontend/backend còn có `package.json`, `package-lock.json`,
+`.dockerignore` và `Dockerfile` riêng. Cấu hình TypeScript/lint cũng nằm cạnh
+source code của ứng dụng đó.
 
 Recommendation sẽ được phát triển sau bằng Python/FastAPI, cổng nội bộ dự kiến 8000. Hiện chưa có thư mục mã nguồn, package npm, Docker image/container hoặc database cho dịch vụ này. Khi triển khai sẽ dùng cấu hình dependency, migration và Dockerfile Python riêng; giao tiếp qua HTTP/event schema, không import package NestJS. Các phần tracking/gợi ý bên dưới là hợp đồng thiết kế tương lai.
 
@@ -419,34 +420,41 @@ order-service/
 
 Tổ chức theo module nghiệp vụ, controller mỏng, service xử lý nghiệp vụ, repository làm việc với database. Saga provider trong Order lưu tiến trình, xử lý result và gửi command qua outbox. Catalog/Payment có command handler thực thi transaction local; các subscriber khác xử lý domain event. Có thể thêm lớp domain/application khi độ phức tạp thực tế cần, chưa cần tạo nhiều lớp rỗng cho mỗi module CRUD.
 
-### 8.2. npm workspaces và build
+### 8.2. Chạy và build từng ứng dụng
 
-Root `package.json` private tên `nexora`, khai báo tường minh các workspace frontend, api-gateway, auth-service, catalog-service, order-service, payment-service, notification-service và dùng một `package-lock.json`. Recommendation FastAPI tương lai có dependency/tooling Python riêng, không thuộc npm workspaces.
+Không cần npm workspaces. Mỗi thư mục ứng dụng Node có `package.json` và
+`package-lock.json` riêng, nên cài dependency hoặc chạy script ngay trong thư mục
+đó. Ví dụ, vào `auth-service`, chạy `npm install` lần đầu rồi
+`npm run start:dev`. Với frontend, vào `frontend` rồi chạy `npm install` và
+`npm run dev`. Node.js 24 và npm 11 được ghi trong `.nvmrc` và trường `engines`
+của từng ứng dụng.
 
-Dùng Node.js 24 và npm 11 theo `.nvmrc`/`packageManager`. Cài tại root bằng `npm ci`; root scripts `build`, `lint`, `typecheck`, `test`, `test:e2e` chạy các workspace có script tương ứng. Chạy riêng bằng `npm run build --workspace=@nexora/catalog-service`; thêm dependency bằng `npm install <package> --workspace=@nexora/catalog-service`. [npm workspaces](https://docs.npmjs.com/cli/v11/using-npm/workspaces/).
+TypeScript, ESLint và Vitest (backend) hoặc Vite (frontend) được cấu hình trong
+từng ứng dụng. Prettier có cấu hình chung ở root nhưng package Prettier được cài
+riêng trong từng ứng dụng. Không chia sẻ source code giữa các service; tích hợp qua HTTP
+hoặc message contract. Recommendation sau này là ứng dụng Python/FastAPI riêng
+với công cụ và môi trường Python.
 
-`.gitignore`, `.gitattributes`, Prettier và Oxlint dùng chung tại root. `tsconfig.base.json` chứa cấu hình chung cho NestJS; từng backend giữ package.json, nest-cli.json, tsconfig.json, tsconfig.build.json và Vitest config để build/test độc lập. Frontend giữ ESLint và cấu hình TypeScript riêng cho React/Vite. README mẫu và các cấu hình chung trùng lặp đã được gom về root.
-
-Không giữ Git repository hoặc package-lock riêng trong từng ứng dụng. npm có thể tạo node_modules con cho dependency khác phiên bản hoặc cache công cụ; đó là dữ liệu sinh tự động, không phải repository riêng và được Git bỏ qua.
-
-Khi bổ sung `packages/contracts`/`packages/platform`, thêm `packages/*` vào workspaces và build shared package trước các app phụ thuộc; hiện chưa có các package này nên root không gọi build:shared. Dependency nội bộ dùng phiên bản workspace tương thích; package exports trỏ đến JavaScript đã build, không chỉ dựa TypeScript path alias.
-
-Root Dockerfile hiện có các stage development/build/runtime và production-dependencies, build context là root monorepo để đọc lockfile. Runtime chỉ mang code build và production dependencies của workspace được chọn; không dùng node_modules Windows trong Linux container.
+Mỗi ứng dụng cũng có Dockerfile riêng. Compose tại root build từng image với
+context là thư mục ứng dụng đó, vì vậy dependency của ứng dụng này không được cài
+vào image của ứng dụng khác.
 
 ## 9. Docker Compose local
 
-Compose hiện tại cung cấp frontend, Gateway, năm service NestJS và PostgreSQL. Mặc định chỉ chạy PostgreSQL; profile `apps` bật ứng dụng khi cần tích hợp để giảm CPU/RAM trong lúc phát triển. PostgreSQL có năm database/user riêng và named volume bền vững. Kafka, Redis, Elasticsearch, công cụ quan sát, migration/seed và Recommendation FastAPI sẽ bổ sung sau; các phần thiết kế tương ứng không đồng nghĩa đã có container hoặc adapter.
+Tất cả container kết nối qua bridge network `nexora`; các service có thể tìm nhau bằng tên service trong Compose.
+
+
+Compose hiện tại định nghĩa frontend, Gateway, năm service NestJS và PostgreSQL; lệnh `docker compose up` khởi động tất cả. Để chỉ chạy PostgreSQL khi phát triển ứng dụng trên host, dùng `docker compose up -d --wait postgres`. Mỗi image build từ Dockerfile và lockfile trong thư mục ứng dụng tương ứng. PostgreSQL có năm database/user riêng và named volume bền vững. Compose truyền `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` và `DB_PASSWORD` riêng cho mỗi backend; ứng dụng chưa đọc các biến này do chưa có adapter database. Kafka, Redis, Elasticsearch, công cụ quan sát, migration/seed và Recommendation FastAPI sẽ bổ sung sau; các phần thiết kế tương ứng không đồng nghĩa đã có container hoặc adapter.
 
 ```powershell
-Copy-Item .env.example .env
-docker compose --profile apps up -d --build --wait --wait-timeout 240
+docker compose up -d --build --wait --wait-timeout 240
 # Chỉ chạy database khi phát triển ứng dụng trên host:
 docker compose up -d --wait postgres
 ```
 
-Frontend publish 5173, Gateway 3000, PostgreSQL 5432, chỉ trên loopback; có thể đổi cổng qua `.env`. Backend nội bộ dùng DNS Compose và không publish cổng. Healthcheck PostgreSQL chờ TCP sẵn sàng sau init; service phụ thuộc chờ `service_healthy`. `/health` của ứng dụng hiện kiểm tra tiến trình HTTP; readiness database sẽ đi cùng adapter. [Docker startup order](https://docs.docker.com/compose/how-tos/startup-order/).
+Frontend, Gateway, từng backend và PostgreSQL đều có cổng host riêng, publish trên mọi interface; cổng được cố định trong Compose. Trong Docker, Nest apps đều nghe cổng container 3000 và Gateway tiếp cận backend qua DNS Compose; mỗi backend cũng được publish ra cổng local riêng để test trực tiếp. Healthcheck PostgreSQL chờ TCP sẵn sàng sau init; service phụ thuộc chờ `service_healthy`. `/health` của ứng dụng hiện kiểm tra tiến trình HTTP; readiness database sẽ đi cùng adapter. [Docker startup order](https://docs.docker.com/compose/how-tos/startup-order/).
 
-Image development chạy Nest watch/Vite với source bind mount. Watch theo dõi file, biên dịch và restart khi sửa mã; chỉ bật ứng dụng đang cần để giảm CPU/RAM. Image runtime backend chạy JavaScript đã build. `docker compose down` giữ volume; `down -v` xóa dữ liệu. Init chỉ chạy khi volume trống, không tự migrate hay đổi mật khẩu role cũ. Chi tiết tại [README](../README.md).
+Compose target runtime cho Gateway và năm backend NestJS: các container chạy JavaScript đã build, không dùng Nest watch và không mount source. Sau khi sửa backend, build lại service bằng `docker compose up -d --build <service>`. Frontend vẫn chạy Vite watch với source mount. `docker compose down` giữ volume; `down -v` xóa dữ liệu. Init chỉ chạy khi volume trống, không tự migrate hay đổi mật khẩu role cũ. Chi tiết tại [README](../README.md).
 
 Khi triển khai provider, chỉ Payment nhận payOS keys, Notification nhận email credential và Catalog nhận Cloudinary credential. Frontend chỉ nhận public URL. Cấu hình ảnh dự kiến tại Catalog gồm `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `IMAGE_PUBLIC_ID_PREFIX`, `IMAGE_MAX_FILE_BYTES=5242880`, `IMAGE_UPLOAD_TIMEOUT_MS=30000`, `IMAGE_MAX_CONCURRENT_UPLOADS=4`. Các biến này chưa cần cho scaffold hiện tại; không giả lập READY khi thiếu cấu hình upload.
 
@@ -464,12 +472,12 @@ Worker phục hồi chạy định kỳ và khi khởi động, lấy lease/khó
 
 | Workflow | Kích hoạt | Nội dung |
 |---|---|---|
-| `ci.yml` | Pull request/push nhánh chính | npm ci tại root, build shared, lint/typecheck/test workspace liên quan, build ứng dụng và kiểm tra Docker image |
+| `ci.yml` | Pull request/push nhánh chính | npm ci, lint/typecheck/test và build trong từng thư mục ứng dụng bị ảnh hưởng; kiểm tra Docker image |
 | Integration job | Thay đổi checkout/payment/catalog/messaging hoặc contracts | Compose môi trường CI riêng, migrate/seed, kiểm tra Saga, duplicate message, recovery, webhook và upload/gắn ảnh qua Catalog; dùng provider test double ở CI |
 | `publish-images.yml` | Merge nhánh chính/tag khi cần có registry | Build runtime image từng ứng dụng, tag bằng Git SHA, push registry/ECR |
 | `deploy-aws.yml` | Khi chuẩn bị AWS; manual/environment gate hoặc release | Lấy đúng image SHA đã qua CI, migrate tương thích, deploy, smoke/health check, rollback image nếu lỗi |
 
-Có thể bắt đầu bằng build tất cả workspace vì repository còn nhỏ. Khi tối ưu, app thay đổi thì chạy matrix app đó; contracts/platform/root lockfile thay đổi thì tính cả các app phụ thuộc. Bộ kiểm tra integration cần bao phủ đường giao tiếp giữa service, không chỉ unit test từng service.
+CI có thể chạy các ứng dụng bị ảnh hưởng theo thư mục. Khi thay đổi quy ước hoặc Compose ở root, kiểm tra các ứng dụng liên quan. Bộ kiểm tra integration cần bao phủ đường giao tiếp giữa service, không chỉ unit test từng service.
 
 Pipeline không gọi payment thật để tạo giao dịch tiền. Nghiệm thu payOS thật có cấu hình và ca riêng. Email test dùng Mailpit/provider test adapter.
 
@@ -499,7 +507,7 @@ Migration chạy job một lần và tương thích với cả image cũ/mới t
 
 ## 11. Thứ tự triển khai
 
-Workspace đã có Git/npm workspaces, Docker/Compose và PostgreSQL. Frontend, Gateway và năm service NestJS là scaffold; nghiệp vụ và pipeline còn triển khai sau. Recommendation FastAPI chưa khởi tạo.
+Repository đã có Git, các ứng dụng Node độc lập, Docker/Compose và PostgreSQL. Frontend, Gateway và năm service NestJS là scaffold; nghiệp vụ và pipeline còn triển khai sau. Recommendation FastAPI chưa khởi tạo.
 
 1. Duy trì Docker/Compose và PostgreSQL hiện tại; bổ sung migrations theo service. Kafka, Redis, Elasticsearch triển khai ở bước riêng khi cần.
 2. Hoàn thành Auth + Gateway: auth, ownership, địa chỉ, đổi/reset mật khẩu qua Notification.
@@ -521,3 +529,5 @@ Các ca kiến trúc cần kiểm chứng khi triển khai: hai checkout tranh S
 | 1.4 | 16/10/2026 | Catalog đa ngành: cây danh mục/cấu hình thuộc tính, JSONB Product/SKU, snapshot options qua Saga, ảnh chung/ảnh SKU; Elasticsearch nested SKU + flattened options và projection danh mục con |
 | 1.5 | 17/10/2026 | Bổ sung đặc tả upload Cloudinary, retry và bảo toàn ảnh lịch sử |
 | 1.6 | 17/10/2026 | Hợp nhất Git và npm workspaces/lockfile tại root; gom cấu hình chung, bỏ README mẫu; phân biệt scaffold hiện có với hạ tầng/service còn phải triển khai |
+| 1.8 | 20/10/2026 | Bỏ npm workspaces; mỗi ứng dụng Node có package, lockfile và Dockerfile riêng; cập nhật hướng dẫn chạy cho người mới |
+| 1.9 | 20/10/2026 | Gán cổng local riêng cho từng ứng dụng để truy cập/test trực tiếp; giữ cổng container 3000 dùng chung cho NestJS |

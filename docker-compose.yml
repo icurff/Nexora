@@ -1,0 +1,220 @@
+﻿name: nexora
+
+services:
+  postgres:
+    image: postgres:17.11-bookworm
+    restart: unless-stopped
+    networks: [nexora]
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-nexora_admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-local_admin_change_me}
+      - POSTGRES_DB=postgres
+      - AUTH_DB_PASSWORD=${AUTH_DB_PASSWORD:-local_auth_change_me}
+      - CATALOG_DB_PASSWORD=${CATALOG_DB_PASSWORD:-local_catalog_change_me}
+      - ORDER_DB_PASSWORD=${ORDER_DB_PASSWORD:-local_order_change_me}
+      - PAYMENT_DB_PASSWORD=${PAYMENT_DB_PASSWORD:-local_payment_change_me}
+      - NOTIFICATION_DB_PASSWORD=${NOTIFICATION_DB_PASSWORD:-local_notification_change_me}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/01-databases.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+  api-gateway:
+    networks: [nexora]
+    image: nexora-api-gateway:dev
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      AUTH_SERVICE_URL: http://auth-service:3000
+      CATALOG_SERVICE_URL: http://catalog-service:3000
+      ORDER_SERVICE_URL: http://order-service:3000
+      PAYMENT_SERVICE_URL: http://payment-service:3000
+      NOTIFICATION_SERVICE_URL: http://notification-service:3000
+    ports:
+      - '${GATEWAY_PORT:-3000}:3000'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+  auth-service:
+    networks: [nexora]
+    image: nexora-auth-service:dev
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_NAME: auth_db
+      DB_USER: auth_user
+      DB_PASSWORD: ${AUTH_DB_PASSWORD:-local_auth_change_me}
+    ports:
+      - '3001:3000'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+#   catalog-service:
+#     networks: [nexora]
+#     image: nexora-catalog-service:dev
+#     build:
+#       context: ./catalog-service
+#       dockerfile: Dockerfile
+#       target: runtime
+#     restart: unless-stopped
+#     environment:
+#       PORT: 3000
+#       DB_HOST: postgres
+#       DB_PORT: '5432'
+#       DB_NAME: catalog_db
+#       DB_USER: catalog_user
+#       DB_PASSWORD: ${CATALOG_DB_PASSWORD:-local_catalog_change_me}
+#     ports:
+#       - '3002:3000'
+#     healthcheck:
+#       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 12
+#       start_period: 60s
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#
+#   order-service:
+#     networks: [nexora]
+#     image: nexora-order-service:dev
+#     build:
+#       context: ./order-service
+#       dockerfile: Dockerfile
+#       target: runtime
+#     restart: unless-stopped
+#     environment:
+#       PORT: 3000
+#       DB_HOST: postgres
+#       DB_PORT: '5432'
+#       DB_NAME: order_db
+#       DB_USER: order_user
+#       DB_PASSWORD: ${ORDER_DB_PASSWORD:-local_order_change_me}
+#     ports:
+#       - '3003:3000'
+#     healthcheck:
+#       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 12
+#       start_period: 60s
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#
+#   payment-service:
+#     networks: [nexora]
+#     image: nexora-payment-service:dev
+#     build:
+#       context: ./payment-service
+#       dockerfile: Dockerfile
+#       target: runtime
+#     restart: unless-stopped
+#     environment:
+#       PORT: 3000
+#       DB_HOST: postgres
+#       DB_PORT: '5432'
+#       DB_NAME: payment_db
+#       DB_USER: payment_user
+#       DB_PASSWORD: ${PAYMENT_DB_PASSWORD:-local_payment_change_me}
+#     ports:
+#       - '3004:3000'
+#     healthcheck:
+#       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 12
+#       start_period: 60s
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#
+#   notification-service:
+#     networks: [nexora]
+#     image: nexora-notification-service:dev
+#     build:
+#       context: ./notification-service
+#       dockerfile: Dockerfile
+#       target: runtime
+#     restart: unless-stopped
+#     environment:
+#       PORT: 3000
+#       DB_HOST: postgres
+#       DB_PORT: '5432'
+#       DB_NAME: notification_db
+#       DB_USER: notification_user
+#       DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-local_notification_change_me}
+#     ports:
+#       - '3005:3000'
+#     healthcheck:
+#       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 12
+#       start_period: 60s
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#
+  frontend:
+    networks: [nexora]
+    image: nexora-frontend:dev
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      API_PROXY_TARGET: http://api-gateway:3000
+      WATCH_POLLING: 'true'
+    ports:
+      - '${FRONTEND_PORT:-5173}:5173'
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5173 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+
+networks:
+  nexora:
+    driver: bridge
