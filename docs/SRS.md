@@ -4,7 +4,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
-| Phiên bản | 1.10 |
+| Phiên bản | 1.11 |
 | Ngày lập | 09/10/2026 |
 | Cập nhật | 17/10/2026 |
 | Trạng thái | Draft — sẵn sàng rà soát trước triển khai |
@@ -94,14 +94,14 @@ Tài khoản bị khóa bị từ chối các thao tác yêu cầu xác thực, 
 
 - ReactJS/TypeScript cho web, NestJS cho backend, PostgreSQL cho dữ liệu; Docker Compose phục vụ local.
 - Giao diện tiếng Việt, giá số nguyên VND; thời gian lưu theo UTC và hiển thị theo Asia/Ho_Chi_Minh.
-- API đi qua gateway local, ảnh đọc trực tiếp từ CDN; upload qua Media Service và đọc ảnh phụ thuộc Cloudinary; email phụ thuộc cấu hình nhà cung cấp, không phụ thuộc dịch vụ AI hoặc hãng vận chuyển.
-- Có snapshot địa giới local và Media Service/Cloudinary đã cấu hình; dữ liệu nguồn cần được chuẩn bị trước lần chạy đầy đủ.
+- API đi qua gateway local, ảnh đọc trực tiếp từ CDN; upload qua Catalog và đọc ảnh phụ thuộc Cloudinary; email phụ thuộc cấu hình nhà cung cấp, không phụ thuộc dịch vụ AI hoặc hãng vận chuyển.
+- Có snapshot địa giới local và module ảnh Catalog/Cloudinary đã cấu hình; dữ liệu nguồn cần được chuẩn bị trước lần chạy đầy đủ.
 - Nghiệm thu trên trình duyệt desktop và viewport điện thoại; không xây ứng dụng mobile native.
 
 <a id="functional"></a>
 ## 3. Yêu cầu chức năng
 
-Thiết kế triển khai gồm API gateway và sáu service Auth, Catalog, Order, Payment, Notification, Recommendation. Mỗi service sở hữu database riêng; HTTP phục vụ truy vấn đồng bộ, Kafka truyền Saga command/result và domain event; orchestrator tại Order lưu tiến trình bền vững, Catalog/Payment thực thi transaction local. Elasticsearch/Redis là projection/cache. Docker Compose local là môi trường chính; CI áp dụng ngay, CD AWS là giai đoạn sau. [Architecture](Folder-ARCHITECTURE.md) là đặc tả ranh giới service và tiến trình trung gian.
+Hiện tại hệ thống gồm API gateway và năm service NestJS: Auth, Catalog, Order, Payment, Notification, mỗi service có database riêng. Catalog sở hữu cả module ảnh/Cloudinary. Recommendation sẽ làm sau bằng Python/FastAPI, không có scaffold/container/database hiện tại. Kafka, Elasticsearch và Redis là hạ tầng thiết kế cho bước sau. Order là Saga orchestrator; HTTP cho truy vấn đồng bộ và Kafka dự kiến truyền command/result/event. Docker Compose local là môi trường chính. Xem [Architecture](Folder-ARCHITECTURE.md).
 
 Trong tài liệu này, transaction nguyên tử chỉ áp dụng trong một service. Nghiệp vụ xuyên service hoàn thành qua Saga có retry/compensation; trạng thái đang xử lý được lưu bền vững và không được hiển thị thành công sớm. Các use case mô tả trạng thái nghiệp vụ đích; Order orchestrator xác minh result đã commit từ Catalog/Payment trước khi tiến bước hoặc hoàn tất operation; domain event phục vụ subscriber sau commit.
 
@@ -162,7 +162,7 @@ Trong tài liệu này, transaction nguyên tử chỉ áp dụng trong một se
 | FR-INV-02 | Admin nhập/điều chỉnh tồn có lý do và lịch sử; không làm on hand thấp hơn reserved; không sửa số reserved bằng thao tác kiểm kê |
 | FR-ADM-01 | Admin tạo/sửa/nháp/mở bán/ngừng bán Product, thông số và lựa chọn SKU theo cấu hình danh mục; chống trùng tổ hợp; dữ liệu dùng trong reservation/đơn được bảo toàn; không xóa dây chuyền đơn |
 | FR-ADM-02 | Admin quản lý Category cha–con và attribute_config trong cùng form; chặn chu trình và thay đổi làm dữ liệu đang bán sai cấu hình. Brand chỉ là metadata seed, không có CRUD/API quản trị Brand; không có module/bảng thuộc tính riêng |
-| FR-ADM-03 | Media Service kiểm tra/upload ảnh qua stream/buffer giới hạn lên Cloudinary, quản lý metadata/trạng thái trong media_db và chống lặp; Catalog liên kết asset READY vào Product/SKU, chọn ảnh đại diện; không giữ file gốc, không xóa vật lý asset trong bản đầu để giữ lịch sử |
+| FR-ADM-03 | Module ảnh trong Catalog kiểm tra/upload JPEG/PNG/WebP qua stream/buffer giới hạn lên Cloudinary, lưu image_assets và trạng thái trong catalog_db; liên kết asset READY vào Product/SKU bằng transaction local; không giữ file gốc hoặc xóa vật lý ảnh lịch sử |
 | FR-ADM-04 | Admin tìm/lọc đơn, xem chi tiết, thêm ghi chú nội bộ và xem lịch sử; không lưu hãng vận chuyển/mã vận đơn |
 | FR-ADM-05 | Admin tìm Customer, xem thông tin nghiệp vụ cần thiết, khóa/mở có lý do; không xem mật khẩu hoặc reset mật khẩu giúp khách |
 | FR-ADM-06 | Dashboard phân biệt đơn tạo theo createdAt, đơn đang chờ, kết quả hủy/thất bại và tiền đã thu theo paidAt; tiền hàng/phí ship tách riêng |
@@ -177,7 +177,7 @@ Trong tài liệu này, transaction nguyên tử chỉ áp dụng trong một se
 | FR-DATA-01 | Seed 500 item trên 23 danh mục từ ba CSV theo manifest cố định, ID nguồn riêng, mapping category nguồn tách danh mục web; seed lại an toàn |
 | FR-DATA-02 | Chuẩn bị xuất dữ liệu hành vi có version để phía AI dùng sau; giữ event type, thời gian, item, định danh nội bộ; không xuất dữ liệu liên hệ/giao hàng |
 | FR-DATA-03 | Kiểm tra category mới nhất mỗi item, quota theo root và ba schema CSV theo mục 8.3; chặn import khi trùng khóa, thiếu tham chiếu, sai quota hoặc checksum |
-| FR-DATA-04 | Chuyển một dòng CSV thành một Product và một SKU mặc định; lưu ID/mã nguồn và thống kê lịch sử riêng, upload placeholder qua Media Service lên Cloudinary và gắn nhãn dữ liệu minh họa |
+| FR-DATA-04 | Chuyển một dòng CSV thành một Product và một SKU mặc định; lưu ID/mã nguồn và thống kê lịch sử riêng, upload placeholder qua module ảnh Catalog lên Cloudinary và gắn nhãn dữ liệu minh họa |
 | FR-EMAIL-01 | Tạo thông báo email xác nhận đơn và thông báo khi trạng thái đơn/thanh toán thay đổi; gửi bất đồng bộ, chống gửi trùng theo sự kiện và thử gửi lại lỗi tạm thời |
 | FR-EMAIL-02 | Email lỗi/không sẵn sàng không rollback hoặc chặn nghiệp vụ đơn; lưu trạng thái gửi để vận hành nhận biết và xử lý lại |
 | FR-LOC-01 | Phục vụ địa giới từ snapshot local có nguồn/ngày phiên bản; kiểm tra quan hệ tỉnh–đơn vị cấp xã, giữ tên/mã tại lúc đặt trong snapshot đơn |
@@ -393,7 +393,7 @@ Các bước ghi dữ liệu trong từng service phải nguyên tử; Order orc
 ### UC-25 — Quản trị ảnh
 
 - **Tác nhân:** Admin. **Dữ liệu:** ảnh chung Product hoặc ảnh gắn một SKU cùng Product, lựa chọn ảnh đại diện chung.
-- **Luồng:** Admin upload qua Gateway → Media nhận stream/buffer giới hạn, kiểm tra ảnh và upload Cloudinary → lưu ID/version/URL/metadata READY tại media_db → giải phóng buffer → trả mediaAssetId → Catalog xác minh asset READY qua HTTP nội bộ rồi gắn Product/variant_id tùy chọn, chọn ảnh đại diện. Chọn SKU ưu tiên ảnh SKU rồi ảnh chung; nhiều SKU được liên kết cùng asset. Browser tải trực tiếp CDN; backend không ghi bản gốc xuống filesystem.
+- **Luồng:** Admin upload qua Gateway → module ảnh Catalog kiểm tra và upload Cloudinary → ghi image_assets READY trong catalog_db → giải phóng buffer → trả imageAssetId → Catalog kiểm tra asset READY và ghi product_images trong transaction local. Ảnh SKU ưu tiên trước ảnh chung; browser đọc CDN, backend không giữ file gốc.
 - **Ngoại lệ:** định dạng/dung lượng sai bị từ chối; không nhận đường dẫn file tùy ý; lỗi upload không tạo tham chiếu hỏng. Gỡ liên kết ảnh đang dùng phải có ảnh thay thế hoặc trạng thái hợp lệ; không xóa vật lý asset Cloudinary trong bản đầu. Timeout chưa rõ kết quả giữ PENDING để đối soát, không trả READY; retry cùng key không sinh asset mới.
 - **Sau:** không làm hỏng lịch sử đơn; ảnh snapshot được giữ, UI fallback khi CDN không sẵn sàng. **Nghiệm thu:** TC-28, TC-53, TC-54.
 
@@ -450,7 +450,7 @@ Các bước ghi dữ liệu trong từng service phải nguyên tử; Order orc
 
 - **Tác nhân:** người phát triển, không phải endpoint công khai. **Đầu vào:** ba CSV từ notebook Build, manifest/version/checksum, placeholder đã upload CDN, snapshot địa giới và cấu hình local. Tái dựng CSV mới cần ba parquet clean.
 - **Luồng:** kiểm tra artifact/schema/quota/tham chiếu → kiểm tra/upload ảnh CDN → migration → seed danh mục/mapping/Product/SKU có version → tạo tài khoản demo → chạy service → kiểm tra 500 Product, 23 danh mục, 500 SKU mặc định và địa giới → restart kiểm tra bền vững.
-- **Ngoại lệ:** thiếu CSV/manifest/ảnh, trùng ID, sai checksum hoặc mapping thì dừng trước ghi catalog; lỗi ghi rollback cả lô. Seed lại không nhân đôi, tự reset hoặc ghi đè chỉnh sửa Admin. Placeholder đúng danh mục và truy cập được qua CDN là ảnh hợp lệ; CDN lỗi có fallback UI, không coi media đã sẵn sàng khi upload chưa thành công.
+- **Ngoại lệ:** thiếu CSV/manifest/ảnh, trùng ID, sai checksum hoặc mapping thì dừng trước ghi catalog; lỗi ghi rollback cả lô. Seed lại không nhân đôi, tự reset hoặc ghi đè chỉnh sửa Admin. Placeholder đúng danh mục và truy cập được qua CDN là ảnh hợp lệ; CDN lỗi có fallback UI, không coi ảnh đã sẵn sàng khi upload chưa thành công.
 - **Sau:** có hướng dẫn tái lập và export hành vi không chứa dữ liệu liên hệ. **Nghiệm thu:** TC-37, TC-38, TC-39, TC-42, TC-43, TC-44, TC-45.
 
 <a id="states"></a>
@@ -554,7 +554,7 @@ Client retry giữ event ID; thao tác mới thực sự tạo ID mới. Không 
 | Category | Danh mục cha–con không chu trình; attribute_config cho thông số và lựa chọn SKU; cấu hình không kế thừa |
 | Catalog dataset / Category mapping | Version/checksum, danh mục seed gắn root, mapping category RetailRocket về root và danh mục seed |
 | Variant | Mã SKU tự sinh, options JSONB và khóa tổ hợp chuẩn hóa chống trùng; giá và tồn riêng; SKU mặc định options rỗng |
-| Media | Media Service giữ asset Cloudinary, public_id/asset_id/version/secure_url và trạng thái upload; Catalog giữ media_asset_id, ảnh chung/ảnh SKU, thứ tự/alt text và projection URL |
+| Ảnh | Catalog sở hữu image_assets, Cloudinary adapter và product_images trong catalog_db; Order lưu snapshot asset/key/version/URL |
 | Cart | Customer sở hữu giỏ, các dòng SKU/quantity và phiên bản thay đổi |
 | Order/OrderItem | Mã đơn hiển thị, chủ đơn, trạng thái/thanh toán, snapshot, hạn, paidAt |
 | Reservation/Inventory history | Catalog lưu reservation/chi tiết theo checkout, snapshot SKU và ledger; tổng reserved đối soát với reservation HELD, gồm checkout đang xử lý |
@@ -646,7 +646,7 @@ Form báo lỗi cụ thể và giữ dữ liệu phù hợp để sửa. Nút đ
 | NFR-12 | Có request ID và log lỗi chẩn đoán không chứa dữ liệu bí mật; lịch sử nghiệp vụ có người/thời gian/lý do | Đối chiếu thao tác với log và lịch sử đơn/tồn |
 | NFR-13 | payOS secret chỉ ở cấu hình backend; webhook xác minh chữ ký và chống replay/ghi nhận trùng | Secret không xuất hiện ở bundle frontend/log; giả chữ ký, amount/orderCode sai và webhook lặp không tạo PAID giả hoặc transaction trùng |
 | NFR-14 | Auth chỉ lưu hash token reset một lần/hạn 30 phút; Notification mã hóa payload gửi token khi cần lưu job và xóa khi gửi xong/hết hạn; phản hồi không cho dò email; provider secret ngoài source/log | Kiểm tra token hết hạn/replay, phản hồi với email có/không có tài khoản và log/cấu hình |
-| NFR-15 | Bảy service backend có ownership riêng, gồm Media Service/media_db upload Cloudinary; Order orchestrator lưu Saga bền vững; Kafka command/result/event ít nhất một lần, consumer idempotent; ES/Redis không quyết định stock/payment; Compose và CI có hướng dẫn tái lập | Kiểm tra Saga restart/duplicate, ES/Redis lỗi và build repository; CD AWS chưa là điều kiện nghiệm thu local |
+| NFR-15 | Năm service NestJS có ownership riêng; Catalog sở hữu upload/metadata ảnh, Order điều phối Saga bền vững. Recommendation sẽ là Python/FastAPI độc lập ở giai đoạn sau. Kafka, ES/Redis và CI bổ sung sau Docker/PostgreSQL | Kiểm tra ownership, Compose/build; nghiệm thu Saga/recovery/search/cache khi các thành phần được triển khai |
 
 Không đặt SLA production hoặc chỉ tiêu tải đồng thời. Khi nghiệm thu ghi lại cấu hình máy và các vấn đề phản hồi quan sát được; trang không được treo vô hạn mà thiếu thông báo lỗi/thử lại. Chu kỳ xử lý nền và timeout kỹ thuật được cấu hình trong thiết kế, trong khi việc chặn xác nhận sau expiresAt là yêu cầu bắt buộc độc lập.
 
@@ -690,9 +690,9 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | POST /admin/products/:id/variants | Thêm SKU | Admin |
 | PATCH /admin/variants/:id | Sửa trường SKU được phép, không cập nhật tồn trực tiếp | Admin |
 | GET, POST, PATCH /admin/categories | Quản lý Category cha–con và attribute_config; không có API /admin/brands hoặc module thuộc tính riêng | Admin |
-| POST /admin/media | Gateway chuyển Media Service upload Cloudinary; multipart file + Idempotency-Key, trả mediaAssetId/status/metadata | Admin |
-| GET /admin/media/:id | Media Service trả trạng thái upload/metadata | Admin |
-| POST /admin/products/:id/images | Catalog gắn mediaAssetId READY vào Product/SKU | Admin |
+| POST /admin/images | Catalog upload Cloudinary; multipart file + Idempotency-Key, trả imageAssetId/status/metadata | Admin |
+| GET /admin/images/:id | Catalog trả trạng thái upload/metadata | Admin |
+| POST /admin/products/:id/images | Catalog gắn imageAssetId READY vào Product/SKU | Admin |
 | PATCH, DELETE /admin/products/:id/images/:imageId | Catalog sửa thứ tự/alt text/ảnh đại diện hoặc gỡ liên kết; không xóa asset Cloudinary | Admin |
 | GET /admin/inventory, /admin/inventory/:skuId/history | Tồn và lịch sử | Admin |
 | POST /admin/inventory/:skuId/adjustments | Nhập/kiểm kê có lý do | Admin |
@@ -708,22 +708,21 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 
 POST /auth/password-reset-requests nhận email và trả phản hồi chung; POST /auth/password-resets xác nhận token cùng mật khẩu mới. Các endpoint này công khai, được giới hạn tần suất và không tiết lộ tài khoản tồn tại. Không có endpoint wishlist, đổi email, mua lại, reset mật khẩu do Admin thực hiện thay khách, cổng thanh toán ngoài payOS, refund hoặc sửa nội dung đơn. Không có endpoint công khai để sửa ánh xạ dataset hoặc gửi event transaction.
 
-<a id="media-api"></a>
-#### 8.1.1. Hợp đồng API Media
+<a id="image-api"></a>
+#### 8.1.1. Hợp đồng API ảnh của Catalog
 
-Các route công khai có prefix `/api/v1`. Đây là đặc tả mục tiêu, chưa phải endpoint đã triển khai.
+Các route dưới đây là đặc tả mục tiêu và có prefix `/api/v1` khi qua Gateway. Catalog sở hữu upload, metadata, trạng thái và liên kết ảnh trong cùng `catalog_db`.
 
 | Method / route | Đích | Đầu vào / kết quả |
 |---|---|---|
-| `POST /admin/media` | Media | Admin; multipart `file` + `Idempotency-Key`; `201` khi READY mới, `200` khi trả lại kết quả READY đã lưu, `202` nếu cùng yêu cầu còn PENDING |
-| `GET /admin/media/:id` | Media | Admin; ID, trạng thái PENDING/READY/FAILED, metadata khi READY hoặc mã lỗi an toàn khi FAILED |
-| `POST /admin/products/:id/images` | Catalog | Admin; `mediaAssetId`, `variantId?`, `altText?`, `sortOrder?`, `isPrimary?`; tạo liên kết, giữ quy tắc cùng Product |
-| `PATCH /admin/products/:id/images/:imageId` | Catalog | Admin; sửa alt text/thứ tự/ảnh đại diện; thay asset bằng tạo liên kết mới |
-| `DELETE /admin/products/:id/images/:imageId` | Catalog | Admin; chỉ gỡ liên kết nếu catalog vẫn hợp lệ, không xóa asset Cloudinary |
-| `GET /internal/media/assets/:id` | Media | Service credential; trả metadata tin cậy để Catalog xác minh READY; route không công khai qua Gateway |
-| `POST /internal/media/uploads` | Media | Job seed với service credential; cùng validation/idempotency như upload Admin; route không công khai |
+| `POST /admin/images` | Catalog | Admin; multipart `file` + `Idempotency-Key`; 201 khi READY mới, 200 khi trả READY cũ, 202 khi PENDING |
+| `GET /admin/images/:id` | Catalog | Admin; trạng thái upload và metadata hoặc mã lỗi an toàn |
+| `POST /admin/products/:id/images` | Catalog | Admin; `imageAssetId`, `variantId?`, `altText?`, `sortOrder?`, `isPrimary?`; kiểm tra READY trực tiếp trong catalog_db |
+| `PATCH /admin/products/:id/images/:imageId` | Catalog | Sửa thứ tự/alt text/ảnh đại diện; thay asset bằng liên kết mới |
+| `DELETE /admin/products/:id/images/:imageId` | Catalog | Chỉ gỡ liên kết nếu Product vẫn hợp lệ; giữ asset lịch sử |
+| `POST /internal/catalog/images/uploads` | Catalog | Job seed đã xác thực; cùng validation/idempotency như upload Admin, không công khai |
 
-Lỗi quy ước: `400` thiếu file/key hoặc ảnh hỏng; `401/403` chưa xác thực/sai quyền; `404` asset không tồn tại; `409` cùng key khác payload hoặc gắn asset chưa READY; `413` vượt 5 MiB/file; `415` định dạng không hỗ trợ; `429` vượt giới hạn; `502/503/504` lỗi provider/service/timeout. Lỗi sau khi đã ghi nhận operation trả `mediaAssetId` để tra cứu khi có thể. Gateway đặt trần multipart có phần overhead hữu hạn, Media vẫn kiểm tra giới hạn file riêng; timeout request ngoài phải đủ bao phủ timeout upload bên trong.
+Lỗi: 400 thiếu key/file hoặc ảnh hỏng; 401/403 chưa xác thực/sai quyền; 404 asset không tồn tại; 409 cùng key khác payload hoặc asset chưa READY; 413 quá 5 MiB; 415 sai định dạng; 429 quá giới hạn; 502/503/504 lỗi provider/timeout. Không nhận URL/provider/READY do client tự khai. Timeout chưa rõ giữ PENDING và đối soát public_id trước khi upload lại. Gateway có trần multipart hữu hạn và timeout đủ cho upload; Catalog vẫn kiểm tra giới hạn riêng. Khi đã có operation, lỗi trả `imageAssetId` để tra cứu nếu có thể.
 
 ### 8.2. Hành vi lỗi ở mức nghiệp vụ
 
@@ -745,7 +744,7 @@ Lỗi quy ước: `400` thiếu file/key hoặc ảnh hỏng; `401/403` chưa x�
 - Manifest 500 sản phẩm đóng băng ba CSV, version, SHA-256 từng file, định danh/checksum đầu vào clean, phiên bản notebook, seed ngẫu nhiên 42, quota từng root và danh sách ID đã chọn. Đây là artifact bổ sung cần chuẩn bị khi bàn giao; notebook hiện chỉ xuất ba CSV.
 - Seed lại chỉ bổ sung phần thiếu theo ID ổn định, không nhân đôi hoặc ghi đè chỉnh sửa Admin. Reset là thao tác chủ động riêng, không chạy khi start.
 - Snapshot địa giới có mã, tên, quan hệ và ngày/nguồn; cập nhật là thao tác chủ động, không đổi snapshot đơn cũ.
-- Lớp cung cấp recommendation có thể thay nguồn trong tương lai; phiên bản này chỉ rule_based. Chưa chốt HTTP contract của Python service hoặc schema feature cho GNN.
+- Recommendation sẽ được xây bằng Python/FastAPI ở giai đoạn sau. Các yêu cầu rule_based, tracking/export và tích hợp model trong tài liệu là thiết kế tương lai; chưa có service, database hay contract Python được triển khai. Web không phụ thuộc Recommendation để mua hàng.
 - Export hành vi ở mức công cụ nội bộ, không cần màn hình Admin: có phiên bản, mốc thời gian, event ID/type, item RetailRocket nếu có, SKU nội bộ và định danh khách/phiên. Loại dữ liệu liên hệ, địa chỉ, token, ghi chú và query tự do khỏi bản xuất mặc định.
 - Phía AI quyết định hỗ trợ user/item mới và catalog ứng viên khi tích hợp; không tự gán Customer mới vào visitor lịch sử RetailRocket.
 
@@ -774,7 +773,7 @@ Lỗi quy ước: `400` thiếu file/key hoặc ảnh hỏng; `401/403` chưa x�
 - Parse ID nguyên không mất chính xác; ID nguồn lưu chuỗi thập phân chuẩn, không giữ hậu tố `.0` do pandas chuyển kiểu. Không ép ID CSV vào khóa chính identity trong DB. is_active chỉ nhận boolean hợp lệ, không dùng truthiness của chuỗi.
 - price là số nguyên VND dương, stock là số nguyên 0..100 trong snapshot seed. interactions/users là số nguyên dương, users <= interactions; chúng không tạo event hoặc giao dịch LIVE. Các miền synthetic này chỉ kiểm tra seed, không giới hạn giá/tồn Admin trong vận hành.
 - Seed 42 chọn trong sáu brand Nexora, Aurevia, Velmora, Orlena, Novaris, Elvora; giá sinh 50.000..3.000.000 VND rồi làm tròn xuống bội 10.000; tồn 0..100. Giá quan sát ở output là 60.000..2.990.000, không nhầm với miền sinh dữ liệu. Tên theo brand + loại + ID, SKU nguồn dạng NXR-00001, mô tả synthetic và URL placehold.co theo danh mục.
-- Validation `isna()` của notebook không chứng minh URL tải được ảnh hoặc chuỗi không rỗng. Import phải kiểm tra riêng, tải/chuyển ảnh JPEG/PNG/WebP hợp lệ, upload qua Media Service lên Cloudinary và kiểm tra CDN trước mở bán; không hotlink placehold.co làm media chính.
+- Validation `isna()` của notebook không chứng minh URL tải được ảnh hoặc chuỗi không rỗng. Import phải kiểm tra riêng, tải/chuyển ảnh JPEG/PNG/WebP hợp lệ, upload qua Catalog lên Cloudinary và kiểm tra CDN trước mở bán; không hotlink placehold.co làm ?nh chính.
 
 #### 8.3.3. Chuyển sang mô hình vận hành và ranh giới AI
 
@@ -849,8 +848,10 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-50 | Gửi email tạo đơn/thay đổi trạng thái, nhà cung cấp lỗi/tạm ngừng, worker retry cùng event | Đơn/payment không rollback; không tạo job trùng event key; dùng provider idempotency nếu hỗ trợ, ghi nhận hạn chế gửi lặp khi provider không hỗ trợ; retry/thất bại quan sát được, không lộ secret/token |
 | TC-51 | Orchestrator dừng sau reserve/trước gửi bước kế; duplicate command/result/event; Kafka gián đoạn rồi restart | Tiếp tục từ Saga step/result bền vững, timeout chưa rõ không tự bù; inbox/outbox không mất hiệu ứng; không tạo đơn hoặc reserve/release/ship/return hai lần |
 | TC-52 | ES/Redis lỗi, search event trễ/cũ; lọc options/giá/còn hàng ở nhiều ngành, danh mục cha | Search fallback cùng ngữ nghĩa; các điều kiện khớp cùng SKU, gồm danh mục con; checkout dùng PostgreSQL, stock/payment không lấy cache làm nguồn sự thật |
-| TC-53 | Upload Admin qua Gateway/Media/Cloudinary, gắn ảnh tại Catalog; thử giả URL/READY và gọi endpoint nội bộ từ client | Metadata ở media_db, Catalog xác minh READY và chỉ giữ liên kết/projection; URL HTTPS đúng; không lộ Cloudinary secret, chặn giả metadata/vượt quyền; không ghi file gốc |
+| TC-53 | Upload Admin qua Gateway/Catalog/Cloudinary; giả URL/READY hoặc gọi route seed từ client | Metadata và liên kết thuộc catalog_db, kiểm tra READY trong transaction local; URL HTTPS hợp lệ, chặn vượt quyền, không lộ secret hoặc giữ file gốc |
 | TC-54 | Retry cùng key/khác payload; timeout/restart sau upload trước commit DB; gắn ảnh lỗi rồi thử lại | Cùng key trả cùng asset hoặc PENDING, khác payload trả 409; phục hồi đúng asset sau đối soát, không upload trùng hoặc READY giả; gắn lại dùng asset đã có; giữ asset lịch sử |
+
+Các ca tracking/gợi ý trong bảng là tiêu chí cho giai đoạn Python/FastAPI sau; chưa yêu cầu chạy trong stack Docker/PostgreSQL hiện tại.
 
 ### 9.3. Ma trận truy vết chức năng
 
@@ -963,11 +964,11 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 ### 10.2. Đầu vào và cấu hình cần chuẩn bị
 
 - Workspace có dữ liệu RetailRocket raw và hai notebook kèm output đã lưu. Cần bàn giao ba CSV xuất, manifest/checksum, asset placeholder trên CDN và snapshot địa giới; tái chạy notebook cần chuẩn bị ba parquet clean theo đường dẫn cấu hình.
-- Cấu hình local gồm database theo service (gồm media_db), MEDIA_SERVICE_URL tại Gateway/Catalog và CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET chỉ tại Media Service, khóa xác thực và tài khoản demo. Không commit mật khẩu hoặc khóa thật.
+- Cấu hình hiện tại gồm năm database/user riêng cho Auth, Catalog, Order, Payment, Notification. Khi triển khai upload, Cloudinary credential chỉ cấp cho Catalog. Recommendation FastAPI có cấu hình/database riêng ở giai đoạn sau. Không commit mật khẩu/khóa thật.
 - Luồng payOS cần client ID, API key, checksum key, return/cancel URL và webhook URL được cấu hình phía backend. Thiếu cấu hình hoặc provider lỗi thì báo lỗi thanh toán, giữ đơn UNPAID; không giả lập thành công.
 - Email cần cấu hình nhà cung cấp SMTP/API và địa chỉ gửi phía backend; thiếu cấu hình thì báo trạng thái gửi lỗi/thử lại, không làm sai giao dịch đơn hàng.
 - Việc tải dữ liệu ban đầu có thể cần Internet/quyền truy cập nguồn; chạy demo sau chuẩn bị không cần gọi nguồn đó trực tiếp.
-- Frontend ReactJS + Vite và các scaffold NestJS hiện có được mở rộng; media-service cần được triển khai theo đặc tả [Media Service trong Architecture](Folder-ARCHITECTURE.md#media-service). Lựa chọn migration/ORM và chi tiết token thuộc thiết kế kỹ thuật, phải đáp ứng SRS.
+- Frontend ReactJS + Vite, Gateway và năm scaffold NestJS hiện có sẽ được mở rộng; module upload nằm trong Catalog. Recommendation dùng Python/FastAPI triển khai sau, không thuộc npm workspaces. ORM/migration/token phải đáp ứng SRS.
 - Monorepo/workspaces, service ownership, Kafka topic, Compose và CI theo [Architecture](Folder-ARCHITECTURE.md). CD AWS là giai đoạn sau; từng service có database/migration riêng, không dùng FK xuyên service của baseline.
 
 ### 10.3. Điều kiện hoàn thành phần mềm
@@ -1006,8 +1007,8 @@ Nếu yêu cầu mới thay đổi quyền, thời hạn, tồn, tiền, event h
 | 1.3 | 16/10/2026 | Bổ sung COD/payOS, xác minh thanh toán qua webhook, trạng thái thanh toán theo phương thức và TC-46–TC-48 |
 | 1.4 | 16/10/2026 | Bổ sung khôi phục mật khẩu và thông báo email; giới hạn quản trị catalog ở danh mục, không quản lý thương hiệu; TC-49–TC-50 |
 | 1.5 | 16/10/2026 | Microservices/Saga/Kafka/Elasticsearch/Redis, monorepo, Compose/CI và AWS sau; API checkout bất đồng bộ, transaction local/outbox/inbox; TC-51–TC-52 |
-| 1.6 | 16/10/2026 | Phương án choreography trước đây; Auth service; media provider/CDN thay upload/lưu ảnh local |
+| 1.6 | 16/10/2026 | Phương án choreography trước đây; Auth service; provider ảnh/CDN thay upload/lưu ảnh local |
 | 1.7 | 16/10/2026 | Chốt orchestration tại Order, Saga step/result/retry bền vững và command/result Kafka; giữ Auth service, CDN và domain event cho subscriber |
-| 1.8 | 16/10/2026 | Upload chuyển tiếp tới dịch vụ media/CDN ngoài; backend không giữ file gốc, database chỉ lưu asset metadata/URL; cập nhật FR-ADM-03/UC-25/TC-28 |
+| 1.8 | 16/10/2026 | Upload chuyển tiếp tới dịch vụ ảnh/CDN ngoài; backend không giữ file gốc, database chỉ lưu asset metadata/URL; cập nhật FR-ADM-03/UC-25/TC-28 |
 | 1.9 | 16/10/2026 | Catalog đa ngành với danh mục cha–con, cấu hình thuộc tính, attributes Product/options SKU JSONB, ảnh chung/ảnh SKU, snapshot lựa chọn và cập nhật các tiêu chí nghiệm thu liên quan; giữ hợp đồng CSV RetailRocket |
-| 1.10 | 17/10/2026 | Tách media-service/media_db, chốt upload Cloudinary; cập nhật FR-ADM-03/UC-25, API, cấu hình, bảo toàn asset và TC-53–TC-54 |
+| 1.10 | 17/10/2026 | Làm rõ hợp đồng upload ảnh/Cloudinary, retry và bảo toàn asset lịch sử |

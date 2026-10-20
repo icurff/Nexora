@@ -1,0 +1,11 @@
+# Project defaults. Explicit session/CLI model overrides can take precedence.
+model = "gpt-6-astra"
+model_reasoning_effort = "high"
+plan_mode_reasoning_effort = "high"
+review_model = "gpt-6-luna"
+
+[agents]
+enabled = true
+default_subagent_model = "gpt-6-luna"
+default_subagent_reasoning_effort = "high"
+max_concurrent_threads_per_session = 3

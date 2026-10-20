@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Nexora Backend'
+  short_description: 'Implement Nexora NestJS APIs and business logic'
+  default_prompt: 'Use $nexora-backend to implement or fix a Nexora API according to the current request.'

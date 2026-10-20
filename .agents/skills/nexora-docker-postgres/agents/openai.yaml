@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Nexora Docker & PostgreSQL'
+  short_description: 'Manage Nexora local containers and PostgreSQL'
+  default_prompt: 'Use $nexora-docker-postgres to address the current Nexora Docker or PostgreSQL task.'

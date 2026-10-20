@@ -4,7 +4,7 @@ Nexora là hệ thống thương mại điện tử bán lẻ đa ngành theo m�
 
 Trên cơ sở mục tiêu của đề tài, yêu cầu hệ thống được xác định thành hai nhóm: yêu cầu chức năng và yêu cầu phi chức năng. Phạm vi nghiên cứu được giới hạn phù hợp với dữ liệu RetailRocket, mô hình kinh doanh của Nexora và điều kiện thực hiện đồ án.
 
-Cập nhật ngày 17/10/2026: bổ sung Media Service và tích hợp Cloudinary theo [đặc tả Media Service](Folder-ARCHITECTURE.md#media-service).
+Cập nhật ngày 20/10/2026: module ảnh/Cloudinary thuộc Catalog; Recommendation triển khai sau bằng Python/FastAPI. Stack hiện tại chỉ có Gateway, năm service NestJS, frontend và PostgreSQL.
 
 ## 1. Yêu cầu chức năng
 
@@ -53,7 +53,7 @@ Hệ thống cung cấp danh sách sản phẩm gợi ý tại các vị trí ph
 | Nhóm chức năng | Nội dung yêu cầu |
 |---|---|
 | Quản lý sản phẩm | Thêm, cập nhật nội dung/thông số chung, hình ảnh, lựa chọn SKU có giá/tồn riêng và trạng thái kinh doanh |
-| Quản lý hình ảnh | Upload ảnh qua Media Service lên Cloudinary; gắn asset sẵn sàng vào Product/SKU, chọn ảnh đại diện và giữ ảnh lịch sử khi thay/gỡ liên kết |
+| Quản lý hình ảnh | Upload ảnh qua module ảnh Catalog lên Cloudinary; gắn asset sẵn sàng vào Product/SKU, chọn ảnh đại diện và giữ ảnh lịch sử khi thay/gỡ liên kết |
 | Quản lý danh mục | Tổ chức danh mục cha–con và cấu hình thông số/lựa chọn theo ngành hàng trong cùng form; không có quản lý thương hiệu hoặc module thuộc tính riêng |
 | Quản lý tồn kho | Theo dõi số lượng hàng trong kho, số lượng đang giữ cho đơn hàng và số lượng có thể bán; ghi nhận nhập hàng, điều chỉnh tồn kho |
 | Quản lý đơn hàng | Tra cứu, xác nhận, hủy đơn theo điều kiện; cập nhật quá trình giao hàng, kết quả giao và tình trạng thanh toán COD/payOS |
@@ -125,7 +125,7 @@ Hệ thống cần thông báo rõ kết quả thao tác, trạng thái đang x�
 
 Hệ thống được định hướng xây dựng theo kiến trúc microservices, trong đó các dịch vụ được phân chia theo trách nhiệm nghiệp vụ và giao tiếp thông qua giao diện xác định. Cách tổ chức này nhằm tạo điều kiện phát triển, cập nhật và mở rộng từng thành phần, đặc biệt là dịch vụ gợi ý có nhu cầu xử lý khác với nghiệp vụ bán hàng.
 
-Thiết kế triển khai chọn monorepo gồm API gateway và bảy dịch vụ auth, catalog, media, order, payment, notification, recommendation. Order chứa Saga orchestrator, phối hợp transaction local tại Catalog/Payment qua command/result Kafka; domain event phục vụ subscriber sau commit; Elasticsearch phục vụ tìm kiếm, Redis phục vụ cache/counter. Media Service kiểm tra và upload ảnh lên Cloudinary, sở hữu metadata asset trong media_db và credential upload. Catalog quản lý liên kết ảnh Product/SKU cùng projection URL; frontend đọc ảnh từ Cloudinary CDN. Nexora chỉ lưu metadata/asset ID/URL, không lưu file gốc riêng. Upload mới cần Media và Cloudinary sẵn sàng; gắn asset đã READY cần xác minh qua Media; lỗi CDN có fallback giao diện. Bản đầu giữ asset đã upload, chỉ cho gỡ liên kết để bảo toàn lịch sử đơn. Phát triển chủ yếu bằng Docker Compose local, có CI và lộ trình CD lên AWS sau. Ranh giới dữ liệu, cấu trúc thư mục và cơ chế phục hồi được đặc tả trong [Kiến trúc microservices và monorepo](Folder-ARCHITECTURE.md).
+Monorepo hiện có API gateway và năm dịch vụ NestJS: auth, catalog, order, payment, notification. Catalog sở hữu upload/metadata/liên kết ảnh trong catalog_db và credential Cloudinary; browser đọc CDN, không giữ file gốc trong Nexora. Recommendation sẽ được xây sau bằng Python/FastAPI, không thuộc workspace npm và chưa có container/database. Order điều phối Saga bền vững; Kafka command/result/event, Elasticsearch và Redis sẽ được bổ sung riêng sau đợt Docker/PostgreSQL. CI/CD cũng là bước sau. Xem [Kiến trúc microservices và monorepo](Folder-ARCHITECTURE.md).
 
 Việc thay đổi mô hình gợi ý cần hạn chế ảnh hưởng đến các chức năng thương mại điện tử. Mỗi dịch vụ phải có trách nhiệm quản lý dữ liệu rõ ràng, tránh phụ thuộc trực tiếp vào cấu trúc lưu trữ nội bộ của dịch vụ khác. Khả năng mở rộng được xem xét ở mức thiết kế và thử nghiệm trong phạm vi đồ án, không mặc định tương đương khả năng vận hành quy mô lớn.
 

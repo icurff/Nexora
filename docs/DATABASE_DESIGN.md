@@ -2,8 +2,8 @@
 
 | Thông tin | Giá trị |
 |---|---|
-| Phiên bản | 1.9 |
-| Ngày | 17/10/2026 |
+| Phiên bản | 1.10 |
+| Ngày | 20/10/2026 |
 | Trạng thái | Baseline một database trước quyết định tách microservices; chưa có migration triển khai |
 | Hệ quản trị | PostgreSQL |
 | Tài liệu liên quan | [BRD](BRD.md), [SRS](SRS.md), [Architecture — thiết kế triển khai hiện tại](Folder-ARCHITECTURE.md) |
@@ -15,16 +15,16 @@ Thiết kế triển khai hiện tại theo [Architecture](Folder-ARCHITECTURE.m
 
 | Nội dung | Thiết kế microservices hiện tại thay cho baseline |
 |---|---|
-| Ownership | Bảy database/service: Auth, Catalog, Media, Order, Payment, Notification, Recommendation; local có thể cùng PostgreSQL instance |
+| Ownership | Hiện tại năm database/user riêng: Auth, Catalog, Order, Payment, Notification; Recommendation FastAPI có database riêng khi triển khai sau |
 | FK/JOIN | Chỉ trong database của service sở hữu; reference entity ngoài + snapshot hoặc projection, không FK xuyên service |
 | Reservation | Catalog có inventory_reservations/reservation_items; reserved đối soát với HELD tại catalog_db, gồm tiến trình checkout đang chạy |
 | Payment | Payment có payment_intents/payment_transactions/webhook receipts; trường payment trên Order là projection |
 | Tạo đơn và lifecycle | Transaction local + outbox/inbox + Saga orchestration tại Order; checkout_attempts/order_operations lưu step/status/version/result/retry, Catalog/Payment xử lý command; tiến trình bền vững, phục hồi/bù, không transaction chung đơn/kho/payment |
 | Tracking/email | Service nguồn ghi outbox; service đích ghi inbox/event hoặc notification job sau khi nhận Kafka; dữ liệu email tách tracking |
-| Media | media-service upload Cloudinary và sở hữu media_assets trong media_db; Catalog giữ media_asset_id/liên kết ảnh/projection URL, Order giữ snapshot; không lưu file gốc trong Nexora. Mục 4.5 và 4.5.1 là thiết kế media hiện hành thay baseline |
+| Ảnh | Catalog sở hữu image_assets, trạng thái upload/Cloudinary credential và product_images trong catalog_db; Order giữ snapshot, không giữ file gốc |
 | Search/cache | Elasticsearch là search projection của Catalog; Redis cache/counter; PostgreSQL vẫn quyết định stock/payment |
 | Catalog đa ngành | Thiết kế mục 4 hiện hành: cây Category/cấu hình thuộc tính, Product attributes, SKU options, ảnh chung/ảnh SKU; snapshot lựa chọn tại Order theo mục 6.2 |
-| Schema/migration | Theo từng service; 29 bảng baseline không phải tổng số bảng sau khi bổ sung Media, Saga, reservation, payment và outbox/inbox |
+| Schema/migration | Theo từng service; 29 bảng baseline không phải tổng số bảng triển khai sau khi bổ sung ảnh, Saga, reservation, payment, outbox/inbox; tracking/gợi ý dành cho FastAPI tương lai |
 
 1. [Các quyết định nền tảng](#decisions)
 2. [Danh sách bảng và quan hệ](#tables)
@@ -361,14 +361,14 @@ Sau khi SKU đã có reservation/đơn được chấp nhận, cấm sửa produ
 
 ### 4.5. `product_images` — liên kết ảnh tại Catalog
 
-Đây là schema media hiện hành trong `catalog_db`, thay phần metadata upload gộp trong bảng baseline. `media_assets` tại mục 4.5.1 thuộc `media_db`, không tính vào 29 bảng baseline. Catalog không quản lý trạng thái upload hoặc giữ credential Cloudinary.
+Cả `product_images` và `image_assets` tại mục 4.5.1 thuộc `catalog_db`. Catalog sở hữu upload, trạng thái, credential Cloudinary và liên kết ảnh. Bảng asset bổ sung không nằm trong 29 bảng baseline.
 
 | Cột | Kiểu | Null/default | Ý nghĩa |
 |---|---|---|---|
 | product_id | bigint | NN, FK products | Sản phẩm |
 | variant_id | bigint | NULL, FK product_variants | NULL là ảnh chung; có giá trị là ảnh dành cho một SKU cùng Product |
-| media_asset_id | bigint | NN, reference ngoài | ID nội bộ của media_assets; không FK xuyên database |
-| storage_key | varchar(500) | NN | Projection public_id Cloudinary do Media trả; không phải asset_id hoặc đường dẫn file |
+| image_asset_id | bigint | NN, FK image_assets | Asset do Catalog quản lý trong cùng database |
+| storage_key | varchar(500) | NN | public_id Cloudinary đã được module ảnh Catalog xác minh |
 | provider | varchar(50) | NN, CLOUDINARY | Projection nhà cung cấp |
 | cdn_url | text | NN | Projection secure_url HTTPS để đọc, không phải URL ký upload |
 | asset_version | varchar(100) | NN | Projection version Cloudinary; thay ảnh tạo asset mới |
@@ -379,27 +379,27 @@ Sau khi SKU đã có reservation/đơn được chấp nhận, cấm sửa produ
 | is_placeholder | boolean | NN, false | true cho ảnh minh họa theo danh mục của notebook |
 | created_at | timestamptz | NN | Thời gian |
 
-CHECK `sort_order >= 0`; FK ghép `(variant_id, product_id)` → product_variants `(id, product_id)` bảo đảm SKU thuộc cùng Product. Partial UQ `(product_id) WHERE is_primary = true`; CHECK ảnh đại diện phải là ảnh chung (`NOT is_primary OR variant_id IS NULL`). Index `(product_id, variant_id, sort_order, id)` và `(media_asset_id)`.
+CHECK `sort_order >= 0`; FK ghép `(variant_id, product_id)` → product_variants `(id, product_id)` bảo đảm SKU thuộc cùng Product. Partial UQ `(product_id) WHERE is_primary = true`; CHECK ảnh đại diện phải là ảnh chung (`NOT is_primary OR variant_id IS NULL`). Index `(product_id, variant_id, sort_order, id)` và `(image_asset_id)`.
 
-Không UQ toàn bảng trên media_asset_id: nhiều SKU/Product có thể dùng chung asset. Hai partial UQ chống lặp liên kết: `(product_id, media_asset_id) WHERE variant_id IS NULL` và `(product_id, variant_id, media_asset_id) WHERE variant_id IS NOT NULL`.
+Không UQ toàn bảng trên image_asset_id: nhiều SKU/Product có thể dùng chung asset. Hai partial UQ chống lặp liên kết: `(product_id, image_asset_id) WHERE variant_id IS NULL` và `(product_id, variant_id, image_asset_id) WHERE variant_id IS NOT NULL`.
 
-Catalog xác minh READY bằng API nội bộ Media trước khi mở transaction ghi liên kết và chỉ lưu metadata tin cậy từ response. Không có cột upload_status tại product_images; trạng thái upload do Media sở hữu. Bản đầu không xóa vật lý/ghi đè asset READY nên bước xác minh không cạnh tranh với thao tác xóa ở Media. Catalog khóa/version Product khi đổi ảnh đại diện, gỡ liên kết hoặc mở bán để bảo đảm Product ACTIVE luôn có ảnh chung hợp lệ.
+Catalog kiểm tra và khóa asset READY trong `catalog_db` trước khi ghi liên kết trong cùng transaction local. Trạng thái upload thuộc `image_assets`; `product_images` không lặp cột upload_status. FK `product_images.image_asset_id` tới `image_assets.id` là FK nội bộ Catalog. Khóa/version Product khi đổi ảnh đại diện, gỡ liên kết hoặc mở bán để bảo đảm Product ACTIVE có ảnh chung hợp lệ.
 
-Khi chọn SKU, ưu tiên ảnh SKU rồi ảnh chung/đại diện. Ảnh SKU tùy chọn; dùng chung asset chỉ tạo liên kết mới, không upload lại. Order/reservation giữ media_asset_id, public_id, provider, version và URL snapshot. Gỡ liên kết không xóa asset Cloudinary; giữ cả asset chưa gắn trong bản đầu. Dọn vật lý về sau cần giao thức xác minh tham chiếu Catalog/Order/reservation và chặn tham chiếu mới đồng thời, không dùng FK/JOIN xuyên DB.
+Khi chọn SKU, ưu tiên ảnh SKU rồi ảnh chung/đại diện. Ảnh SKU tùy chọn; dùng chung asset chỉ tạo liên kết mới, không upload lại. Order/reservation giữ image_asset_id, public_id, provider, version và URL snapshot. Gỡ liên kết không xóa asset Cloudinary; giữ cả asset chưa gắn trong bản đầu. Dọn vật lý về sau cần giao thức xác minh tham chiếu Catalog/Order/reservation và chặn tham chiếu mới đồng thời, không dùng FK/JOIN xuyên DB.
 
-Seed upload placeholder qua Media và xác minh READY trước transaction Catalog. Lưu source_url từ CSV, is_placeholder = true, variant_id = NULL, is_primary = true và alt_text nêu ảnh minh họa. Admin thay ảnh thật đặt is_placeholder = false nhưng không thay nguồn lịch sử Product.
+Seed upload placeholder qua Catalog và xác minh READY trước transaction Catalog. Lưu source_url từ CSV, is_placeholder = true, variant_id = NULL, is_primary = true và alt_text nêu ảnh minh họa. Admin thay ảnh thật đặt is_placeholder = false nhưng không thay nguồn lịch sử Product.
 
-### 4.5.1. `media_assets` — metadata tại Media Service
+### 4.5.1. `image_assets` — metadata tại module ảnh Catalog
 
-Bảng mới chỉ nằm trong `media_db`; migration, trạng thái upload và audit do Media sở hữu. Mỗi dòng biểu diễn một operation upload và asset tương ứng; tham khảo [Media Service](Folder-ARCHITECTURE.md#media-service) cho retry/đối soát.
+Bảng nằm trong `catalog_db`; migration, trạng thái upload, worker và audit do Catalog sở hữu. Mỗi dòng biểu diễn một operation upload và asset tương ứng. Xem [module ảnh Catalog](Folder-ARCHITECTURE.md#image-upload).
 
 | Cột | Kiểu | Null/default | Ý nghĩa |
 |---|---|---|---|
-| id | bigint identity | NN, PK | mediaAssetId trong API, serialize thành chuỗi |
+| id | bigint identity | NN, PK | imageAssetId trong API, serialize thành chuỗi |
 | provider | varchar(50) | NN, CLOUDINARY | Provider đã chốt |
 | cloud_name | varchar(255) | NN | Namespace tài khoản/môi trường Cloudinary; không phải secret |
 | provider_asset_id | varchar(255) | NULL trước READY | asset_id do Cloudinary trả, khác ID nội bộ và public_id |
-| public_id | varchar(500) | NN | ID do Media sinh trước upload; dùng đối soát sau timeout |
+| public_id | varchar(500) | NN | ID do Catalog sinh trước upload; dùng đối soát sau timeout |
 | resource_type / delivery_type | varchar(20) mỗi cột | NN, image / upload | Cấu hình cố định của upload ảnh công khai |
 | asset_version | varchar(100) | NULL trước READY | version Cloudinary |
 | secure_url | text | NULL trước READY | URL HTTPS từ Cloudinary; API trả dưới tên cdnUrl |
@@ -417,9 +417,9 @@ Bảng mới chỉ nằm trong `media_db`; migration, trạng thái upload và a
 
 UQ `(requester_scope, idempotency_key)`; UQ `(cloud_name, resource_type, delivery_type, public_id)`; partial UQ `(cloud_name, provider_asset_id) WHERE provider_asset_id IS NOT NULL`. Index `(upload_status, next_retry_at)` cho worker. CHECK status thuộc danh sách, attempt_count không âm; bytes/width/height dương khi có. READY bắt buộc provider_asset_id/version/secure_url/format/bytes/width/height đầy đủ và URL HTTPS hợp lệ. API/adapter kiểm tra nội dung, provider response và giới hạn file; CHECK DB không thay thế validation ảnh.
 
-Media ghi PENDING rồi upload ngoài transaction; chỉ ghi READY sau phản hồi thành công và commit metadata. Timeout chưa rõ kết quả giữ PENDING, worker đối soát public_id đã lưu; thiếu bytes sau restart thì client gửi lại cùng key sau khi đối soát. Không lưu ảnh/base64, API key/secret hoặc dữ liệu multipart vào bảng này. Catalog/Order không được cập nhật bảng trực tiếp.
+Catalog ghi PENDING rồi upload ngoài transaction; chỉ ghi READY sau thành công và commit metadata. Timeout chưa rõ giữ PENDING, worker đối soát public_id đã lưu; thiếu bytes sau restart thì client gửi lại cùng key sau đối soát. Không lưu ảnh/base64, API key/secret hoặc multipart. Chỉ module ảnh Catalog được thay đổi trạng thái; Order chỉ giữ snapshot.
 
-Khi chuyển dữ liệu cũ, migration/import có kiểm soát tạo media_assets từ metadata asset đã được Media xác minh, ánh xạ các liên kết trùng asset về cùng media_asset_id, rồi mới bắt buộc NN. Nếu asset cũ không ở Cloudinary, upload thành asset Cloudinary mới qua Media và giữ asset/URL lịch sử cũ; không đổi snapshot đơn. Không suy diễn public_id chỉ từ URL hoặc xóa asset cũ trong migration.
+Khi chuyển dữ liệu cũ, migration/import có kiểm soát tạo image_assets từ metadata asset đã được Catalog xác minh, ánh xạ các liên kết trùng asset về cùng image_asset_id, rồi mới bắt buộc NN. Nếu asset cũ không ở Cloudinary, upload thành asset Cloudinary mới qua Catalog và giữ asset/URL lịch sử cũ; không đổi snapshot đơn. Không suy diễn public_id chỉ từ URL hoặc xóa asset cũ trong migration.
 
 ### 4.6. Ví dụ SKU
 
@@ -612,7 +612,7 @@ Không cần FK từ đơn tới sổ địa chỉ. Snapshot là dữ liệu gia
 | product_name_snapshot | varchar(200) | NN | Tên tại lúc đặt |
 | sku_code_snapshot | varchar(64) | NN | Mã SKU tại lúc đặt |
 | options_snapshot | jsonb | NN, `{}` | Mã lựa chọn → `{label, value}` tại lúc đặt; giữ cả nhãn và giá trị, không tra cấu hình hiện hành để dựng lại |
-| image_media_asset_id_snapshot | bigint | NULL | ID media_assets của Media, reference ngoài không FK khi tách service |
+| image_asset_id_snapshot | bigint | NULL | ID image_assets của Catalog, reference ngoài không FK sang catalog_db |
 | image_storage_key_snapshot | varchar(500) | NULL | public_id Cloudinary tương ứng; đi kèm provider/version/CDN URL trong snapshot |
 | image_provider_snapshot | varchar(50) | NULL | Provider sở hữu asset lịch sử |
 | image_version_snapshot | varchar(100) | NULL | Version bất biến nếu có |
@@ -743,6 +743,8 @@ Có thể đối soát thêm tổng delta ledger với on_hand/reserved hiện t
 
 <a id="tracking"></a>
 ## 8. Recommendation, event và audit
+
+Các bảng tracking/gợi ý trong mục này là thiết kế cho dịch vụ Python/FastAPI ở giai đoạn sau. Chưa tạo recommendation_db, schema hoặc consumer trong hệ thống hiện tại.
 
 ### 8.1. `recommendation_requests`
 
@@ -951,7 +953,7 @@ Khóa product rồi variant, đọc reserved mới nhất, tính on_hand mới; 
 | Địa giới | Giữ các bản cũ; không cascade xóa địa chỉ |
 | UserAddress | Có thể xóa vật lý; đơn dùng snapshot độc lập |
 | ProductImage | Có thể gỡ liên kết nếu catalog vẫn hợp lệ; bản đầu không xóa vật lý asset Cloudinary, kể cả asset chưa gắn |
-| MediaAsset | Media sở hữu metadata/trạng thái upload; giữ asset READY và operation chống lặp để phục hồi, không TTL/xóa vật lý trong bản đầu |
+| ImageAsset | Catalog sở hữu metadata/trạng thái upload và operation chống lặp; giữ asset READY và lịch sử, chưa xóa vật lý trong bản đầu |
 | CartItem | Có thể xóa theo nghiệp vụ; FK cart_id cho phép ON DELETE CASCADE khi dọn giỏ |
 | Cart/Visitor/TrackingSession | Giữ trong demo; đánh trạng thái hết hạn, không cascade mất event |
 | Order/OrderItem/History/Movement | Giữ nguyên; không sửa/xóa lịch sử qua API |
@@ -962,7 +964,7 @@ Khóa product rồi variant, đọc reserved mới nhất, tính on_hand mới; 
 
 Tài khoản ứng dụng không có quyền DDL/TRUNCATE. Migration dùng tài khoản riêng. Với bảng append-only như order_items, history, movements, events và audit, quyền runtime chỉ SELECT/INSERT nếu workflow cho phép; UPDATE/DELETE bị chặn ở DB. Dùng trigger chặn thay đổi cột snapshot orders và sku_code/ý nghĩa SKU đã có đơn khi tạo migration. Những bất biến tổng nhiều bảng còn được bảo vệ bởi transaction và kiểm thử; không tuyên bố chỉ FK/CHECK đã bảo đảm toàn bộ nghiệp vụ.
 
-Giữ database/CSV/manifest bền vững. Backup Nexora gồm metadata asset/CDN URL và artifact seed, không có kho file gốc riêng. Cloudinary quản lý asset được upload qua Media Service; khả năng khôi phục bytes ảnh phụ thuộc cấu hình Cloudinary, không được bảo đảm chỉ bằng backup media_db.
+Giữ database/CSV/manifest bền vững. Backup Nexora gồm metadata asset/CDN URL và artifact seed, không có kho file gốc riêng. Cloudinary quản lý asset được upload qua Catalog; khả năng khôi phục bytes ảnh phụ thuộc cấu hình Cloudinary, không được bảo đảm chỉ bằng backup catalog_db.
 
 <a id="implementation"></a>
 ## 11. Index, dữ liệu nguồn và thứ tự triển khai
@@ -978,7 +980,7 @@ Bản đầu không phân vùng event, không thêm GIN cho mọi JSONB, không 
 1. Seed Admin bằng cấu hình local, lưu hash; không ghi mật khẩu thật vào tài liệu/repository.
 2. Nhập một location_dataset đầy đủ, provinces/wards rồi mới đánh is_current; không để bản dở dang thành hiện hành.
 3. Đọc/validate toàn bộ ba CSV và manifest trước ghi: schema 14/3/4 cột, count 500/23/1664 của snapshot đầu, ID duy nhất, category/root/name tham chiếu đúng, số nguyên/boolean hợp lệ, checksum và quota đúng. root của Product suy từ danh mục seed; không đòi category nguồn cấp item mà CSV không có. Tái xuất từ clean phải dùng latest category một dòng/item và kiểm tra cây như SRS 8.3.1.
-4. Đọc/kiểm tra placeholder bằng stream/buffer giới hạn, gửi qua Media Service bằng service credential và idempotency key ổn định; Media upload Cloudinary, Catalog xác minh asset READY/CDN trước transaction nhập lô. Không giữ file gốc trên filesystem hoặc gọi network khi giữ khóa DB. Upload thất bại thì chưa nhập catalog. Asset sau rollback catalog được giữ để seed lại dùng cùng ID, không tự dọn trong bản đầu.
+4. Đọc/kiểm tra placeholder bằng stream/buffer giới hạn, gửi qua module ảnh Catalog bằng service credential và idempotency key ổn định; Catalog upload Cloudinary, Catalog xác minh asset READY/CDN trước transaction nhập lô. Không giữ file gốc trên filesystem hoặc gọi network khi giữ khóa DB. Upload thất bại thì chưa nhập catalog. Asset sau rollback catalog được giữ để seed lại dùng cùng ID, không tự dọn trong bản đầu.
 5. Khóa tác vụ seed catalog để không chạy hai importer đồng thời. Trong một transaction, tạo/đối chiếu catalog_datasets; cùng version khác hash thì từ chối. Nhập categories theo `(seed_dataset_id, seed_category_id)`, parent_id NULL/attribute_config `{}` cho danh mục mới; giữ cây/cấu hình danh mục đã có. Nhập mappings qua ID nội bộ và nhãn brand metadata seed theo name_key. Không ép ID CSV vào identity và không gán provenance lên danh mục Admin trùng tên; xung đột phải báo để xử lý.
 6. Nhập Product mới theo source_item_id → retailrocket_item_id, lưu seed_product_id/seed_sku, danh mục seed và thống kê nguồn. Đối chiếu thêm cặp dataset/seed_product_id; nếu ID cũ trỏ item khác, source_item_id thuộc dataset khác hoặc Product đã có nhưng thiếu provenance cần thiết thì báo xung đột, không ghép tùy ý. category_id vận hành lúc tạo bằng seed_category_id nội bộ; về sau Admin được đổi category_id.
 7. Product mới có attributes `{}`, variant_option_keys `[]`, nhận một SKU options `{}`, mã vận hành sinh qua sequence, price = CSV.price, on_hand = CSV.stock, reserved = 0, first_reserved_at NULL; thêm ảnh chung seed variant_id NULL làm đại diện. Với tồn dương tạo INITIAL ledger; tồn 0 không tạo movement delta 0. Chỉ mở ACTIVE sau đủ kiểm tra, kể cả hết hàng; is_active false → INACTIVE.
@@ -999,7 +1001,7 @@ Bản đầu không phân vùng event, không thêm GIN cho mọi JSONB, không 
 | products.category_id, category_name | Tra danh mục seed, kiểm tra tên trên artifact; lưu products.seed_category_id và category_id lúc tạo |
 | products.price, stock | Một SKU mặc định: price, on_hand; reserved = 0 |
 | Không có thuộc tính trong CSV | Product attributes `{}`, variant_option_keys `[]`; SKU options `{}`; Category mới parent_id NULL/attribute_config `{}` |
-| products.image_url | product_images.source_url; upload qua Media lên Cloudinary, lưu media_asset_id và projection public_id/version/cdn_url; is_placeholder = true |
+| products.image_url | product_images.source_url; upload qua Catalog lên Cloudinary, lưu image_asset_id và projection public_id/version/cdn_url; is_placeholder = true |
 | products.is_active | true → ACTIVE sau validation, false → INACTIVE |
 | products.interactions, users | products.source_interactions/source_users; snapshot nguồn |
 | categories.category_id, root_categoryid, category_name | categories.seed_category_id, retailrocket_root_category_id, name |
@@ -1020,7 +1022,7 @@ products_demo không xuất categoryid của item, nên products.retailrocket_ca
 | 06 | Trigger bất biến, quyền runtime, chỉ mục bổ sung và seed |
 | 07 | password_reset_tokens, email_outbox, worker gửi email và chính sách dọn dữ liệu |
 
-Các đợt trên mô tả baseline, không bỏ tracking khỏi bản ecommerce hoàn chỉnh. Khi triển khai microservices, bổ sung migration media_db/media_assets độc lập trước seed ảnh; migration Catalog thêm media_asset_id và projection, Order/reservation thêm snapshot ID Media theo mục 4.5–4.5.1 và 6.2. Không tạo FK xuyên service. Nếu chọn Prisma khi triển khai, dùng migration SQL bổ sung cho partial index, function/trigger hoặc constraint mà schema ORM không diễn tả đầy đủ; không bỏ ràng buộc chỉ để vừa ORM.
+Các đợt trên là baseline nghiệp vụ. Triển khai hiện tại tạo migration cho năm service NestJS; module ảnh bổ sung image_assets và FK product_images.image_asset_id trong catalog_db trước seed ảnh. Order/reservation giữ snapshot asset, không FK xuyên service. Tracking/gợi ý và recommendation_db sẽ triển khai sau cùng Python/FastAPI; chưa tạo database hoặc migration cho phần đó. Nếu dùng Prisma, bổ sung SQL cho partial index/function/trigger/constraint cần thiết.
 
 ### 11.4. Chuyển từ thiết kế màu/size sang đa ngành
 
@@ -1067,13 +1069,13 @@ Workspace chưa có migration/schema nghiệp vụ triển khai; khi tạo mới
 | DB-26 | Thanh toán COD/payOS; webhook hợp lệ, giả chữ ký, sai số tiền, gửi lặp và webhook đến đơn hết hạn/hủy | Chỉ đúng khoản payOS được xác nhận; payment status, paid_at, reference và transaction không lệch hoặc ghi lặp | TC-46–TC-48 |
 | DB-27 | Reset token hợp lệ/sai/hết hạn/dùng lại; đổi mật khẩu đồng thời với phiên cũ | Chỉ một lần reset; thu hồi mọi phiên trong cùng transaction; token rõ không được lưu | TC-49 |
 | DB-28 | Thêm email_outbox trùng event key; provider lỗi và worker retry | Một hàng/event; lỗi email không rollback order/payment; retry có giới hạn/backoff và không lộ recipient/secret trong event/audit | TC-50 |
-| DB-29 | Upload lặp/timeout, commit media_db lỗi sau Cloudinary thành công; gắn/thay/gỡ ảnh tại Catalog | Một asset mỗi operation; READY có đủ metadata; liên kết không FK xuyên DB; giữ ảnh snapshot và phục hồi theo public_id | TC-28, TC-53, TC-54 |
+| DB-29 | Upload lặp/timeout, commit catalog_db lỗi sau Cloudinary thành công; gắn/thay/gỡ ảnh | Một asset mỗi operation; READY đủ metadata; FK ảnh trong Catalog; snapshot Order độc lập; phục hồi theo public_id | TC-28, TC-53, TC-54 |
 
 <a id="references"></a>
 ## 13. Nguồn kỹ thuật và lịch sử tài liệu
 
-- [Media Service](Folder-ARCHITECTURE.md#media-service): hợp đồng upload Cloudinary, chống lặp và bảo toàn asset; schema hiện hành tại mục 4.5–4.5.1.
-- [Cloudinary Upload API](https://cloudinary.com/documentation/image_upload_api_reference): metadata upload; adapter ánh xạ asset_id/public_id/version/secure_url sang media_assets.
+- [module ảnh Catalog](Folder-ARCHITECTURE.md#image-upload): hợp đồng upload Cloudinary, chống lặp và bảo toàn asset; schema hiện hành tại mục 4.5–4.5.1.
+- [Cloudinary Upload API](https://cloudinary.com/documentation/image_upload_api_reference): metadata upload; adapter ánh xạ asset_id/public_id/version/secure_url sang image_assets.
 - [Build Demo Catalog](../Data/Build_Demo_Catalog.docx): diễn giải tiền xử lý và hướng AI.
 - [Notebook Build](../Data/Build_Demo_Catalog.ipynb): thuật toán quota và schema ba CSV; chuẩn đối chiếu artifact.
 - [Notebook EDA](../Data/EDA_Exploratory_Data_Analysis.ipynb): số liệu nguồn và giới hạn merge category.
@@ -1092,10 +1094,10 @@ Workspace chưa có migration/schema nghiệp vụ triển khai; khi tạo mới
 | 1.2 | 16/10/2026 | Bổ sung COD/payOS; lưu payment link và reference trên orders; xác minh webhook, thanh toán idempotent và hết hạn đơn UNPAID |
 | 1.3 | 16/10/2026 | Bổ sung password_reset_tokens và email_outbox; nêu rõ Brand chỉ metadata seed, không có quản trị thương hiệu |
 | 1.4 | 16/10/2026 | Đánh dấu schema một database là baseline; liên kết thiết kế microservices thay thế ownership/FK/transaction, reservation/payment và search/cache |
-| 1.5 | 16/10/2026 | Phương án choreography trước đây; ownership Auth, provider/asset key/version/CDN URL và snapshot media |
-| 1.6 | 16/10/2026 | Chốt orchestration tại Order và lưu tiến trình Saga bền vững; giữ ownership Auth/media CDN; transaction local/outbox/inbox áp dụng tại participant |
+| 1.5 | 16/10/2026 | Phương án choreography trước đây; ownership Auth, provider/asset key/version/CDN URL và snapshot ảnh |
+| 1.6 | 16/10/2026 | Chốt orchestration tại Order và lưu tiến trình Saga bền vững; giữ ownership Auth/?nh CDN; transaction local/outbox/inbox áp dụng tại participant |
 | 1.7 | 16/10/2026 | storage_key là asset reference ngoài; Nexora chỉ lưu metadata/URL, không giữ file gốc hay backup file riêng |
 | 1.8 | 16/10/2026 | Catalog đa ngành: Category parent_id/attribute_config, Product attributes/variant_option_keys, SKU options/options_key và dấu đã reserve, ảnh chung/ảnh SKU, options_snapshot; seed/migration chuyển đổi và tiêu chí nghiệm thu liên quan |
-| 1.9 | 17/10/2026 | Bổ sung media_db/media_assets và idempotency upload Cloudinary; product_images chuyển sang liên kết/projection, thêm snapshot ID Media và DB-29 |
+| 1.9 | 17/10/2026 | Bổ sung metadata asset, idempotency upload Cloudinary và kiểm thử phục hồi ảnh |
 
 Tài liệu chưa tạo bảng thật, migration, seed hoặc kết quả kiểm thử phần mềm. Các ví dụ ID/giá chỉ minh họa thiết kế.

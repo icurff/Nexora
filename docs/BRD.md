@@ -4,7 +4,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
-| Phiên bản | 1.10 |
+| Phiên bản | 1.11 |
 | Ngày lập | 09/10/2026 |
 | Cập nhật | 17/10/2026 |
 | Trạng thái | Bản dự thảo để rà soát trước triển khai |
@@ -32,7 +32,7 @@ Nexora là đồ án ecommerce có định hướng tích hợp hệ thống g�
 
 Tiến độ AI chưa sẵn sàng, vì vậy giai đoạn hiện tại phải tạo được một cửa hàng hoạt động độc lập. Website cần hoàn chỉnh luồng mua hàng COD, thanh toán trực tuyến qua payOS và vận hành của admin, đồng thời thu thập hành vi nhất quán để tránh phải thiết kế lại khi tích hợp AI.
 
-Tại thời điểm cập nhật, workspace có frontend React + Vite và các bộ khung NestJS; thư mục media-service chưa có mã nguồn. Catalog demo dự kiến dựa trên dữ liệu RetailRocket. Các nghiệp vụ trong tài liệu này là yêu cầu cần triển khai, không phải xác nhận rằng hệ thống đã có các chức năng đó.
+Tại thời điểm cập nhật, workspace có frontend React + Vite, API gateway và năm scaffold NestJS: Auth, Catalog, Order, Payment, Notification, cùng Docker/Compose và PostgreSQL. Catalog sẽ sở hữu upload/metadata ảnh. Recommendation dự kiến dùng Python/FastAPI ở giai đoạn sau, chưa có mã nguồn. Các nghiệp vụ bên dưới là yêu cầu cần triển khai.
 
 <a id="objectives"></a>
 ## 2. Mục tiêu và tiêu chí thành công
@@ -79,7 +79,7 @@ Tác vụ tự hủy đơn hết hạn là hành vi của hệ thống, không p
 - Quản trị catalog, upload ảnh, tồn kho, đơn, Customer và dashboard.
 - Gửi email khôi phục mật khẩu và thông báo giao dịch/đơn hàng; không gửi SMS.
 - Tracking hành vi và gợi ý tạm thời theo quy tắc.
-- Frontend/backend chạy local; database lưu metadata media và URL CDN; Media Service riêng kiểm tra và upload ảnh lên Cloudinary, hệ thống không lưu file gốc riêng; kiểm thử các nghiệp vụ quan trọng.
+- Frontend/backend chạy local; database lưu metadata ?nh và URL CDN; module ảnh Catalog riêng kiểm tra và upload ảnh lên Cloudinary, hệ thống không lưu file gốc riêng; kiểm thử các nghiệp vụ quan trọng.
 - Monorepo React + Vite/NestJS; microservices với Saga orchestration tại Order, Kafka, Elasticsearch, Redis; Docker Compose là môi trường phát triển chính và CI kiểm tra repository. Chi tiết service/ownership tại [Architecture](Folder-ARCHITECTURE.md).
 
 ### 4.2. Ngoài phạm vi
@@ -149,7 +149,7 @@ Giao lại sau thất bại không xuất kho lần thứ hai. Báo thất bại
 
 ### 6.4. Quản lý catalog và tồn
 
-Admin tạo nháp, bổ sung nội dung/ảnh/SKU rồi mở bán. Ảnh được upload qua Media Service lên Cloudinary, sau đó Catalog gắn asset đã sẵn sàng vào Product/SKU. Thay hoặc gỡ liên kết ảnh không xóa asset cũ đang phục vụ lịch sử đơn; bản đầu chưa cung cấp xóa vật lý asset. Mở bán không bắt buộc có tồn dương, nhưng phải có ít nhất một SKU hợp lệ. Đổi giá và ngừng bán ảnh hưởng giao dịch mới, không thay đổi thông tin đã chụp trong đơn.
+Admin tạo nháp, bổ sung nội dung/ảnh/SKU rồi mở bán. Ảnh được upload qua Catalog lên Cloudinary, sau đó Catalog gắn asset đã sẵn sàng vào Product/SKU. Thay hoặc gỡ liên kết ảnh không xóa asset cũ đang phục vụ lịch sử đơn; bản đầu chưa cung cấp xóa vật lý asset. Mở bán không bắt buộc có tồn dương, nhưng phải có ít nhất một SKU hợp lệ. Đổi giá và ngừng bán ảnh hưởng giao dịch mới, không thay đổi thông tin đã chụp trong đơn.
 
 Thông số chung như chất liệu/hệ điều hành mô tả Product; các lựa chọn phân biệt mặt hàng có giá/tồn riêng nằm trên SKU. Không ép mọi sản phẩm có màu và size. Sản phẩm không có biến thể có một SKU mặc định. Danh mục quy định các mã thuộc tính được phép, không kế thừa cấu hình từ cha trong bản đầu. Đổi cấu hình/danh mục phải giữ dữ liệu đang bán hợp lệ; cây danh mục không được có chu trình.
 
@@ -217,7 +217,7 @@ Mỗi root được quota ban đầu min(5, số item của root). Phần còn l
 | categories_demo.csv | 23 dòng, 3 cột | Mã danh mục seed, root_categoryid và tên hiển thị |
 | category_mapping.csv | 1.664 dòng, 4 cột | Category nguồn → root → danh mục seed; chỉ gồm các root được chọn |
 
-23 tên danh mục như Electronics, Fashion, Gaming được gán để minh họa theo thứ tự root, không phải giải mã danh mục RetailRocket. Metadata dùng random seed 42; ảnh là placeholder theo danh mục. Website ghi rõ dữ liệu minh họa; ảnh seed được upload qua Media Service lên Cloudinary và đọc qua CDN, cần kết nối mạng khi chưa có cache. H&M không còn là đầu vào bắt buộc. Placeholder hợp lệ được chấp nhận cho catalog demo này; URL có giá trị nhưng chưa tải được ảnh không đủ điều kiện nghiệm thu.
+23 tên danh mục như Electronics, Fashion, Gaming được gán để minh họa theo thứ tự root, không phải giải mã danh mục RetailRocket. Metadata dùng random seed 42; ảnh là placeholder theo danh mục. Website ghi rõ dữ liệu minh họa; ảnh seed được upload qua Catalog lên Cloudinary và đọc qua CDN, cần kết nối mạng khi chưa có cache. H&M không còn là đầu vào bắt buộc. Placeholder hợp lệ được chấp nhận cho catalog demo này; URL có giá trị nhưng chưa tải được ảnh không đủ điều kiện nghiệm thu.
 
 ID Product trong database, product_id của CSV và source_item_id của RetailRocket phải phân biệt. SKU NXR của CSV được lưu như mã nguồn; SKU vận hành vẫn do hệ thống sinh. Một Product seed có attributes rỗng và một SKU options rỗng, giá và tổng tồn lấy đúng CSV. 23 danh mục seed ban đầu là danh mục gốc, chưa có cấu hình thuộc tính; Admin có thể tạo cây và cấu hình sau. Chuyển sang nhiều biến thể phải ngừng bán SKU mặc định và quản lý tồn từng SKU riêng. Sản phẩm mới chưa có ID RetailRocket vẫn được bán và dùng gợi ý theo quy tắc.
 
@@ -225,7 +225,7 @@ ID Product trong database, product_id của CSV và source_item_id của RetailR
 
 Tracking ghi view, search, thêm/giảm giỏ, tạo đơn, mua hoàn tất, hiển thị/click gợi ý. Không tin yêu cầu từ client để ghi sự kiện mua hoàn tất. Dữ liệu xuất cho AI không chứa email, điện thoại hoặc địa chỉ nhận hàng.
 
-Gợi ý giai đoạn này dùng quy tắc như cùng danh mục hoặc mức độ quan tâm trên website, có nhãn đúng với nguồn thực tế. Khả năng thích ứng/model GNN và chất lượng recommendation không thuộc tiêu chí hoàn thành ecommerce.
+Gợi ý dự kiến triển khai sau bằng Python/FastAPI, trước hết dùng quy tắc như cùng danh mục hoặc mức độ quan tâm trên website, có nhãn đúng với nguồn thực tế. Khả năng thích ứng/model GNN và chất lượng recommendation không thuộc tiêu chí hoàn thành ecommerce.
 
 Định hướng sau là huấn luyện offline trên dữ liệu RetailRocket clean, ánh xạ ID liên tục và chia tập theo thời gian, rồi giới hạn ứng viên về catalog demo qua source_item_id. Các cạnh VIEW/ADD_TO_CART/PURCHASE tương ứng view/addtocart/transaction; order_created chưa phải PURCHASE. Graph realtime và cập nhật trạng thái user/session cần hợp đồng riêng khi triển khai. Hai notebook hiện tại chưa thực hiện các bước training, temporal split, graph hoặc tích hợp realtime này; category mới nhất toàn kỳ chỉ phục vụ catalog, không mặc nhiên dùng làm feature quá khứ vì có nguy cơ rò rỉ thông tin tương lai.
 
@@ -241,8 +241,8 @@ Gợi ý giai đoạn này dùng quy tắc như cùng danh mục hoặc mức đ
 | A-05 | Cần ba CSV đã xuất, manifest có version/checksum, ảnh placeholder đã upload CDN và snapshot địa giới | Output lưu trong notebook chưa thay thế artifact thực để seed/nghiệm thu |
 | A-06 | RetailRocket là nguồn training của phía AI | Metadata synthetic chỉ phục vụ trình diễn; không diễn giải sai nguồn học |
 | A-07 | Thời gian xử lý nền phụ thuộc backend hoạt động | Có xử lý bù khi khởi động lại và chặn xác nhận đơn đã tới hạn |
-| A-08 | React + Vite, NestJS microservices, PostgreSQL theo service, Kafka, Elasticsearch, Redis; phát triển qua Docker Compose; bảy service backend gồm Auth, Catalog, Media, Order, Payment, Notification, Recommendation; cấu hình payOS/email/Cloudinary tại service sở hữu | Order orchestrator phối hợp transaction local bằng command/result Kafka; search/cache có thể đồng bộ trễ và không quyết định stock/payment |
-| A-09 | CI thực hiện ở giai đoạn local; CD lên AWS là lộ trình sau khi demo ổn định | Chưa cần triển khai backend lên AWS để nghiệm thu local; Media Service cần tài khoản/credential Cloudinary được cấu hình, triển khai AWS có pipeline riêng |
+| A-08 | React + Vite, Gateway và năm service NestJS Auth/Catalog/Order/Payment/Notification; PostgreSQL theo service, Docker Compose local. Upload/Cloudinary thuộc Catalog; Recommendation Python/FastAPI và Kafka/ES/Redis triển khai sau | Order điều phối Saga; search/cache không quyết định stock/payment; lỗi Recommendation không chặn mua |
+| A-09 | CI thực hiện ở giai đoạn local; CD lên AWS là lộ trình sau khi demo ổn định | Chưa cần triển khai backend lên AWS để nghiệm thu local; module ảnh Catalog cần tài khoản/credential Cloudinary được cấu hình, triển khai AWS có pipeline riêng |
 
 Không có email xác minh và không giới hạn số đơn chờ là lựa chọn phạm vi đã chốt. Khôi phục mật khẩu và email thông báo đơn hàng thuộc phạm vi; SRS không được tự bổ sung xác minh/đổi email trong quá trình triển khai.
 
@@ -258,7 +258,7 @@ Không có email xác minh và không giới hạn số đơn chờ là lựa ch
 - Tồn, thanh toán, event và dashboard phản ánh đúng trạng thái đơn.
 - COD ghi nhận khi Admin xác nhận đã thu; payOS tự xác nhận qua webhook đã kiểm tra chữ ký, không ghi lặp khi webhook gửi lại.
 - Khôi phục mật khẩu gửi liên kết dùng một lần qua email; thông báo đơn được gửi theo trạng thái mà không làm gián đoạn cập nhật nghiệp vụ khi nhà cung cấp email lỗi.
-- Upload ảnh qua Media Service lên Cloudinary, lưu metadata và liên kết đúng service; lỗi upload không mở bán với ảnh chưa sẵn sàng, retry không tạo asset trùng; không lộ credential Cloudinary.
+- Upload ảnh qua module ảnh Catalog lên Cloudinary, lưu metadata và liên kết đúng service; lỗi upload không mở bán với ảnh chưa sẵn sàng, retry không tạo asset trùng; không lộ credential Cloudinary.
 - Customer không truy cập được dữ liệu của khách khác hoặc chức năng quản trị.
 - Có hướng dẫn chạy, seed, tài khoản demo và bằng chứng kiểm thử theo SRS.
 - Database giữ sau restart; asset CDN và metadata không mất khi container khởi động lại; chức năng email hoạt động với cấu hình nhà cung cấp hợp lệ và có thông báo lỗi/thử lại khi dịch vụ không sẵn sàng.
@@ -284,12 +284,12 @@ Bản cập nhật 1.5 ngày 16/10/2026 xác định monorepo microservices, Kaf
 - [Danh mục đơn vị hành chính — Cục Thống kê](https://danhmuchanhchinh.nso.gov.vn/Default.aspx): đối chiếu snapshot địa giới.
 - [Quyết định 19/2025/QĐ-TTg](https://chinhphu.vn/?docid=214409&pageid=27160): tài liệu nền về danh mục/mã đơn vị hành chính; khi seed phải ghi phiên bản và đối chiếu các cập nhật.
 
-Bản cập nhật 1.6 ngày 16/10/2026 thay phương án điều phối tập trung của bản 1.5 bằng Saga choreography; đổi tên Auth service; media được upload qua provider và phân phối CDN ngay trong môi trường phát triển local.
+Bản cập nhật 1.6 ngày 16/10/2026 thay phương án điều phối tập trung của bản 1.5 bằng Saga choreography; đổi tên Auth service; ?nh được upload qua provider và phân phối CDN ngay trong môi trường phát triển local.
 
-Bản cập nhật 1.7 ngày 16/10/2026 chốt lại Saga orchestration tại Order cho checkout và vòng đời đơn/tồn/payment; giữ tên Auth service và thiết kế media provider/CDN của bản 1.6. Các subscriber email/search/tracking tiếp tục xử lý domain event sau commit.
+Bản cập nhật 1.7 ngày 16/10/2026 chốt lại Saga orchestration tại Order cho checkout và vòng đời đơn/tồn/payment; giữ tên Auth service và thiết kế provider ảnh/CDN của bản 1.6. Các subscriber email/search/tracking tiếp tục xử lý domain event sau commit.
 
-Bản cập nhật 1.8 ngày 16/10/2026 làm rõ media/CDN là dịch vụ bên ngoài; Nexora chỉ lưu metadata/URL và không giữ file gốc trên server, volume hoặc database.
+Bản cập nhật 1.8 ngày 16/10/2026 làm rõ ảnh/CDN là dịch vụ bên ngoài; Nexora chỉ lưu metadata/URL và không giữ file gốc trên server, volume hoặc database.
 
 Bản cập nhật 1.9 ngày 16/10/2026 chốt catalog đa ngành: danh mục cha–con, thông số Product, lựa chọn SKU linh hoạt, ảnh chung/ảnh SKU và snapshot lựa chọn. Giữ dataset RetailRocket và hợp đồng ba CSV; các tên ngành hàng seed vẫn là nhãn minh họa tự gán.
 
-Bản cập nhật 1.10 ngày 17/10/2026 bổ sung Media Service độc lập với media_db và chốt Cloudinary làm nhà cung cấp upload/CDN. Catalog giữ liên kết ảnh Product/SKU; cập nhật tiêu chí upload, retry và bảo toàn ảnh lịch sử. Chi tiết tại [Media Service](Folder-ARCHITECTURE.md#media-service).
+Bản cập nhật 1.10 ngày 17/10/2026 bổ sung đặc tả Cloudinary, upload idempotent và bảo toàn ảnh lịch sử. Xem [module ảnh Catalog](Folder-ARCHITECTURE.md#image-upload).

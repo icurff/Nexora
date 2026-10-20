@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Nexora Frontend'
+  short_description: 'Build Nexora React screens and API integration'
+  default_prompt: 'Use $nexora-frontend to build a Nexora screen and validate the affected user flow.'
