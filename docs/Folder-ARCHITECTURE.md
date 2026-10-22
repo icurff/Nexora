@@ -2,9 +2,9 @@
 
 | Thông tin | Giá trị |
 |---|---|
-| Phiên bản | 1.9 |
-| Ngày | 20/10/2026 |
-| Trạng thái | Frontend, Gateway và năm dịch vụ NestJS ở mức scaffold; Docker/Compose và PostgreSQL đã có; Recommendation FastAPI, messaging, cache/search, nghiệp vụ và CI triển khai sau |
+| Phiên bản | 2.0 |
+| Ngày | 22/10/2026 |
+| Trạng thái | Gateway chuyển tiếp HTTP Auth; Auth vẫn chưa có API nghiệp vụ; CI GitHub Actions có job độc lập cho sáu backend và frontend; Docker/Compose và PostgreSQL đã có; Recommendation FastAPI, messaging, cache/search chưa triển khai |
 | Stack | Hiện tại ReactJS + Vite, NestJS, PostgreSQL; dự kiến Kafka, Elasticsearch, Redis, Cloudinary và Python/FastAPI cho Recommendation |
 | Phát triển | Mỗi ứng dụng Node độc lập trong thư mục riêng; Docker Compose local dùng khi cần |
 | Triển khai sau | AWS; giai đoạn đầu có thể dùng EC2 + Compose, sau đó chuyển ứng dụng sang ECS |
@@ -173,7 +173,7 @@ Nếu khách chọn lưu địa chỉ mới, Order gửi API Auth với khóa ch
 
 ### 4.3. Trạng thái checkout và UI
 
-| Trạng thái | Frontend, Gateway và năm dịch vụ NestJS ở mức scaffold; Docker/Compose và PostgreSQL đã có; Recommendation FastAPI, messaging, cache/search, nghiệp vụ và CI triển khai sau |
+| Trạng thái | Ý nghĩa |
 |---|---|
 | PROCESSING | Orchestrator đang reserve hoặc hoàn tất lưu đơn |
 | COMPENSATING | Đã quyết định thất bại, đang chờ result giải phóng hàng |
@@ -454,7 +454,7 @@ docker compose up -d --wait postgres
 
 Frontend, Gateway, từng backend và PostgreSQL đều có cổng host riêng, publish trên mọi interface; cổng được cố định trong Compose. Trong Docker, Nest apps đều nghe cổng container 3000 và Gateway tiếp cận backend qua DNS Compose; mỗi backend cũng được publish ra cổng local riêng để test trực tiếp. Healthcheck PostgreSQL chờ TCP sẵn sàng sau init; service phụ thuộc chờ `service_healthy`. `/health` của ứng dụng hiện kiểm tra tiến trình HTTP; readiness database sẽ đi cùng adapter. [Docker startup order](https://docs.docker.com/compose/how-tos/startup-order/).
 
-Compose target runtime cho Gateway và năm backend NestJS: các container chạy JavaScript đã build, không dùng Nest watch và không mount source. Sau khi sửa backend, build lại service bằng `docker compose up -d --build <service>`. Frontend vẫn chạy Vite watch với source mount. `docker compose down` giữ volume; `down -v` xóa dữ liệu. Init chỉ chạy khi volume trống, không tự migrate hay đổi mật khẩu role cũ. Chi tiết tại [README](../README.md).
+Compose target runtime cho Gateway và năm backend NestJS: các container chạy JavaScript đã build, không dùng Nest watch và không mount source. Sau khi sửa backend, build lại service bằng `docker compose up -d --build <service>`. Frontend vẫn chạy Vite watch với source mount. `docker compose down` giữ volume; `down -v` xóa dữ liệu. Init chỉ chạy khi volume trống, không tự migrate hay đổi mật khẩu role cũ. Cấu hình tại [docker-compose.yml](../docker-compose.yml).
 
 Khi triển khai provider, chỉ Payment nhận payOS keys, Notification nhận email credential và Catalog nhận Cloudinary credential. Frontend chỉ nhận public URL. Cấu hình ảnh dự kiến tại Catalog gồm `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `IMAGE_PUBLIC_ID_PREFIX`, `IMAGE_MAX_FILE_BYTES=5242880`, `IMAGE_UPLOAD_TIMEOUT_MS=30000`, `IMAGE_MAX_CONCURRENT_UPLOADS=4`. Các biến này chưa cần cho scaffold hiện tại; không giả lập READY khi thiếu cấu hình upload.
 
@@ -468,16 +468,33 @@ Worker phục hồi chạy định kỳ và khi khởi động, lấy lease/khó
 
 ## 10. CI/CD
 
+Workflow `.github/workflows/ci.yml` dùng matrix cố định cho sáu backend NestJS
+và frontend. Khi push vào `main` hoặc tạo pull request hướng tới `main`, CI chạy
+đủ bảy ứng dụng. Mỗi job chạy trong thư mục ứng dụng và dùng Node theo `.nvmrc`.
+
+Các bước gồm `npm ci`, lint, typecheck, `npm test --if-present`, build và build
+Docker image. Backend dùng target `runtime`; frontend dùng target `development`
+và bỏ qua test vì chưa có script test. Workflow chưa chạy integration giữa các
+service, migration/seed, provider thật hoặc deploy.
+
+Gateway dùng `http-proxy-middleware`, cấu hình trong `api-gateway/src/auth-proxy.ts`
+và đăng ký tại `main.ts`, để chuyển tiếp `/api/v1/auth` cùng route con đến `AUTH_SERVICE_URL`. Proxy
+giữ method, path/query, body, header xác thực/cookie, status, content type và
+cookie response; bỏ header identity client có thể giả mạo và hop-by-hop headers.
+Không retry hoặc follow redirect. Lỗi upstream trả 502, timeout cấu hình qua
+`AUTH_SERVICE_TIMEOUT_MS` trả 504. Auth chỉ có `/health`; API đăng nhập/nghiệp vụ
+chưa được triển khai.
+
 ### 10.1. CI thực hiện trước, CD thêm khi lên AWS
 
 | Workflow | Kích hoạt | Nội dung |
 |---|---|---|
-| `ci.yml` | Pull request/push nhánh chính | npm ci, lint/typecheck/test và build trong từng thư mục ứng dụng bị ảnh hưởng; kiểm tra Docker image |
+| `.github/workflows/ci.yml` | Push vào `main` hoặc PR hướng tới `main` | Matrix cố định chạy đủ bảy ứng dụng: npm ci, lint, typecheck, test nếu có script, build và build Docker image |
 | Integration job | Thay đổi checkout/payment/catalog/messaging hoặc contracts | Compose môi trường CI riêng, migrate/seed, kiểm tra Saga, duplicate message, recovery, webhook và upload/gắn ảnh qua Catalog; dùng provider test double ở CI |
 | `publish-images.yml` | Merge nhánh chính/tag khi cần có registry | Build runtime image từng ứng dụng, tag bằng Git SHA, push registry/ECR |
 | `deploy-aws.yml` | Khi chuẩn bị AWS; manual/environment gate hoặc release | Lấy đúng image SHA đã qua CI, migrate tương thích, deploy, smoke/health check, rollback image nếu lỗi |
 
-CI có thể chạy các ứng dụng bị ảnh hưởng theo thư mục. Khi thay đổi quy ước hoặc Compose ở root, kiểm tra các ứng dụng liên quan. Bộ kiểm tra integration cần bao phủ đường giao tiếp giữa service, không chỉ unit test từng service.
+Workflow chưa chạy kiểm tra integration giữa các service; unit test riêng từng service không thay thế integration.
 
 Pipeline không gọi payment thật để tạo giao dịch tiền. Nghiệm thu payOS thật có cấu hình và ca riêng. Email test dùng Mailpit/provider test adapter.
 
