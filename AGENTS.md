@@ -6,33 +6,44 @@ Codex settings and agent roles are in `.codex/config.toml` and `.codex/agents/`.
 
 ## Scope and working agreements
 
-- Use GPT-6 Astra with High reasoning for planning and discussion; use GPT-6 Luna
-  with High reasoning for implementation and review. Follow the
-  [model routing rules](#6-model-selection-by-activity).
+
 - Follow the user's current request. Task lists are references, not a mandatory
   implementation order or permission to expand the scope.
+- Prefer simple, readable solutions that are easy to maintain. Add complexity
+  only when a current requirement needs it.
+- Prefer a suitable maintained library when it reduces custom code and makes
+  the implementation easier to understand and maintain.
 - Inspect code and configuration before claiming a feature exists. Distinguish
   **implemented behavior**, **planned design**, and **proposals**.
-- Complete clear implementation requests and validate the result. Ask only when
-  a missing decision materially affects business behavior, data, or scope.
+- Before changing repository files, present a concise plan and a small set of
+  meaningful implementation directions or options
+-  implement the agreed scope and validate the result. Ask for
+  clarification when a missing decision materially affects business behavior,
+  data, or scope.
+- Do not call the reviewer agent unless the user explicitly asks to involve a
+  reviewer agent. The assistant may still inspect its own changes and run the
+  checks required for the task.
 - In this project, "docs" means Markdown `.md` by default. Work on Word/PDF files
   only when the user explicitly identifies that format or file.
+- Do not create README files unless the user explicitly requests them.
 - Inspect Git status and diffs before editing. Preserve unrelated existing work.
   Do not stage, commit, or push unless requested.
 
 ## Current implementation
 
-Last reviewed: 2026-10-20. Verify and update this table as the code evolves.
+Last reviewed: 2026-10-22. Verify and update this table as the code evolves.
 
 | Component                                                                                     | Status                                                                                                   |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `frontend`                                                                                    | React/Vite/TypeScript scaffold                                                                           |
-| `api-gateway`                                                                                 | NestJS scaffold with `/health`; business routes are not implemented                                      |
-| `auth-service`, `catalog-service`, `order-service`, `payment-service`, `notification-service` | Five NestJS backend scaffolds with `/health`                                                             |
+| `api-gateway`                                                                                 | NestJS `/health` plus HTTP forwarding for `/api/v1/auth` and descendants to Auth                         |
+| `auth-service`                                                                                | NestJS `/health`; business authentication routes are not implemented                                       |
+| `catalog-service`, `order-service`, `payment-service`, `notification-service`                 | Four NestJS backend scaffolds with `/health`                                                             |
 | Docker/PostgreSQL                                                                             | Compose, one Dockerfile per application, and PostgreSQL with five separate application databases/users |
 | Application persistence                                                                       | Compose provides `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`; adapters, ORM, migrations, and seeds are not implemented |
 | Recommendation                                                                                | Planned as Python/FastAPI; no code, container, or database yet                                           |
 | Kafka, Redis, Elasticsearch                                                                   | Planned infrastructure; not provisioned in the current stack                                             |
+| CI                                                                                            | GitHub Actions uses a fixed matrix for six NestJS apps and the frontend on pushes and pull requests to `main` |
 
 Image uploads, metadata, and Cloudinary integration belong to Catalog. Do not
 introduce a separate image service. Future Recommendation will be a separate Python/FastAPI application; do not create a NestJS scaffold for it.
@@ -41,7 +52,7 @@ introduce a separate image service. Future Recommendation will be a separate Pyt
 
 | Question                                                        | Source                                                               |
 | --------------------------------------------------------------- | -------------------------------------------------------------------- |
-| How does the project run today?                                 | [README](README.md), each app folder's `package.json`, `docker-compose.yml`, and actual code |
+| How does the project run today?                                 | Each app folder's `package.json`, `docker-compose.yml`, actual code, and [Architecture](docs/Folder-ARCHITECTURE.md) |
 | Who owns data and coordinates services?                         | [Architecture](docs/Folder-ARCHITECTURE.md)                          |
 | What are the user flows, planned APIs, and acceptance criteria? | [SRS](docs/SRS.md), relevant FR/UC/TC entries                        |
 | What are the business rules and scope?                          | [BRD](docs/BRD.md)                                                   |
@@ -166,31 +177,3 @@ implemented.
   gaps. Update documentation when behavior, ownership, or run instructions change.
 - Write agent guides, rules, skills, metadata, and usage examples in English.
   User-facing conversation and product UI remain Vietnamese unless requested otherwise.
-
-## 6. Model selection by activity
-
-| Activity                                                                                             | Model                       | Reasoning effort |
-| ---------------------------------------------------------------------------------------------------- | --------------------------- | ---------------- |
-| Planning, requirements discussion, architecture discussion, and trade-off analysis                   | GPT-6 Astra (`gpt-6-astra`) | High (`high`)    |
-| Implementation, bug fixes, tests, documentation/configuration edits, and execution of an agreed plan | GPT-6 Luna (`gpt-6-luna`)   | High (`high`)    |
-| Code review, regression review, and validation of changes                                            | GPT-6 Luna (`gpt-6-luna`)   | High (`high`)    |
-
-- Select the model for the activity being performed, not merely the interface's
-  Plan/Default mode. A task containing multiple phases follows the corresponding
-  model at each phase.
-- At a handoff, preserve the user's request, accepted decisions, constraints,
-  affected files, and validation expectations. Return to Astra High if a review
-  uncovers a design decision requiring discussion; use Luna High for the resulting
-  implementation and review.
-- The project config sets the primary model to Astra High. Custom roles in
-  `.codex/agents/` set `planner` to Astra High and `implementer`/`reviewer` to
-  Luna High. For implementation and review, delegate to the corresponding role
-  when delegation is available and permitted; a review request does not authorize
-  the reviewer to edit files.
-- Apply this routing through model-selection or delegation controls when those
-  controls are available and permitted. A Markdown rule does not itself change
-  the active session model. If the required control or model is unavailable,
-  disclose the limitation instead of claiming a switch or silently substituting
-  another model.
-- An explicit model instruction from the user for the current task overrides
-  this default routing.
