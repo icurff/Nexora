@@ -36,6 +36,7 @@ services:
     environment:
       PORT: 3000
       AUTH_SERVICE_URL: http://auth-service:3000
+      AUTH_INTERNAL_TOKEN: ${AUTH_INTERNAL_TOKEN:-local-development-internal-service-token-change-this}
       CATALOG_SERVICE_URL: http://catalog-service:3000
       ORDER_SERVICE_URL: http://order-service:3000
       PAYMENT_SERVICE_URL: http://payment-service:3000
@@ -70,6 +71,10 @@ services:
       DB_NAME: auth_db
       DB_USER: auth_user
       DB_PASSWORD: ${AUTH_DB_PASSWORD:-local_auth_change_me}
+      AUTH_ACCESS_SECRET: ${AUTH_ACCESS_SECRET:-local-development-access-secret-change-this}
+      AUTH_REFRESH_SECRET: ${AUTH_REFRESH_SECRET:-local-development-refresh-secret-change-this}
+      AUTH_INTERNAL_TOKEN: ${AUTH_INTERNAL_TOKEN:-local-development-internal-service-token-change-this}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
       - '3001:3000'
     healthcheck:

@@ -1,7 +1,5 @@
 import { loadEnvFile } from 'node:process';
 import { DataSource, type DataSourceOptions } from 'typeorm';
-import { AuthSessionSchema } from './entities/auth-session.schema.js';
-import { UserSchema } from './entities/user.schema.js';
 
 try {
   loadEnvFile('.env');
@@ -33,7 +31,6 @@ export function createDatabaseOptions(): DataSourceOptions {
     database: required('DB_NAME'),
     username: required('DB_USER'),
     password: required('DB_PASSWORD'),
-    entities: [UserSchema, AuthSessionSchema],
     synchronize: false,
     migrationsRun: false,
     logging: false,

@@ -35,11 +35,12 @@ export function createAuthProxy() {
     },
     on: {
       proxyReq: (proxyRequest, request) => {
-        // Identity must come from verified authentication, never client-supplied headers.
+        // Caller-supplied identity headers are stripped by the gateway before introspection.
         for (const name of proxyRequest.getHeaderNames()) {
           if (
             name.startsWith('x-user-') ||
-            name.startsWith('x-authenticated-user-') ||
+            (name.startsWith('x-authenticated-') &&
+              !request.path.startsWith('/api/v1/me')) ||
             name.startsWith('x-forwarded-') ||
             name === 'x-roles' ||
             name === 'x-permissions'
