@@ -663,7 +663,9 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | POST /auth/login | Đăng nhập và thiết lập phiên | Guest |
 | POST /auth/refresh | Gia hạn phiên theo refresh token hợp lệ | Chủ phiên |
 | POST /auth/logout | Thu hồi phiên hiện tại | Chủ phiên; xử lý được phiên đã hết |
+| GET /auth/session | Lấy thông tin Customer/Admin của phiên hiện tại | Chủ phiên |
 | POST /auth/change-password | Đổi mật khẩu, thu hồi mọi phiên | Customer/Admin hoạt động |
+| POST /internal/auth/introspect | Gateway xác minh access token và trạng thái phiên | Gateway với service credential; không public qua Gateway |
 | POST /auth/password-reset-requests | Yêu cầu email khôi phục; phản hồi chung | Công khai, giới hạn tần suất |
 | POST /auth/password-resets | Đặt mật khẩu mới bằng token một lần | Công khai, token hợp lệ |
 | GET, PATCH /me | Xem/sửa trường hồ sơ cho phép | Chủ tài khoản |
@@ -1012,3 +1014,4 @@ Nếu yêu cầu mới thay đổi quyền, thời hạn, tồn, tiền, event h
 | 1.8 | 16/10/2026 | Upload chuyển tiếp tới dịch vụ ảnh/CDN ngoài; backend không giữ file gốc, database chỉ lưu asset metadata/URL; cập nhật FR-ADM-03/UC-25/TC-28 |
 | 1.9 | 16/10/2026 | Catalog đa ngành với danh mục cha–con, cấu hình thuộc tính, attributes Product/options SKU JSONB, ảnh chung/ảnh SKU, snapshot lựa chọn và cập nhật các tiêu chí nghiệm thu liên quan; giữ hợp đồng CSV RetailRocket |
 | 1.10 | 17/10/2026 | Làm rõ hợp đồng upload ảnh/Cloudinary, retry và bảo toàn asset lịch sử |
+| 1.11 | 26/10/2026 | Bổ sung endpoint session và introspection nội bộ vào API summary khi triển khai Auth tasks 011–013 |

@@ -31,16 +31,16 @@ Codex settings and agent roles are in `.codex/config.toml` and `.codex/agents/`.
 
 ## Current implementation
 
-Last reviewed: 2026-10-22. Verify and update this table as the code evolves.
+Last reviewed: 2026-10-26. Verify and update this table as the code evolves.
 
 | Component                                                                                     | Status                                                                                                   |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `frontend`                                                                                    | React/Vite/TypeScript scaffold                                                                           |
-| `api-gateway`                                                                                 | NestJS `/health` plus HTTP forwarding for `/api/v1/auth` and descendants to Auth                         |
-| `auth-service`                                                                                | NestJS `/health`; business authentication routes are not implemented                                       |
+| `api-gateway`                                                                                 | NestJS `/health`, forwarding `/api/v1/auth` to Auth, and introspection middleware for protected route prefixes |
+| `auth-service`                                                                                | NestJS `/health`; Customer registration, login/refresh/logout/session, password change, and internal token introspection |
 | `catalog-service`, `order-service`, `payment-service`, `notification-service`                 | Four NestJS backend scaffolds with `/health`                                                             |
 | Docker/PostgreSQL                                                                             | Compose, one Dockerfile per application, and PostgreSQL with five separate application databases/users |
-| Application persistence                                                                       | Compose provides `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`; adapters, ORM, migrations, and seeds are not implemented |
+| Application persistence                                                                       | Compose provides DB configuration; Auth uses TypeORM/PostgreSQL migrations and demo seeds; other application persistence is not implemented |
 | Recommendation                                                                                | Planned as Python/FastAPI; no code, container, or database yet                                           |
 | Kafka, Redis, Elasticsearch                                                                   | Planned infrastructure; not provisioned in the current stack                                             |
 | CI                                                                                            | GitHub Actions uses a fixed matrix for six NestJS apps and the frontend on pushes and pull requests to `main` |

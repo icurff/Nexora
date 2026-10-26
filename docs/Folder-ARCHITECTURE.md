@@ -31,8 +31,8 @@ Các yêu cầu đã chốt vẫn được áp dụng: đăng nhập trước kh
 | Thành phần | Trách nhiệm | Dữ liệu sở hữu | Cổng container / local |
 |---|---|---|---|
 | `frontend` | Web Customer/Admin, gọi API gateway, theo dõi kết quả checkout | Trạng thái giao diện | 5173 |
-| `api-gateway` | Route API, CORS, xác thực đầu vào, rate limit, request ID, chuyển webhook payOS | Không có database nghiệp vụ | container 3000 / local 3000 |
-| `auth-service` | Đăng ký/đăng nhập, phiên, khóa tài khoản, hồ sơ, địa chỉ, địa giới, token reset mật khẩu | `auth_db` | container 3000 / local 3001 |
+| `api-gateway` | Route API, chuyển tiếp Auth, kiểm tra phiên qua introspection cho route riêng tư | Không có database nghiệp vụ | container 3000 / local 3000 |
+| `auth-service` | Đăng ký Customer, đăng nhập/phiên, đổi mật khẩu; kế hoạch gồm khóa tài khoản, hồ sơ, địa chỉ, địa giới và reset mật khẩu | `auth_db` | container 3000 / local 3001 |
 | `catalog-service` | Danh mục, Product/SKU, giá, upload/metadata/liên kết ảnh, tồn kho/reservation, import và tìm kiếm | `catalog_db`; Cloudinary adapter và index Elasticsearch dự kiến | container 3000 / local 3002 |
 | `order-service` | Giỏ tài khoản, quote, checkout, Saga orchestrator, đơn/snapshot/lịch sử/ghi chú, dashboard | `order_db` | container 3000 / local 3003 |
 | `payment-service` | Payment intent COD/payOS, payment link, webhook, đối chiếu provider, ghi nhận thu COD | `payment_db` | container 3000 / local 3004 |
@@ -107,6 +107,7 @@ Email được kích hoạt bởi service nội bộ/sự kiện, không có API
 ### 3.3. Xác thực và phân quyền
 
 - Auth sở hữu session/refresh token và trạng thái ACTIVE/LOCKED. Gateway gọi introspection nội bộ cho request cần đăng nhập để việc logout/khóa/đổi mật khẩu có hiệu lực với token cũ.
+- Hiện đã có đăng ký Customer, login, refresh xoay vòng, logout, xem session, đổi mật khẩu và endpoint introspection có service credential. Gateway kiểm tra introspection cho các prefix `/me`, `/cart`, `/orders`, `/checkout`, `/admin`; proxy nghiệp vụ ngoài Auth chưa được triển khai. Profile, địa chỉ, địa giới, reset mật khẩu và quản lý Customer vẫn là kế hoạch.
 - Gateway xóa header danh tính do client tự gửi, rồi chuyển context được ký hoặc service credential được kiểm chứng. Service đích vẫn kiểm tra role và quyền sở hữu tài nguyên.
 - Endpoint nghiệp vụ backend không được frontend gọi trực tiếp; browser dùng Gateway. Compose publish các backend trên mọi interface của host để developer test trực tiếp bằng Postman/curl. Không dùng một header `X-User-Id` không xác thực làm bằng chứng danh tính.
 - Quyền tạo checkout được kiểm tra lúc tiếp nhận. Khóa tài khoản sau khi checkout đã được tiếp nhận không tự hủy nghiệp vụ đang chạy, tương tự quy tắc không tự hủy đơn cũ.
@@ -444,7 +445,7 @@ vào image của ứng dụng khác.
 Tất cả container kết nối qua bridge network `nexora`; các service có thể tìm nhau bằng tên service trong Compose.
 
 
-Compose hiện tại định nghĩa frontend, Gateway, năm service NestJS và PostgreSQL; lệnh `docker compose up` khởi động tất cả. Để chỉ chạy PostgreSQL khi phát triển ứng dụng trên host, dùng `docker compose up -d --wait postgres`. Mỗi image build từ Dockerfile và lockfile trong thư mục ứng dụng tương ứng. PostgreSQL có năm database/user riêng và named volume bền vững. Compose truyền `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` và `DB_PASSWORD` riêng cho mỗi backend; ứng dụng chưa đọc các biến này do chưa có adapter database. Kafka, Redis, Elasticsearch, công cụ quan sát, migration/seed và Recommendation FastAPI sẽ bổ sung sau; các phần thiết kế tương ứng không đồng nghĩa đã có container hoặc adapter.
+Compose hiện tại định nghĩa frontend, Gateway, năm service NestJS và PostgreSQL; lệnh `docker compose up` khởi động tất cả. Để chỉ chạy PostgreSQL khi phát triển ứng dụng trên host, dùng `docker compose up -d --wait postgres`. Mỗi image build từ Dockerfile và lockfile trong thư mục ứng dụng tương ứng. PostgreSQL có năm database/user riêng và named volume bền vững. Compose truyền `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` và `DB_PASSWORD` riêng cho mỗi backend; Auth đã dùng TypeORM migration/seed. `AUTH_ACCESS_SECRET`, `AUTH_REFRESH_SECRET` và `AUTH_INTERNAL_TOKEN` cấu hình xác thực; thay các giá trị local mẫu trước khi triển khai. Kafka, Redis, Elasticsearch và Recommendation FastAPI sẽ bổ sung sau.
 
 ```powershell
 docker compose up -d --build --wait --wait-timeout 240
@@ -482,8 +483,10 @@ và đăng ký tại `main.ts`, để chuyển tiếp `/api/v1/auth` cùng route
 giữ method, path/query, body, header xác thực/cookie, status, content type và
 cookie response; bỏ header identity client có thể giả mạo và hop-by-hop headers.
 Không retry hoặc follow redirect. Lỗi upstream trả 502, timeout cấu hình qua
-`AUTH_SERVICE_TIMEOUT_MS` trả 504. Auth chỉ có `/health`; API đăng nhập/nghiệp vụ
-chưa được triển khai.
+`AUTH_SERVICE_TIMEOUT_MS` trả 504. Middleware gọi `/internal/auth/introspect` cho
+các prefix riêng tư đã cấu hình và gửi identity đã xác thực dưới dạng header.
+Auth cung cấp đăng ký, login, refresh, logout, session, đổi mật khẩu và introspection;
+profile, địa chỉ, reset mật khẩu và API nghiệp vụ còn lại chưa triển khai.
 
 ### 10.1. CI thực hiện trước, CD thêm khi lên AWS
 
@@ -548,3 +551,4 @@ Các ca kiến trúc cần kiểm chứng khi triển khai: hai checkout tranh S
 | 1.6 | 17/10/2026 | Hợp nhất Git và npm workspaces/lockfile tại root; gom cấu hình chung, bỏ README mẫu; phân biệt scaffold hiện có với hạ tầng/service còn phải triển khai |
 | 1.8 | 20/10/2026 | Bỏ npm workspaces; mỗi ứng dụng Node có package, lockfile và Dockerfile riêng; cập nhật hướng dẫn chạy cho người mới |
 | 1.9 | 20/10/2026 | Gán cổng local riêng cho từng ứng dụng để truy cập/test trực tiếp; giữ cổng container 3000 dùng chung cho NestJS |
+| 1.10 | 26/10/2026 | Cập nhật hiện trạng Auth: registration, session/token, change-password, Gateway introspection và secret cấu hình |
