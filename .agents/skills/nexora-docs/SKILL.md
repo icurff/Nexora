@@ -12,14 +12,14 @@ project documents unless translation is requested.
 
 ## Select affected documents
 
-| Change                             | Documents to consider                                                             |
-| ---------------------------------- | --------------------------------------------------------------------------------- |
-| Startup, environment, containers   | `README.md`, Architecture Docker section                                          |
-| Services, ownership, communication | `docs/Folder-ARCHITECTURE.md`, relevant SRS/Database sections                     |
-| Business flows and rules           | `docs/BRD.md`, `docs/SRS.md`, Database constraints                                |
-| Schema/data types                  | `docs/DATABASE_DESIGN.md`, Architecture ownership, SRS API contracts              |
-| Research/recommendation scope      | `docs/REQUIREMENTS_AND_RESEARCH_SCOPE.md`, relevant BRD/SRS/Architecture sections |
-| Agent conventions/current status   | `AGENTS.md`, `.codex`, affected skills                                            |
+| Change                                      | Documents to consider                                                             |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| Startup, environment, containers            | Architecture run instructions                                                     |
+| Modules, shared transactions, communication | `docs/Folder-ARCHITECTURE.md`, relevant SRS/Database sections                     |
+| Business flows and rules                    | `docs/BRD.md`, `docs/SRS.md`, Database constraints                                |
+| Schema/data types                           | `docs/DATABASE_DESIGN.md`, Architecture ownership, SRS API contracts              |
+| Research/recommendation scope               | `docs/REQUIREMENTS_AND_RESEARCH_SCOPE.md`, relevant BRD/SRS/Architecture sections |
+| Agent conventions/current status            | `AGENTS.md`, `.codex`, affected skills                                            |
 
 ## Workflow
 
@@ -33,8 +33,10 @@ project documents unless translation is requested.
    traceability tables, links/anchors, examples, and history may need different edits.
 4. Preserve BREQ/BR/FR/UC/TC identifiers and traceability. When requirements change,
    update corresponding acceptance cases as well as descriptions.
-5. Preserve the distinction between the Database baseline and current microservices
-   design. Writing a schema or diagram does not implement migrations, Saga, or AI.
+5. Keep the shared-database modular monolith consistent across documents.
+   When cleanup is requested, remove superseded configuration and provider
+   instructions while preserving FR/UC/TC and task identifiers.
+   Writing schema/diagrams does not implement migrations, business modules or AI.
 6. Update version/date/history when the document has that convention and the change
    affects design. Do not bump unrelated documents just to align dates.
 

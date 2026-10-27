@@ -11,8 +11,8 @@ Code paths below are relative to the repository root.
 ## Prepare
 
 - Inspect `frontend/package.json`, `src`, `vite.config.ts`, and affected screens.
-  Frontend is currently a scaffold with no established router, form library, API
-  client, or UI library. Add dependencies only when the feature needs them.
+  Frontend has React Router, an Auth API client and integrated Auth screens.
+  Inspect those conventions; add dependencies only when the feature needs them.
 - Find relevant use cases, screens, validation, and error behavior in `docs/SRS.md`.
   Verify an API exists before integration; planned contracts do not prove the
   backend has been implemented.
@@ -22,10 +22,10 @@ Code paths below are relative to the repository root.
 
 - Use Vietnamese product UI, VND formatting, and Vietnamese local time. Preserve
   IDs as strings across forms, state, and API calls.
-- Call `/api/...` through the Vite proxy during development. Do not embed container
+- Call `/api/...` through the Vite proxy directly to backend:3000 in Compose or localhost:3000 on the host. Do not embed container
   DNS names or backend credentials in browser bundles.
 - Treat frontend environment variables as public data. Keep PostgreSQL passwords,
-  Cloudinary/payOS secrets, and system tokens out of `VITE_*` variables.
+  Supabase database/server keys or payOS secrets, and system tokens out of `VITE_*` variables.
 - For unavailable APIs, use mocks only when appropriate for the UI task. Separate
   mocks from real integration and disclose the limitation; do not present mock
   mutations as persisted data.
@@ -39,7 +39,7 @@ Code paths below are relative to the repository root.
 
 ## Validate
 
-Run typecheck, lint, and build for `@nexora/frontend`. There is currently no
+Run typecheck, lint, and build for `nexora-frontend`. There is currently no
 frontend test script; root `npm test` does not validate UI behavior.
 When browser tools are available, exercise relevant valid/invalid submissions,
 API errors, empty states, keyboard interaction, and viewport sizes. Report any

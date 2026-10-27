@@ -4,7 +4,11 @@ Nexora là hệ thống thương mại điện tử bán lẻ đa ngành theo m�
 
 Trên cơ sở mục tiêu của đề tài, yêu cầu hệ thống được xác định thành hai nhóm: yêu cầu chức năng và yêu cầu phi chức năng. Phạm vi nghiên cứu được giới hạn phù hợp với dữ liệu RetailRocket, mô hình kinh doanh của Nexora và điều kiện thực hiện đồ án.
 
-Cập nhật ngày 20/10/2026: module ảnh/Cloudinary thuộc Catalog; Recommendation triển khai sau bằng Python/FastAPI. Stack hiện tại chỉ có Gateway, năm service NestJS, frontend và PostgreSQL.
+Cập nhật ngày 27/10/2026: repository dùng modular monolith với một frontend React/Vite, một backend NestJS và một database Supabase PostgreSQL và Supabase Storage cho ảnh. Compose chỉ frontend/backend, không healthcheck. Auth đã triển khai; Catalog/Supabase Storage và các nghiệp vụ khác là bước sau. Model Python/FastAPI là tích hợp AI tương lai; dataset và phạm vi nghiên cứu giữ nguyên.
+
+Bản đồng bộ 27/10/2026: [Implementation tasks](IMPLEMENTATION_TASKS.md) phân tách task bản web 001–072 và task nghiên cứu/model 073–077. Tracking/export và gợi ý rule-based sẽ nằm trong backend; không phụ thuộc Python/FastAPI. Các task Kafka/ES/Redis cũ đã được đánh dấu ngoài phạm vi thay vì làm điều kiện để triển khai web.
+
+Trong checkout hiện tại, docs/data và docs/task đang trống. Các thông số/số liệu nghiên cứu bên dưới là mô tả mục tiêu hoặc mốc đã ghi nhận, chưa phải kết quả đối chiếu lại với notebook/dataset trong lần cập nhật này. Giữ nguyên phạm vi nghiên cứu; cần cung cấp artifact nguồn trước khi xác nhận tái lập.
 
 ## 1. Yêu cầu chức năng
 
@@ -12,11 +16,11 @@ Cập nhật ngày 20/10/2026: module ảnh/Cloudinary thuộc Catalog; Recommen
 
 Hệ thống phục vụ ba nhóm tác nhân chính, bao gồm khách truy cập, khách hàng đã đăng ký và quản trị viên. Chức năng của từng nhóm được xác định theo nhu cầu sử dụng và quyền truy cập tương ứng.
 
-| Tác nhân | Mô tả | Nhu cầu sử dụng chính |
-|---|---|---|
-| Khách truy cập | Người sử dụng chưa đăng nhập vào hệ thống | Xem và tìm kiếm sản phẩm, tham khảo gợi ý, đăng ký và đăng nhập |
-| Khách hàng | Người sử dụng đã có tài khoản hợp lệ | Quản lý thông tin cá nhân, địa chỉ nhận hàng, đặt hàng, theo dõi đơn hàng và nhận gợi ý sản phẩm |
-| Quản trị viên | Người chịu trách nhiệm quản lý hoạt động của cửa hàng | Quản lý sản phẩm, danh mục, tồn kho, đơn hàng, tài khoản khách hàng và theo dõi số liệu kinh doanh; không quản lý thương hiệu |
+| Tác nhân       | Mô tả                                                 | Nhu cầu sử dụng chính                                                                                                         |
+| -------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Khách truy cập | Người sử dụng chưa đăng nhập vào hệ thống             | Xem và tìm kiếm sản phẩm, tham khảo gợi ý, đăng ký và đăng nhập                                                               |
+| Khách hàng     | Người sử dụng đã có tài khoản hợp lệ                  | Quản lý thông tin cá nhân, địa chỉ nhận hàng, đặt hàng, theo dõi đơn hàng và nhận gợi ý sản phẩm                              |
+| Quản trị viên  | Người chịu trách nhiệm quản lý hoạt động của cửa hàng | Quản lý sản phẩm, danh mục, tồn kho, đơn hàng, tài khoản khách hàng và theo dõi số liệu kinh doanh; không quản lý thương hiệu |
 
 ### 1.2. Chức năng dành cho khách hàng
 
@@ -50,15 +54,15 @@ Hệ thống cung cấp danh sách sản phẩm gợi ý tại các vị trí ph
 
 ### 1.3. Chức năng dành cho quản trị viên
 
-| Nhóm chức năng | Nội dung yêu cầu |
-|---|---|
-| Quản lý sản phẩm | Thêm, cập nhật nội dung/thông số chung, hình ảnh, lựa chọn SKU có giá/tồn riêng và trạng thái kinh doanh |
-| Quản lý hình ảnh | Upload ảnh qua module ảnh Catalog lên Cloudinary; gắn asset sẵn sàng vào Product/SKU, chọn ảnh đại diện và giữ ảnh lịch sử khi thay/gỡ liên kết |
-| Quản lý danh mục | Tổ chức danh mục cha–con và cấu hình thông số/lựa chọn theo ngành hàng trong cùng form; không có quản lý thương hiệu hoặc module thuộc tính riêng |
-| Quản lý tồn kho | Theo dõi số lượng hàng trong kho, số lượng đang giữ cho đơn hàng và số lượng có thể bán; ghi nhận nhập hàng, điều chỉnh tồn kho |
-| Quản lý đơn hàng | Tra cứu, xác nhận, hủy đơn theo điều kiện; cập nhật quá trình giao hàng, kết quả giao và tình trạng thanh toán COD/payOS |
-| Quản lý khách hàng | Tra cứu thông tin cần thiết cho hoạt động bán hàng; khóa hoặc mở tài khoản khách hàng |
-| Thống kê hoạt động | Theo dõi số lượng đơn hàng, tình trạng xử lý, tiền đã thu và tình hình tồn kho |
+| Nhóm chức năng     | Nội dung yêu cầu                                                                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quản lý sản phẩm   | Thêm, cập nhật nội dung/thông số chung, hình ảnh, lựa chọn SKU có giá/tồn riêng và trạng thái kinh doanh                                              |
+| Quản lý hình ảnh   | Upload ảnh qua module ảnh Catalog lên Supabase Storage; gắn asset sẵn sàng vào Product/SKU, chọn ảnh đại diện và giữ ảnh lịch sử khi thay/gỡ liên kết |
+| Quản lý danh mục   | Tổ chức danh mục cha–con và cấu hình thông số/lựa chọn theo ngành hàng trong cùng form; không có quản lý thương hiệu hoặc module thuộc tính riêng     |
+| Quản lý tồn kho    | Theo dõi số lượng hàng trong kho, số lượng đang giữ cho đơn hàng và số lượng có thể bán; ghi nhận nhập hàng, điều chỉnh tồn kho                       |
+| Quản lý đơn hàng   | Tra cứu, xác nhận, hủy đơn theo điều kiện; cập nhật quá trình giao hàng, kết quả giao và tình trạng thanh toán COD/payOS                              |
+| Quản lý khách hàng | Tra cứu thông tin cần thiết cho hoạt động bán hàng; khóa hoặc mở tài khoản khách hàng                                                                 |
+| Thống kê hoạt động | Theo dõi số lượng đơn hàng, tình trạng xử lý, tiền đã thu và tình hình tồn kho                                                                        |
 
 Các thao tác quản trị có ảnh hưởng đến đơn hàng, tồn kho hoặc tài khoản phải được lưu lại để phục vụ việc tra cứu. Số liệu thống kê kinh doanh được xác định từ hoạt động thực tế của website, tách biệt với dữ liệu lịch sử dùng để nghiên cứu mô hình gợi ý.
 
@@ -70,14 +74,14 @@ Hệ thống cần ngăn việc tạo nhiều đơn hoặc cập nhật tồn kh
 
 ### 1.5. Chức năng thu thập hành vi và gợi ý thông minh
 
-| Nhóm chức năng | Nội dung yêu cầu |
-|---|---|
-| Thu thập hành vi | Ghi nhận hoạt động xem, tìm kiếm, thêm hoặc giảm giỏ hàng, tạo đơn, mua hàng hoàn tất và tương tác với danh sách gợi ý |
-| Liên kết ngữ cảnh | Gắn tương tác với sản phẩm, người dùng hoặc khách truy cập, phiên sử dụng và thời điểm xảy ra |
-| Cá nhân hóa bằng GNN | Khai thác quan hệ tương tác giữa người dùng và sản phẩm để học biểu diễn và tạo danh sách sản phẩm được xếp hạng |
-| Thích ứng theo phiên | Sử dụng những tương tác gần đây để điều chỉnh thứ hạng sản phẩm theo mối quan tâm hiện tại của người dùng |
-| Giải thích đề xuất | Cung cấp lý do ngắn gọn có căn cứ từ dữ liệu tương tác hoặc quan hệ được sử dụng trong quá trình gợi ý |
-| Xử lý thiếu dữ liệu | Duy trì khả năng đề xuất cho người dùng mới, sản phẩm mới hoặc trường hợp mô hình chưa đủ thông tin |
+| Nhóm chức năng       | Nội dung yêu cầu                                                                                                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Thu thập hành vi     | Ghi nhận hoạt động xem, tìm kiếm, thêm hoặc giảm giỏ hàng, tạo đơn, mua hàng hoàn tất và tương tác với danh sách gợi ý |
+| Liên kết ngữ cảnh    | Gắn tương tác với sản phẩm, người dùng hoặc khách truy cập, phiên sử dụng và thời điểm xảy ra                          |
+| Cá nhân hóa bằng GNN | Khai thác quan hệ tương tác giữa người dùng và sản phẩm để học biểu diễn và tạo danh sách sản phẩm được xếp hạng       |
+| Thích ứng theo phiên | Sử dụng những tương tác gần đây để điều chỉnh thứ hạng sản phẩm theo mối quan tâm hiện tại của người dùng              |
+| Giải thích đề xuất   | Cung cấp lý do ngắn gọn có căn cứ từ dữ liệu tương tác hoặc quan hệ được sử dụng trong quá trình gợi ý                 |
+| Xử lý thiếu dữ liệu  | Duy trì khả năng đề xuất cho người dùng mới, sản phẩm mới hoặc trường hợp mô hình chưa đủ thông tin                    |
 
 Việc giải thích phải phù hợp với nguồn dữ liệu và phương pháp gợi ý thực tế. Hệ thống không được trình bày kết quả từ quy tắc thay thế như kết quả cá nhân hóa của GNN. Các chức năng GNN, thích ứng theo phiên và giải thích là mục tiêu nghiên cứu, tích hợp của đề tài; không mặc định đã hoàn thành ở giai đoạn xây dựng các chức năng thương mại điện tử cơ bản.
 
@@ -87,11 +91,11 @@ Việc giải thích phải phù hợp với nguồn dữ liệu và phương ph
 
 Hệ thống cần có thời gian phản hồi phù hợp để bảo đảm trải nghiệm mua sắm và khả năng tích hợp gợi ý trực tiếp trên giao diện. Các mục tiêu hiệu năng dự kiến của đề tài gồm:
 
-| Nội dung | Mục tiêu dự kiến |
-|---|---|
-| Các thao tác thương mại điện tử thông thường | Hướng đến thời gian phản hồi không quá 1 giây trong điều kiện thử nghiệm |
-| Truy vấn gợi ý sản phẩm | Hướng đến thời gian trả kết quả không quá 5 giây |
-| Ghi nhận và chuyển tiếp tương tác mới | Hướng đến độ trễ không quá 2 giây để phục vụ cập nhật trạng thái người dùng hoặc phiên |
+| Nội dung                                     | Mục tiêu dự kiến                                                                       |
+| -------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Các thao tác thương mại điện tử thông thường | Hướng đến thời gian phản hồi không quá 1 giây trong điều kiện thử nghiệm               |
+| Truy vấn gợi ý sản phẩm                      | Hướng đến thời gian trả kết quả không quá 5 giây                                       |
+| Ghi nhận và chuyển tiếp tương tác mới        | Hướng đến độ trễ không quá 2 giây để phục vụ cập nhật trạng thái người dùng hoặc phiên |
 
 Các mốc trên là mục tiêu đánh giá, chưa phải kết quả thực nghiệm. Việc đánh giá cần nêu rõ cấu hình máy, quy mô dữ liệu, số người dùng mô phỏng và cách đo. Kết quả phản hồi được báo cáo theo phân bố độ trễ và tỷ lệ lỗi để phản ánh điều kiện thử nghiệm thực tế.
 
@@ -107,13 +111,13 @@ Khách hàng chỉ được truy cập thông tin cá nhân và đơn hàng thu�
 
 Thông tin giá bán, số lượng, tổng tiền và trạng thái đơn hàng phải được xử lý chính xác. Hệ thống không được bán vượt số lượng có thể cung ứng, ghi nhận tồn kho âm hoặc tạo thêm giao dịch do thao tác bị lặp. Lịch sử đơn hàng phải được bảo toàn để phản ánh thông tin tại thời điểm mua.
 
-Do hệ thống định hướng sử dụng kiến trúc microservices, dữ liệu trao đổi giữa các dịch vụ cần được kiểm soát để hạn chế sai lệch khi xảy ra gián đoạn. Các nghiệp vụ trọng yếu như tạo đơn và giữ hàng phải bảo đảm tính nhất quán; dữ liệu hành vi phục vụ gợi ý có thể được đồng bộ sau với độ trễ phù hợp.
+Hệ thống dùng một database; các thao tác quan trọng như tạo đơn, giữ hàng và cập nhật giỏ phải nguyên tử trong cùng transaction. Event nghiệp vụ được ghi cùng transaction, còn model AI có thể nhận dữ liệu đã loại PII sau đó; độ trễ AI không ảnh hưởng tính đúng đắn của đơn/tồn.
 
 ### 2.4. Độ tin cậy và khả năng phục hồi
 
 Hệ thống cần duy trì các chức năng mua sắm cơ bản khi dịch vụ gợi ý không khả dụng. Trong trường hợp này, hệ thống sử dụng phương án gợi ý thay thế hoặc thông báo phù hợp mà không làm gián đoạn việc xem và đặt mua sản phẩm.
 
-Dữ liệu nghiệp vụ đã được ghi nhận phải được bảo toàn sau khi dịch vụ khởi động lại. Các tương tác nghiệp vụ chưa chuyển tiếp thành công cần có khả năng được xử lý tiếp sau khi kết nối phục hồi. Lỗi hệ thống phải được ghi nhận để phục vụ xác định nguyên nhân và khôi phục hoạt động.
+Dữ liệu nghiệp vụ đã commit phải được bảo toàn sau khi backend khởi động lại; lỗi trước commit rollback toàn bộ transaction. Event website ghi cùng transaction nghiệp vụ, email job và tác vụ provider xử lý lại từ trạng thái bền vững. Export/model tương lai có thể nhận dữ liệu sau; không cần chuyển message giữa module để hoàn tất đặt hàng. Lỗi phải được ghi nhận để chẩn đoán và phục hồi.
 
 ### 2.5. Khả năng sử dụng
 
@@ -123,11 +127,11 @@ Hệ thống cần thông báo rõ kết quả thao tác, trạng thái đang x�
 
 ### 2.6. Khả năng mở rộng và bảo trì
 
-Hệ thống được định hướng xây dựng theo kiến trúc microservices, trong đó các dịch vụ được phân chia theo trách nhiệm nghiệp vụ và giao tiếp thông qua giao diện xác định. Cách tổ chức này nhằm tạo điều kiện phát triển, cập nhật và mở rộng từng thành phần, đặc biệt là dịch vụ gợi ý có nhu cầu xử lý khác với nghiệp vụ bán hàng.
+Hệ thống được xây dựng theo modular monolith: một backend chia module theo nghiệp vụ, giao tiếp bằng provider trong cùng tiến trình và dùng chung database. Model AI có thể tích hợp riêng khi sẵn sàng; ecommerce hiện tại không phụ thuộc model.
 
-Repository hiện có API gateway và năm dịch vụ NestJS: auth, catalog, order, payment, notification. Mỗi ứng dụng Node độc lập trong thư mục riêng. Catalog sở hữu upload/metadata/liên kết ảnh trong catalog_db và credential Cloudinary; browser đọc CDN, không giữ file gốc trong Nexora. Recommendation sẽ được xây sau bằng Python/FastAPI với môi trường dependency riêng và chưa có container/database. Order điều phối Saga bền vững; Kafka command/result/event, Elasticsearch và Redis sẽ được bổ sung riêng sau đợt Docker/PostgreSQL. CI/CD cũng là bước sau. Xem [Kiến trúc microservices](Folder-ARCHITECTURE.md).
+Repository hiện có hai ứng dụng frontend/backend với package/lockfile/Dockerfile riêng, Docker Compose chỉ cho frontend/backend và CI cho cả hai. Backend dùng TypeORM/SSL kết nối Supabase PostgreSQL bên ngoài; không còn PostgreSQL local/init script. Storage là tích hợp Catalog dự kiến, chưa có code upload. AuthModule đã có trong backend; module Catalog sẽ sở hữu ảnh/Supabase Storage, module Order/Payment dùng transaction chung cho dữ liệu nghiệp vụ và gọi provider ngoài sau commit. Không có gateway, Saga hoặc yêu cầu Kafka. Model Python/FastAPI chưa có mã nguồn/container/database. Xem [Architecture](Folder-ARCHITECTURE.md).
 
-Việc thay đổi mô hình gợi ý cần hạn chế ảnh hưởng đến các chức năng thương mại điện tử. Mỗi dịch vụ phải có trách nhiệm quản lý dữ liệu rõ ràng, tránh phụ thuộc trực tiếp vào cấu trúc lưu trữ nội bộ của dịch vụ khác. Khả năng mở rộng được xem xét ở mức thiết kế và thử nghiệm trong phạm vi đồ án, không mặc định tương đương khả năng vận hành quy mô lớn.
+Việc thay đổi mô hình gợi ý cần hạn chế ảnh hưởng đến ecommerce. Các module backend có trách nhiệm nghiệp vụ rõ ràng, giao tiếp qua provider và dùng chung transaction khi cần. Contract tích hợp model không phụ thuộc chi tiết lưu trữ nội bộ. Khả năng mở rộng chỉ được xem xét trong phạm vi thiết kế/thử nghiệm đồ án, không cam kết vận hành quy mô lớn.
 
 ### 2.7. Bảo vệ dữ liệu cá nhân
 
@@ -147,7 +151,7 @@ Việc lựa chọn mô hình và tham số không được dựa trên tập ki
 
 Đề tài tập trung nghiên cứu hệ thống gợi ý sản phẩm từ dữ liệu hành vi trong môi trường thương mại điện tử. Đối tượng nghiên cứu chính bao gồm quan hệ tương tác người dùng–sản phẩm, phương pháp học biểu diễn bằng GNN, khả năng bổ sung tín hiệu phiên vào quá trình xếp hạng và cơ chế giải thích đề xuất dựa trên bằng chứng có thể truy vết.
 
-Website Nexora đóng vai trò môi trường ứng dụng để tích hợp, quan sát và đánh giá các chức năng gợi ý. Kiến trúc microservices là hướng tổ chức hệ thống nhằm phân tách nghiệp vụ thương mại điện tử với quá trình thu thập hành vi và phục vụ mô hình.
+Website Nexora là môi trường ứng dụng để tích hợp, quan sát và đánh giá chức năng gợi ý. Backend monolith tổ chức riêng module nghiệp vụ, tracking và gợi ý; dữ liệu export AI loại PII và model tương lai được tích hợp qua contract xác định.
 
 ### 3.2. Phạm vi nghiệp vụ thương mại điện tử
 
@@ -179,14 +183,14 @@ Nghiên cứu về khả năng giải thích tập trung vào các lý do có c�
 
 Dữ liệu được chia thành tập huấn luyện, xác thực và kiểm tra theo yếu tố thời gian nhằm mô phỏng việc dự đoán từ thông tin đã biết trong quá khứ. Quá trình xây dựng đồ thị, đặc trưng và trạng thái phiên phải hạn chế việc sử dụng thông tin tương lai gây sai lệch kết quả.
 
-| Nội dung đánh giá | Phạm vi xem xét |
-|---|---|
-| Chất lượng xếp hạng | Sử dụng Precision@K, Recall@K và NDCG@K; so sánh GNN với các phương pháp cơ sở trong cùng điều kiện |
-| Khả năng thích ứng | So sánh gợi ý từ mô hình nền với phương án có bổ sung tương tác gần đây, sử dụng chuỗi sự kiện đúng thứ tự thời gian |
-| Khả năng xử lý thiếu dữ liệu | Xem xét chất lượng và độ bao phủ của kết quả đối với người dùng mới, sản phẩm mới hoặc trường hợp ít tương tác |
-| Tính hợp lệ của giải thích | Kiểm tra sự tồn tại và tính phù hợp của bằng chứng gắn với lý do đề xuất |
-| Hiệu năng hệ thống | Đánh giá thời gian phản hồi, độ trễ xử lý tương tác và tỷ lệ lỗi trong môi trường thử nghiệm |
-| Tính đúng đắn nghiệp vụ | Kiểm tra các luồng mua hàng, phân quyền, xử lý tồn kho và khả năng duy trì hoạt động khi dịch vụ gợi ý gặp lỗi |
+| Nội dung đánh giá            | Phạm vi xem xét                                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Chất lượng xếp hạng          | Sử dụng Precision@K, Recall@K và NDCG@K; so sánh GNN với các phương pháp cơ sở trong cùng điều kiện                  |
+| Khả năng thích ứng           | So sánh gợi ý từ mô hình nền với phương án có bổ sung tương tác gần đây, sử dụng chuỗi sự kiện đúng thứ tự thời gian |
+| Khả năng xử lý thiếu dữ liệu | Xem xét chất lượng và độ bao phủ của kết quả đối với người dùng mới, sản phẩm mới hoặc trường hợp ít tương tác       |
+| Tính hợp lệ của giải thích   | Kiểm tra sự tồn tại và tính phù hợp của bằng chứng gắn với lý do đề xuất                                             |
+| Hiệu năng hệ thống           | Đánh giá thời gian phản hồi, độ trễ xử lý tương tác và tỷ lệ lỗi trong môi trường thử nghiệm                         |
+| Tính đúng đắn nghiệp vụ      | Kiểm tra các luồng mua hàng, phân quyền, xử lý tồn kho và khả năng duy trì hoạt động khi dịch vụ gợi ý gặp lỗi       |
 
 Kết quả trên tập sản phẩm nghiên cứu và kết quả sau khi giới hạn về catalog demo phải được phân biệt. Các thử nghiệm không được sử dụng để khẳng định khả năng tăng doanh thu, tỷ lệ chuyển đổi hoặc mức độ hài lòng của khách hàng nếu chưa có dữ liệu đánh giá tương ứng.
 
@@ -194,4 +198,6 @@ Kết quả trên tập sản phẩm nghiên cứu và kết quả sau khi giớ
 
 Hệ thống được triển khai và đánh giá trên môi trường thử nghiệm bằng Docker Compose, phục vụ trình diễn chức năng và tích hợp các dịch vụ. Đề tài không đặt mục tiêu vận hành hạ tầng thương mại điện tử quy mô lớn, triển khai đa vùng hoặc bảo đảm mức độ sẵn sàng của hệ thống production.
 
-Các kết quả thực nghiệm được giới hạn bởi cấu hình máy, dung lượng dữ liệu và điều kiện thực hiện đồ án. Phạm vi này cho phép tập trung vào tính đúng đắn của nghiệp vụ, khả năng tích hợp microservices và giá trị của phương pháp gợi ý trong điều kiện nghiên cứu đã xác định.
+Các kết quả thực nghiệm được giới hạn bởi cấu hình máy, dung lượng dữ liệu và điều kiện đồ án. Phạm vi tập trung vào tính đúng đắn ecommerce, khả năng tích hợp model và giá trị phương pháp gợi ý trong điều kiện nghiên cứu đã xác định.
+
+Cập nhật hạ tầng 27/10/2026: dữ liệu nghiệp vụ và metadata ảnh ở Supabase PostgreSQL, bytes ảnh ở Supabase Storage. Thay provider không thay dataset, thuật toán hoặc phạm vi nghiên cứu. Bằng chứng kết nối/backup DB và upload/restore Storage phải được kiểm chứng riêng, không suy ra từ Compose hoặc unit test.

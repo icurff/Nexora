@@ -1,67 +1,52 @@
 ---
 name: nexora-docker-postgres
-description: Configure or troubleshoot Nexora Docker Compose, Nest container startup and PostgreSQL ownership, initialization or migrations. Use for local infrastructure and database changes; do not provision deferred Kafka, Redis or Elasticsearch as a side effect.
+description: Configure Nexora frontend/backend Docker Compose, external Supabase PostgreSQL/Storage and versioned migrations.
 ---
 
-# Nexora Docker and PostgreSQL
+# Nexora Docker and Supabase PostgreSQL
 
-Read [AGENTS.md](../../../AGENTS.md), the [development rules](../../../AGENTS.md#development-rules), and
-the [operations README](../../../README.md). Run Docker Compose commands from the repository root.
+Read [AGENTS.md](../../../AGENTS.md) and the run instructions in
+[Architecture](../../../docs/Folder-ARCHITECTURE.md). Run Compose from repository root.
 
-## Gather evidence
+## Inspect
 
-1. Inspect relevant parts of `docker-compose.yml`, the affected service folder's `Dockerfile` and `.dockerignore`,
-   `.env.example`, and `docker/postgres/init-databases.sh`.
-2. Use `docker compose config --quiet`, `docker compose ps`, and affected service
-   logs. Avoid printing configuration with interpolated passwords.
-3. Separate build, mount/watch, HTTP startup, network, and PostgreSQL authentication
-   failures. HTTP `/health` success does not prove database integration.
+Inspect Compose, backend/frontend Dockerfiles and .dockerignore, env examples,
+backend database/config.ts and versioned migrations. Use docker compose config
+--quiet and relevant logs; never print interpolated secrets or connection URLs.
 
-## Preserve operational behavior
+## Preserve the environment
 
-- `docker compose up` starts the full stack. Select only the services needed for
-  a task to limit resource use; `docker compose up -d --build auth-service`
-  also starts PostgreSQL.
-- Containers connect to `postgres:5432`; host processes use `localhost` and the
-  fixed PostgreSQL port `5432`. Compose publishes the Gateway on `3000`, each
-  backend on `3001`–`3005` (container port `3000`), and the frontend on `5173`.
-  Host application scripts do not yet load `.env` automatically; each Nest app has a
-  distinct default port in `src/main.ts`.
-- Compose publishes each backend's container port 3000 on its own loopback host
-  port so it can be tested directly; service-to-service calls still use the
-  Compose service name and port 3000.
-- Each application has its own Dockerfile, build context, and lockfile. Its image installs dependencies from that folder's lockfile.
-  Do not mount Windows `node_modules` into containers. Backend source is mounted;
-  dependency/backend configuration changes require rebuilding that service image.
-- Nest watch uses `--no-shell` to restart child processes in the slim image. When
-  changing commands, signals, or shutdown behavior, verify reload and shutdown,
-  not just initial startup. Runtime executes built JavaScript without watch mode.
-- Preserve loopback port bindings and the application runtime's `node` user unless
-  the task has a specific, explained reason to change them.
+- Compose runs only frontend/backend on 5173/3000. Database and image objects use
+  hosted Supabase. Do not provision local PostgreSQL/Supabase containers, database
+  volumes, healthchecks or /health endpoints without a new user request.
+- Vite proxies /api to backend:3000 in Compose, localhost:3000 on the host.
+  depends_on is startup ordering only; it does not prove API/DB readiness.
+- Each app has its own package/lockfile/Dockerfile. Run npm from that app folder.
+  Backend runtime runs built JS as node; rebuild after source/config changes.
+- Backend connects through DATABASE_URL with certificate-verified TLS. Prefer a
+  direct connection; use the session pooler when IPv4 is required. Copy endpoint
+  settings from Dashboard, do not invent hostnames. Use DATABASE_SSL_CA for PEM
+  when required. URL SSL parameters are rejected to prevent overriding verification.
+- Root .env is for Compose; backend/.env is for npm host. Preserve active Auth
+  secrets, and remove unused settings when cleanup is requested. Missing Supabase
+  credentials stay blank with instructions; never invent a project URL or key.
+- Auth remains Nexora accounts/sessions/JWT, not Supabase Auth. Application code
+  accesses its own schema through TypeORM/pg; do not edit provider auth/storage tables.
+- TypeORM uses explicit versioned migrations and synchronize:false. Preserve
+  auth_schema_migrations and applied Auth migrations; no automatic reseed/startup DDL.
+- Confirm the target before any real project migration or seed. Test schema/roles
+  and data transfer on isolated project/database inputs, never by resetting live data.
+- Supabase Storage upload is planned Catalog work. Public catalog bucket reads are
+  separate from Admin writes authorized by backend. SUPABASE_SECRET_KEY is server
+  only; bucket/path objects are immutable, uploads use upsert:false. No secret in VITE_*.
+- Database backups do not include object bytes; verify Storage backup/restore
+  separately. Do not delete user data or snapshots as a configuration change.
 
-## PostgreSQL and migrations
+## Validate and report
 
-- Auth, Catalog, Order, Payment, and Notification each have a separate DB/user.
-  Applications use their own credentials; initialization revokes PUBLIC CONNECT/TEMP.
-- Initialization runs only on an empty volume. Existing databases need explicit
-  role changes or migrations. Editing `.env` does not change stored role passwords.
-- No ORM/migration runner exists yet. For the first schema task, select a tool
-  appropriate to the workspace, create versioned migrations, and document execution.
-  Do not use the initialization script as a migration history for existing databases.
-- Adapt baseline fields according to Architecture ownership. Avoid cross-service
-  foreign keys/joins. Test constraints, IDs/money, and upgrades on an isolated DB.
-- Do not delete volumes to force initialization unless deletion was requested.
-  Inspect actual state before attributing a failure to existing data.
-
-## Validate changes
-
-- Documentation/configuration: validate syntax and the environment contract.
-- Dockerfile/startup: build and run affected services when Docker is available;
-  check logs, health, reload for watch changes, and shutdown for signal changes.
-- Schema/permissions: connect as the application user in a test environment;
-  verify own-database access succeeds and cross-database access is denied.
-- Initialization: use a separate test project/volume. Record resource names and
-  clean up only resources created for that test. Keep secrets out of reports.
-
-Report which containers were started or left running, successful checks, and
-remaining limits. Update README when startup, environment, or initialization changes.
+Validate Compose has exactly the two app services and no healthcheck/readiness
+condition. Run backend typecheck/lint/tests/build for DB configuration changes.
+Mocked configuration/HTTP tests do not prove Supabase TLS/migration/upload integration.
+Only run external DB/provider checks with configured target and authorized data scope.
+Report missing project configuration and unverified live behavior precisely. Keep
+run instructions in Architecture; do not create README files without a user request.
