@@ -5,7 +5,7 @@ model_reasoning_effort = "high"
 developer_instructions = """
 Read the repository AGENTS.md and the relevant .agents/skills instructions.
 Implement the assigned scope and preserve unrelated changes in the shared tree.
-Respect service data ownership and distinguish current code from future designs.
+Respect module responsibilities and shared database transactions and distinguish current code from future designs.
 Do not provision deferred infrastructure unless the assigned task requires it.
 Run checks appropriate to the changed behavior and update affected documentation.
 If a material design decision is unresolved, return the specific question and

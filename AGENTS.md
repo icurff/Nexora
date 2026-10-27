@@ -6,7 +6,6 @@ Codex settings and agent roles are in `.codex/config.toml` and `.codex/agents/`.
 
 ## Scope and working agreements
 
-
 - Follow the user's current request. Task lists are references, not a mandatory
   implementation order or permission to expand the scope.
 - Prefer simple, readable solutions that are easy to maintain. Add complexity
@@ -17,7 +16,7 @@ Codex settings and agent roles are in `.codex/config.toml` and `.codex/agents/`.
   **implemented behavior**, **planned design**, and **proposals**.
 - Before changing repository files, present a concise plan and a small set of
   meaningful implementation directions or options
--  implement the agreed scope and validate the result. Ask for
+- implement the agreed scope and validate the result. Ask for
   clarification when a missing decision materially affects business behavior,
   data, or scope.
 - Do not call the reviewer agent unless the user explicitly asks to involve a
@@ -31,39 +30,45 @@ Codex settings and agent roles are in `.codex/config.toml` and `.codex/agents/`.
 
 ## Current implementation
 
-Last reviewed: 2026-10-26. Verify and update this table as the code evolves.
+Last reviewed: 2026-10-27. Verify and update this table as the code evolves.
 
-| Component                                                                                     | Status                                                                                                   |
-| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `frontend`                                                                                    | React/Vite/TypeScript scaffold                                                                           |
-| `api-gateway`                                                                                 | NestJS `/health`, forwarding `/api/v1/auth` to Auth, and introspection middleware for protected route prefixes |
-| `auth-service`                                                                                | NestJS `/health`; Customer registration, login/refresh/logout/session, password change, and internal token introspection |
-| `catalog-service`, `order-service`, `payment-service`, `notification-service`                 | Four NestJS backend scaffolds with `/health`                                                             |
-| Docker/PostgreSQL                                                                             | Compose, one Dockerfile per application, and PostgreSQL with five separate application databases/users |
-| Application persistence                                                                       | Compose provides DB configuration; Auth uses TypeORM/PostgreSQL migrations and demo seeds; other application persistence is not implemented |
-| Recommendation                                                                                | Planned as Python/FastAPI; no code, container, or database yet                                           |
-| Kafka, Redis, Elasticsearch                                                                   | Planned infrastructure; not provisioned in the current stack                                             |
-| CI                                                                                            | GitHub Actions uses a fixed matrix for six NestJS apps and the frontend on pushes and pull requests to `main` |
+| Component      | Status                                                                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frontend`     | React/Vite/TypeScript; Auth registration, login, session restore/logout and password change integrated with the backend                     |
+| `backend`      | One NestJS modular monolith; AuthModule, registration/login/refresh/logout/session/password change and session-backed Customer/Admin guards |
+| Database       | Supabase PostgreSQL via DATABASE_URL and verified TLS; TypeORM Auth migrations/demo seed; live project connection not yet verified          |
+| Docker         | Compose runs frontend/backend only; external Supabase database/storage; no healthcheck or local database volume/init script                 |
+| Other modules  | Catalog, Order, Payment, Notification, Tracking and rule-based Recommendation are planned inside backend, without empty scaffolds           |
+| AI model       | Python/FastAPI integration is deferred; no application/container/database exists                                                            |
+| Infrastructure | No Gateway, Saga, Kafka, Redis or Elasticsearch dependency in the current architecture                                                      |
+| CI             | GitHub Actions verifies and Docker-builds backend/frontend on pushes and pull requests to main                                              |
 
-Image uploads, metadata, and Cloudinary integration belong to Catalog. Do not
-introduce a separate image service. Future Recommendation will be a separate Python/FastAPI application; do not create a NestJS scaffold for it.
+Image uploads, metadata and Supabase Storage integration belong to the Catalog module
+inside backend. Do not introduce an image application or independent business
+services. A future Python model integration requires explicit scope; do not add a
+NestJS recommendation application.
 
 ## Documentation map
 
-| Question                                                        | Source                                                               |
-| --------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Question                                                        | Source                                                                                                               |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | How does the project run today?                                 | Each app folder's `package.json`, `docker-compose.yml`, actual code, and [Architecture](docs/Folder-ARCHITECTURE.md) |
-| Who owns data and coordinates services?                         | [Architecture](docs/Folder-ARCHITECTURE.md)                          |
-| What are the user flows, planned APIs, and acceptance criteria? | [SRS](docs/SRS.md), relevant FR/UC/TC entries                        |
-| What are the business rules and scope?                          | [BRD](docs/BRD.md)                                                   |
-| What are the data types, fields, and constraints?               | [Database design](docs/DATABASE_DESIGN.md)                           |
-| What are the GNN/RetailRocket research boundaries?              | [Research scope](docs/REQUIREMENTS_AND_RESEARCH_SCOPE.md)            |
+| How do backend modules share responsibilities and transactions? | [Architecture](docs/Folder-ARCHITECTURE.md)                                                                          |
+| What are the user flows, planned APIs, and acceptance criteria? | [SRS](docs/SRS.md), relevant FR/UC/TC entries                                                                        |
+| What are the business rules and scope?                          | [BRD](docs/BRD.md)                                                                                                   |
+| What are the data types, fields, and constraints?               | [Database design](docs/DATABASE_DESIGN.md)                                                                           |
+| What are the GNN/RetailRocket research boundaries?              | [Research scope](docs/REQUIREMENTS_AND_RESEARCH_SCOPE.md)                                                            |
+| Where are implementation tasks and their current status?        | [Implementation plan](docs/IMPLEMENTATION_TASKS.md)                                                                  |
 
-`DATABASE_DESIGN.md` includes an earlier single-database baseline. Its cross-domain
-foreign keys, joins, and transactions are superseded by service ownership and
-local transactions in Architecture. Do not translate that baseline directly into
-a microservices schema. If requirements still conflict, identify the conflict
-before deciding the affected behavior and continue independent work.
+The implementation plan is [IMPLEMENTATION_TASKS.md](docs/IMPLEMENTATION_TASKS.md).
+Its task numbers are references, not an execution order or proof of acceptance.
+Keep code existence, partial work, deferred scope and verified integration separate.
+`docs/task` is optional local working material and is not the canonical task list.
+
+`DATABASE_DESIGN.md` describes the shared PostgreSQL database target. Foreign
+keys, joins and transactions across backend modules are allowed in this database;
+module ownership guides code organization. Only the Auth schema has migrations
+currently. Keep order snapshots immutable even when foreign keys exist.
 
 ## Repository skills
 
@@ -86,21 +91,23 @@ implemented.
 
 ## 1. Architecture boundaries
 
-- Gateway handles API entry and forwarding. Business logic and persistence belong
-  to their owning services; keep checkout, inventory, and payment logic out of it.
-- Auth owns accounts, sessions, and addresses. Catalog owns products, SKUs, images,
-  and inventory. Order owns carts, orders, and Saga orchestration. Payment owns
-  authoritative payment state. Notification owns notification delivery jobs.
-- Each service accesses only its own database. Do not import another service's
-  internal source, join or reference tables across databases, or use the PostgreSQL
-  administrator account in application code. Integrate through contracts and
-  distinguish snapshots from projections.
-- Cross-service workflows follow the Order Saga design with local transactions,
-  idempotency, and recovery. Kafka/outbox/inbox are currently planned. If a task
-  depends on missing infrastructure, explain the dependency and a solution within
-  scope; do not report mocked success as completed integration.
-- Add Kafka, Redis, Elasticsearch, or FastAPI when the requested work calls for
-  that component, not merely because a design document mentions it.
+- Keep exactly two application folders: frontend and backend. Backend is one
+  NestJS process organized into feature modules, using one PostgreSQL database.
+- Auth owns accounts, sessions and addresses; Catalog owns products, SKUs, images
+  and inventory; Order owns carts/orders; Payment owns payment integration and
+  payment rules; Notification owns email delivery jobs. These are module boundaries,
+  not independently deployed services or databases.
+- Modules communicate through providers in the same process. Keep controllers thin
+  and avoid circular imports. Share the transaction EntityManager when one use case
+  changes data across modules; do not make HTTP calls between backend modules.
+- Checkout and lifecycle use one transaction for orders, stock, carts, history,
+  business events and idempotency. Preserve row locking, stable lock ordering and
+  recovery after retries/restarts. Network provider calls happen outside DB locks.
+- Persist email jobs with business changes, then send after commit with retry.
+  Do not add Saga, Kafka/outbox/inbox messaging between modules. An email_outbox
+  table is a local job queue and does not imply a broker.
+- Do not add Redis, Elasticsearch or a Python model application unless the user's
+  requested scope calls for it. Never report mocked provider/DB success as integration.
 
 ## 2. Code and dependencies
 
@@ -108,14 +115,13 @@ implemented.
   `package-lock.json`. Run npm commands from that application folder. Use Node 24
   and npm 11 as recorded in `.nvmrc` and each package's `engines`.
 - Install a dependency only in the application that needs it, for example, from
-  `auth-service`: `npm install <package>`. Avoid package-manager changes or broad
-  upgrades within small tasks. Do not import source files from another service.
+  `backend`: `npm install <package>`. Avoid package-manager changes or broad
+  upgrades within small tasks. Do not import frontend source into backend or backend source into frontend.
 - Backend code uses strict TypeScript and ESM/NodeNext. Preserve `.js` extensions
   on relative imports. Frontend code follows its own Vite configuration.
 - Keep controllers thin, business logic in providers/services, and persistence
-  behind the appropriate adapter boundary. No ORM has been selected yet: choose
-  and explain one when a task needs it, rather than treating an absent ORM as an
-  established convention.
+  behind the appropriate adapter boundary. Backend already uses TypeORM/PostgreSQL; extend its versioned migrations and
+  keep synchronize disabled.
 - Create modules and abstractions for current features. Do not generate empty
   files from the illustrative Architecture directory tree.
 - Use ESLint in every Node application and Prettier for formatting. Each app has
@@ -124,9 +130,9 @@ implemented.
 
 ## 3. Contracts and business data
 
-- Business APIs are planned under `/api/v1`; check SRS and actual routes when
-  implementing them. Keep `/health` aligned with Docker healthchecks. It currently
-  proves HTTP liveness, not database connectivity.
+- Business APIs use `/api/v1`; check SRS and actual routes when
+  implementing them. Do not add /health endpoints, Docker healthchecks or
+  readiness dependencies unless the user requests them.
 - Serialize PostgreSQL `bigint` IDs as decimal strings in JSON. Avoid arbitrary
   `Number(id)` conversions; identifiers are not an authorization mechanism.
 - Money is integer VND. Use exact arithmetic and validate bounds before writes.
@@ -135,7 +141,7 @@ implemented.
   time using `Asia/Ho_Chi_Minh`. Preserve leading zeros in location/source codes.
 - Validate inputs and ownership on the backend. Do not trust browser-supplied
   actor IDs, roles, prices, stock, or payment state. Keep business authorization
-  and ownership checks in the destination service even with gateway authentication.
+  and ownership checks in the owning module, using AuthModule guards for protected routes.
 - Inventory/checkout changes must preserve `available = on_hand - reserved`,
   nonnegative stock, no reservation on cart addition, and no duplicate effects
   on retries. Read the SRS transition table before changing order lifecycle logic.
@@ -148,13 +154,26 @@ implemented.
 
 ## 4. Local environment, data, and configuration
 
-- `docker compose up` starts the full stack. To limit resource use, start only the services needed for the task, such as `docker compose up -d postgres`.
-- Preserve existing `.env` values. Add nonsecret examples to `.env.example` and
+- Docker Compose runs only frontend/backend, on ports 5173/3000. PostgreSQL and
+  image objects live on hosted Supabase; do not provision local PostgreSQL or
+  Supabase containers. depends_on orders startup and does not prove readiness.
+- Preserve active `.env` values and Auth secrets; remove obsolete settings when
+  the user requests cleanup. Add nonsecret examples to `.env.example` and
   document how the application loads configuration.
 - Keep secrets out of logs and reports. Use `docker compose config --quiet` for
   validation; full interpolated configuration can expose passwords.
-- PostgreSQL initialization scripts run only on an empty volume. Editing them
-  does not update an existing database schema or role password.
+- Configure DATABASE_URL for Supabase PostgreSQL with verified SSL; use
+  DATABASE_SSL_CA for the project root certificate when needed. Do not disable
+  certificate verification. Root .env serves Compose; backend/.env serves npm host.
+- Configuration cleanup does not authorize deleting live accounts, sessions or
+  stored files. Do not run migrations/seeds against a real Supabase project
+  until the target and requested operation are clear.
+- Supabase Database and Storage do not imply Supabase Auth. Nexora keeps its
+  existing account/session/JWT logic. Do not alter provider auth/storage tables.
+- Catalog images use public Storage reads with backend-authorized Admin writes.
+  SUPABASE_SECRET_KEY stays server-only; public read must not imply public write.
+  Use immutable object paths and upsert:false to preserve order snapshots.
+  Storage integration is planned, not implemented by adding environment variables.
 - Do not use `down -v`, volume pruning, or database drop/truncate as troubleshooting
   shortcuts unless deletion of that data was requested. Prefer migrations and
   isolated test databases; do not run destructive tests on working databases.
@@ -165,8 +184,8 @@ implemented.
 ## 5. Validation and reporting
 
 - Select checks using the scripts in the affected application's `package.json`.
-  A declared script may lack its required config or tests: backend e2e scripts
-  currently have no `vitest.config.e2e.ts`, and frontend has no test script.
+  A declared script may lack its required config or tests: the backend e2e script
+  currently has no `vitest.config.e2e.ts`, and frontend has no test script.
 - Test observable behavior and relevant errors, races, and retries. Mock tests do
   not demonstrate real database or provider integration.
 - For Markdown-only changes, check content, links, formatting, and diffs. Do not

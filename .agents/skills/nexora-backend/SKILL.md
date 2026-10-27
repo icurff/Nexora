@@ -1,50 +1,39 @@
 ---
 name: nexora-backend
-description: Implement or debug Nexora NestJS APIs and business logic in the gateway and five backend service folders. Use for backend features, service contracts and regression fixes; future FastAPI recommendation work needs its own workflow.
+description: Implement or debug Nexora NestJS APIs and business logic in the backend modular monolith.
 ---
 
 # Nexora Backend Development
 
-Read [AGENTS.md](../../../AGENTS.md) and the [development rules](../../../AGENTS.md#development-rules).
-Code paths below are relative to the repository root; Markdown links are relative
-to this file.
+Read [AGENTS.md](../../../AGENTS.md), [Architecture](../../../docs/Folder-ARCHITECTURE.md)
+and the relevant FR/UC/TC entries in [SRS](../../../docs/SRS.md).
+Paths below are relative to the repository root.
 
-## Establish the scope
+## Inspect and implement
 
-1. Inspect the affected service folder's package, modules, controllers, providers, and
-   tests. Backends are currently scaffolds; do not assume an ORM, guards, DTO
-   validation, HTTP client, or messaging infrastructure already exists.
-2. Find relevant requirements and acceptance cases in `docs/SRS.md`. Read
-   `docs/Folder-ARCHITECTURE.md` to establish data ownership.
-3. Identify inputs, outputs, errors, permissions, side effects, and dependencies.
-   Distinguish working APIs from planned contracts.
+- Inspect backend/package.json, modules, controllers, providers, DTOs and tests.
+  AuthModule, guards, TypeORM and migrations exist; other business modules are planned.
+- Keep one NestJS application and one PostgreSQL database. Add feature modules
+  when implementing real behavior; avoid empty scaffolds or independent services.
+- Preserve ESM/NodeNext and relative .js imports. Register modules/providers and
+  verify actual HTTP/bootstrap behavior, not only isolated classes.
+- Controllers handle HTTP/DTOs; providers own business rules; adapters handle DB
+  and external providers. Import AuthModule to use AuthService/AuthGuard/RolesGuard.
+- Validate runtime inputs, role and ownership; never trust client actor/role headers.
+- Share the transaction EntityManager for writes across modules. Checkout and
+  lifecycle commit orders/stock/cart/history/event/idempotency together. Use stable
+  lock ordering, exact money arithmetic and string bigint IDs.
+- Call payOS/Supabase Storage/email outside transactions holding row locks. Queue email
+  jobs with business changes, send after commit and retry safely.
+- Read SRS transitions and duplicate/retry rules before changing inventory/payment.
+  Browser payment redirects do not authorize PAID. No Saga or module-to-module HTTP.
+- Keep /api/v1 contracts and the Vite proxy aligned. No /health endpoint or Docker
+  healthcheck is required. PostgreSQL lives on Supabase, with verified SSL via
+  DATABASE_URL; Storage is planned Catalog integration, not existing upload code.
 
-## Implement
+## Validate
 
-- Create feature modules as needed. Controllers handle requests; providers carry
-  business logic. Keep structure proportional to the current feature.
-- Follow ESM/NodeNext and relative `.js` imports. Register modules/providers and
-  verify bootstrap behavior as well as isolated classes.
-- Connect validation to the actual request pipeline. TypeScript DTO types alone
-  do not validate runtime input.
-- Check the actor, account state, and ownership for private data. Include a test
-  attempting access to another user's data when authorization is affected.
-- For persistence, read the relevant Database design fields/constraints alongside
-  current Architecture ownership. Use the Docker/PostgreSQL skill for migrations
-  or configuration changes; never access another service's database directly.
-- For inventory, checkout, and payment changes, read transition and retry rules.
-  Test relevant duplicate operations, stale state, and races. Do not introduce
-  Kafka/Redis dependencies for unrelated tasks.
-- When routes or prefixes change, check Gateway, Vite proxy, consumers, and the
-  Compose `/health` contract. An environment URL does not implement an HTTP integration.
-
-## Validate and hand off
-
-Run relevant checks from the affected service folder: typecheck, lint, tests, and
-build. Expand validation when shared contracts change. Use existing Vitest and
-`@nestjs/testing` conventions. E2E configuration is absent; claim e2e validation
-only after a real suite is present and has run.
-
-Add a regression test for behavioral bugs or meaningful success/error tests for
-new features. State whether DB/provider tests use mocks or real integration.
-Update configuration instructions and API documentation when contracts change.
+From backend run typecheck, lint, test and build. HTTP tests may override adapters;
+state explicitly when DB/provider behavior is mocked. Add meaningful regression
+coverage when behavior changes. test:e2e currently lacks its configuration; do not
+claim that suite ran. Update affected API/configuration docs and preserve user edits.

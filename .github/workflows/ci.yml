@@ -11,31 +11,21 @@ permissions:
 
 jobs:
   verify:
-    name: Verify ${{ matrix.service }}
+    name: Verify ${{ matrix.app }}
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - service: api-gateway
+          - app: backend
             target: runtime
-          - service: auth-service
-            target: runtime
-          - service: catalog-service
-            target: runtime
-          - service: order-service
-            target: runtime
-          - service: payment-service
-            target: runtime
-          - service: notification-service
-            target: runtime
-          - service: frontend
+          - app: frontend
             target: development
 
     defaults:
       run:
-        working-directory: ${{ matrix.service }}
+        working-directory: ${{ matrix.app }}
 
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +34,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
 
       - run: npm ci
       - run: npm run lint
@@ -52,4 +42,4 @@ jobs:
       - run: npm test --if-present
       - run: npm run build
 
-      - run: docker build --target ${{ matrix.target }} -t nexora-${{ matrix.service }}:ci .
+      - run: docker build --target ${{ matrix.target }} -t nexora-${{ matrix.app }}:ci .
