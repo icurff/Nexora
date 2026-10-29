@@ -10,14 +10,16 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
-import { ChangePasswordDto, LoginDto, RegisterDto } from './auth.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { LoginDto } from './dto/login.dto.js';
+import { RegisterDto } from './dto/register.dto.js';
+import { AuthGuard } from '../shared/guards/auth.guard.js';
 import {
-  AuthGuard,
   CurrentActor,
-  Roles,
-  RolesGuard,
   type AuthenticatedActor,
-} from './authorization.js';
+} from '../shared/decorators/current-actor.decorator.js';
+import { Roles } from '../shared/decorators/roles.decorator.js';
+import { RolesGuard } from '../shared/guards/roles.guard.js';
 
 const refreshCookie = (req: Request) => {
   const value = req.headers.cookie

@@ -1,20 +1,34 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import {
+  ArrowRight,
+  LockKeyhole,
+  ShieldCheck,
+  LoaderCircle,
+} from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AuthShell, AuthHeading } from '../components/auth/AuthShell';
-import { FormField, PasswordField } from '../components/auth/FormField';
-import { LockIcon, ArrowIcon, ShieldIcon } from '../components/auth/AuthIcons';
-import { Notice } from '../components/auth/Notice';
-import { errorMessage } from '../lib/api/auth-api';
-import { useAuth } from '../lib/auth/auth-context';
+import { AuthLayout, AuthHeading } from '../layouts/AuthLayout';
+import {
+  FormField,
+  PasswordField,
+} from '../features/auth/components/FormField';
+import { Notice } from '../features/auth/components/Notice';
+import { errorMessage } from '../features/auth/services/auth-api';
+import { useAuth } from '../features/auth/hooks/useAuth';
+import { useLogin } from '../features/auth/hooks/useAuthMutations';
+import { Button } from '../components/ui/button';
 
 export default function LoginPage() {
-  const { login, status } = useAuth();
+  const { status } = useAuth();
+  const loginMutation = useLogin();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<{ email: string; password: string }>();
+  const error = loginMutation.error;
   const params = new URLSearchParams(location.search);
   const requestedPath = (
     location.state as { from?: { pathname?: string } } | null
@@ -28,25 +42,20 @@ export default function LoginPage() {
     if (status === 'authenticated') navigate(destination, { replace: true });
   }, [status, navigate, destination]);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
+  async function submit(values: { email: string; password: string }) {
     try {
-      await login(email, password);
+      await loginMutation.mutateAsync(values);
       navigate(destination, { replace: true });
-    } catch (cause) {
-      setError(cause);
-    } finally {
-      setBusy(false);
+    } catch {
+      /* The mutation error is rendered below. */
     }
   }
 
   return (
-    <AuthShell compact>
+    <AuthLayout compact>
       <section className="auth-card" aria-labelledby="auth-title">
         <div className="card-icon">
-          <LockIcon />
+          <LockKeyhole />
         </div>
         <AuthHeading
           eyebrow="CHÀO MỪNG TRỞ LẠI"
@@ -71,52 +80,54 @@ export default function LoginPage() {
             {errorMessage(error, 'Không thể đăng nhập. Vui lòng thử lại.')}
           </Notice>
         ) : null}
-        <form className="auth-form" onSubmit={submit}>
+        <form className="auth-form" onSubmit={handleSubmit(submit)}>
           <FormField
             label="Email"
-            name="email"
             type="email"
             autoComplete="email"
             placeholder="tenban@example.com"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
+            {...register('email', {
+              required: 'Nhập email của bạn.',
+              pattern: {
+                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                message: 'Email chưa đúng định dạng.',
+              },
+            })}
             maxLength={254}
             autoFocus
+            error={errors.email?.message}
           />
           <PasswordField
             label="Mật khẩu"
-            name="password"
             autoComplete="current-password"
             placeholder="Nhập mật khẩu"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
+            {...register('password', { required: 'Nhập mật khẩu của bạn.' })}
+            error={errors.password?.message}
           />
-          <button
+          <Button
             className="primary-button"
             type="submit"
-            disabled={busy || status === 'loading'}
+            disabled={loginMutation.isPending || status === 'loading'}
           >
-            {busy ? (
+            {loginMutation.isPending ? (
               <>
-                <span className="spinner" />
+                <LoaderCircle className="animate-spin" />
                 Đang đăng nhập...
               </>
             ) : (
               <>
-                Đăng nhập <ArrowIcon />
+                Đăng nhập <ArrowRight />
               </>
             )}
-          </button>
+          </Button>
         </form>
         <div className="form-switch">
           Chưa có tài khoản? <Link to="/register">Tạo tài khoản</Link>
         </div>
         <div className="secure-note">
-          <ShieldIcon /> Kết nối và thông tin tài khoản được bảo vệ
+          <ShieldCheck /> Kết nối và thông tin tài khoản được bảo vệ
         </div>
       </section>
-    </AuthShell>
+    </AuthLayout>
   );
 }

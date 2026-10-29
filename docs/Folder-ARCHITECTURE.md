@@ -2,8 +2,8 @@
 
 | Thông tin           | Giá trị                                                                                     |
 | ------------------- | ------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.3                                                                                         |
-| Cập nhật            | 27/10/2026                                                                                  |
+| Phiên bản           | 2.5                                                                                         |
+| Cập nhật            | 29/10/2026                                                                                  |
 | Kiến trúc           | Một frontend React/Vite, một backend NestJS, một database PostgreSQL trên Supabase          |
 | Tài liệu liên quan  | [BRD](BRD.md), [SRS](SRS.md), [Thiết kế database](DATABASE_DESIGN.md)                       |
 | Kế hoạch triển khai | [Implementation tasks](IMPLEMENTATION_TASKS.md) — mã task, hiện trạng và điều kiện bàn giao |
@@ -17,7 +17,7 @@ Nexora dùng modular monolith: các nghiệp vụ nằm trong cùng tiến trìn
 | Frontend    | React/Vite/TypeScript; đăng ký, đăng nhập, khôi phục phiên, đăng xuất, đổi mật khẩu                         |
 | Backend     | NestJS, AuthModule, guard Customer/Admin, validation; không endpoint healthcheck                            |
 | Auth        | Đăng ký Customer, login/refresh/logout/session, đổi mật khẩu và thu hồi phiên; JWT, refresh cookie HttpOnly |
-| Persistence | TypeORM/PostgreSQL; migration users/auth_sessions và seed tài khoản demo                                    |
+| Persistence | Prisma repositories/PostgreSQL; Auth baseline migration và seed tài khoản demo                             |
 | Docker      | Chỉ frontend/backend; PostgreSQL và Storage dùng Supabase bên ngoài, không healthcheck                      |
 | CI          | Kiểm tra và Docker build cho hai ứng dụng frontend/backend                                                  |
 
@@ -34,11 +34,14 @@ nexora/
 │   └── vite.config.ts
 ├── backend/                    # Một ứng dụng NestJS
 │   ├── src/
-│   │   ├── auth/               # AuthModule, controller, service và guards
-│   │   ├── database/           # TypeORM, entities, migrations, seed và CLI
+│   │   ├── auth/               # Controller/service, models, UserRepository/SessionRepository và guards
+│   │   ├── database/           # PrismaService, cấu hình TLS, seed và CLI
+│   │   ├── generated/prisma/   # Client sinh tự động, không commit
 │   │   ├── app.module.ts
 │   │   ├── configure-app.ts    # Prefix/validation dùng chung bootstrap và test
 │   │   └── main.ts
+│   ├── prisma/                # schema.prisma và Prisma Migrate SQL
+│   ├── prisma.config.ts       # Cấu hình Prisma CLI 7
 │   ├── .env.example
 │   ├── package.json
 │   ├── package-lock.json
@@ -81,27 +84,27 @@ Chỉ AuthModule và DatabaseModule hiện có. Tạo module nghiệp vụ khi t
 | Notification              | Hàng đợi email bền vững và worker retry                              |
 | Tracking / Recommendation | Event website, export không PII và gợi ý theo quy tắc khi triển khai |
 
-Controller xử lý HTTP và DTO; provider chứa nghiệp vụ; adapter quản lý persistence/provider ngoài. Module giao tiếp bằng lời gọi provider trong tiến trình. Khi một use case cần nhiều module, truyền cùng EntityManager/transaction context để tất cả ghi chung một transaction. Không import vòng hoặc tạo database/ứng dụng riêng cho từng module.
+Controller xử lý HTTP và DTO; service chứa nghiệp vụ; UserRepository/SessionRepository dùng Prisma Client để truy cập dữ liệu Auth. SQL khóa hàng tham số hóa nằm trong repository; service không chứa SQL. Provider ngoài có adapter riêng. Module giao tiếp bằng lời gọi provider trong tiến trình. Khi một use case cần nhiều module, truyền cùng Prisma.TransactionClient để tất cả ghi chung một transaction. Không import vòng hoặc tạo database/ứng dụng riêng cho từng module.
 
 ## 5. Supabase PostgreSQL và dữ liệu hiện có
 
-Backend kết nối trực tiếp PostgreSQL trên Supabase bằng TypeORM/pg, không dùng Supabase Data API cho nghiệp vụ. AuthModule/users/auth_sessions và JWT hiện có vẫn thuộc Nexora; không chuyển sang Supabase Auth hoặc sửa bảng auth.users/storage.objects của provider.
+Backend kết nối trực tiếp PostgreSQL trên Supabase bằng Prisma Client/adapter-pg, không dùng Supabase Data API cho nghiệp vụ. AuthModule/users/auth_sessions và JWT hiện có vẫn thuộc Nexora; không chuyển sang Supabase Auth hoặc sửa bảng auth.users/storage.objects của provider.
 
 Cấu hình DATABASE_URL là PostgreSQL connection URI, không phải SUPABASE_URL HTTPS hoặc API key. Lấy host/port thực từ Dashboard > Connect; direct connection dùng cho backend/migration, Session pooler khi mạng chỉ hỗ trợ IPv4. Không đoán hostname hoặc dùng Transaction pooler cho runner migration hiện tại. Provision role ứng dụng có quyền schema/tables/sequences cần thiết; không chạy application bằng tài khoản administrator. Role chạy migration phải sở hữu/quản lý các bảng ứng dụng; quyền runtime tối thiểu cần được kiểm chứng ở task 002.
 
 Kết nối luôn bật SSL và rejectUnauthorized:true. DATABASE_SSL_CA nhận PEM root certificate nếu chain chưa nằm trong CA mặc định của Node; hỗ trợ literal \n trong env. Bỏ các query parameter sslmode/sslcert/sslkey/sslrootcert khỏi DATABASE_URL vì chúng có thể ghi đè SSL object của pg. URL-encode ký tự đặc biệt trong mật khẩu. Database config không log connection string hoặc secret.
 
-Compose chỉ mô tả hai ứng dụng. File .env ở root và backend/.env dùng DATABASE_URL, DATABASE_SSL_CA, SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_STORAGE_BUCKET cùng cấu hình Auth/port. Chỉ giữ các biến đang được dùng; không có biến cho gateway hoặc database local. Connection URL và Storage server key cần được người dùng điền từ project Supabase, không dùng hostname giả.
+Compose chỉ mô tả hai ứng dụng. File .env ở root và backend/.env dùng DATABASE_URL, DATABASE_SSL_CA tùy chọn cùng cấu hình Auth/port/cookie. Chỉ giữ các biến được code hiện tại sử dụng; chưa khai báo API key hoặc biến Storage. Backend và migration cùng đọc DATABASE_URL, không đọc DIRECT_URL. Connection URL cần được người dùng điền từ Dashboard > Connect, không dùng hostname giả.
 
 Dọn cấu hình repository không xóa tài khoản, phiên hoặc dữ liệu thật. Không tự dump/upload dữ liệu hay chạy migration lên project Supabase thật; xác định project đích và phạm vi dữ liệu trước thao tác. Task 002 kiểm chứng schema/role/permission, task 069 kiểm chứng backup/restore DB và Storage riêng.
 
-Migration nằm ở backend/src/database/migrations, lịch sử vẫn là auth_schema_migrations. Giữ nguyên migration Auth đã áp dụng, không synchronize/reseed tự động. Trước khi migrate project đã có schema, kiểm tra xung đột và lịch sử; database mới chạy migration để tạo users/auth_sessions. Các module dùng cùng database/EntityManager; FK/JOIN chung hợp lệ và đơn vẫn giữ snapshot bất biến.
+Prisma schema nằm ở backend/prisma/schema.prisma, migration SQL có version ở backend/prisma/migrations. Baseline 0_auth giữ nguyên DDL, CHECK, FK, index và lịch sử auth_schema_migrations của Auth cũ. Prisma Migrate ghi lịch sử mới trong _prisma_migrations. Database mới chạy migration:run; database đã áp dụng Auth cũ cần migration:baseline một lần trước migration:run. Baseline kiểm tra schema diff trước khi đánh dấu đã áp dụng; không tạo lại bảng hoặc đổi dữ liệu. Không dùng db push/migrate reset hoặc tự reseed database làm việc. Các module chia sẻ Prisma.TransactionClient; FK/JOIN chung hợp lệ và đơn giữ snapshot bất biến.
 
-Dữ liệu nghiệp vụ chỉ đi qua backend. Tắt Data API nếu không dùng; nếu giữ bật, phải cấu hình grants/RLS để anon/authenticated không đọc/ghi bảng tài khoản/phiên và dữ liệu riêng. Nexora JWT không tự trở thành Supabase JWT. Quyền DB/Storage trên project phải được cấu hình và kiểm chứng riêng, chưa có bằng chứng kết nối Supabase thực trong repo.
+Dữ liệu nghiệp vụ chỉ đi qua backend. Tắt Data API nếu không dùng; nếu giữ bật, phải cấu hình grants/RLS để anon/authenticated không đọc/ghi bảng tài khoản/phiên và dữ liệu riêng. Nexora JWT không tự trở thành Supabase JWT. Kết nối TLS và đọc mapping Auth qua Prisma đã được kiểm tra trên project Supabase hiện tại; baseline Prisma, quyền runtime tối thiểu và Storage vẫn cần kiểm chứng riêng.
 
 ## 6. Transaction, retry và tích hợp ngoài
 
-Các module tham gia một use case phải dùng cùng EntityManager; không mở transaction riêng hoặc tự commit trong provider lồng nhau. Quote do server ký có TTL mặc định 15 phút theo Database mục 9.2; quote không giữ hàng và không giữ khóa giỏ qua request/UI. POST /orders trả đơn sau commit; retry sau timeout dùng cùng key/payload, không cần checkoutId/operationId phân tán.
+Các module tham gia một use case phải dùng cùng Prisma.TransactionClient; không mở transaction riêng hoặc tự commit trong provider lồng nhau. Quote do server ký có TTL mặc định 15 phút theo Database mục 9.2; quote không giữ hàng và không giữ khóa giỏ qua request/UI. POST /orders trả đơn sau commit; retry sau timeout dùng cùng key/payload, không cần checkoutId/operationId phân tán.
 
 Checkout tương lai dùng một transaction ngắn: kiểm tra user/session/giỏ/quote; khóa products/SKU theo thứ tự ổn định; kiểm tra available; lưu đơn/snapshot; tăng reserved và ghi ledger/history/event; xóa đúng dòng giỏ; lưu kết quả idempotency rồi commit. Một dòng không hợp lệ khiến toàn bộ rollback. Gửi lại cùng key/payload trả cùng đơn; khác payload bị từ chối.
 
@@ -131,7 +134,7 @@ Mọi upload/provider request nằm ngoài transaction giữ khóa nghiệp vụ
 
 Trong project Supabase, chuẩn bị connection URI và role/quyền cho schema ứng dụng. Bổ sung DATABASE_URL vào .env ở root (Compose) hoặc backend/.env (npm host); giữ signing secrets đang dùng. Nếu cần CA riêng, tải server root certificate từ Dashboard Database settings và đặt PEM trong DATABASE_SSL_CA. Không gửi mật khẩu hoặc secret key qua chat/log. File .env.example chỉ chứa placeholder, không phải thông tin project đã chạy.
 
-SUPABASE_URL/SUPABASE_SECRET_KEY/SUPABASE_STORAGE_BUCKET phục vụ Catalog Storage tương lai; Auth chỉ cần PostgreSQL và signing secrets. Cấu hình các biến này không có nghĩa upload đã hoạt động. Xem [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status).
+Auth hiện chỉ cần kết nối PostgreSQL và signing secrets riêng của Nexora; không dùng Supabase Auth hoặc API key Supabase. AUTH_ACCESS_SECRET và AUTH_REFRESH_SECRET bắt buộc có giá trị không rỗng; backend không áp đặt độ dài tối thiểu. Mật khẩu mới tối thiểu 6 ký tự, giữ bcrypt và không kiểm tra tối đa 72 byte; bcrypt vẫn chỉ xử lý 72 byte đầu. SUPABASE_URL/SUPABASE_SECRET_KEY/SUPABASE_STORAGE_BUCKET đã được bỏ khỏi env mẫu và Compose vì chưa có Storage adapter. Chỉ bổ sung các biến này khi triển khai Catalog Storage; thiết kế ở mục 7 không phải chức năng upload hiện có. Xem [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status).
 
 ### Docker Compose — hai ứng dụng
 
@@ -170,6 +173,17 @@ Không cần Docker để chạy npm vì database/storage ở Supabase. Seed dem
 
 ### Validation
 
+Prisma Client được sinh khi npm ci/npm run build, hoặc chạy npm run prisma:generate sau khi sửa schema. Source sinh ở src/generated/prisma được bỏ qua bởi Git/ESLint và biên dịch vào dist. Docker build cần copy prisma/schema.prisma và prisma.config.ts trước npm ci. Prisma CLI có trong dependencies để các lệnh migration vẫn dùng được trong runtime image.
+
+Database đã áp dụng Auth cũ cần chạy sau build, trước migration:run:
+
+```powershell
+npm run migration:baseline
+npm run migration:status
+```
+
+Trong Docker, thêm docker compose exec backend trước lệnh npm. Nếu baseline báo khác schema, đối chiếu schema và migration SQL; không reset hay ép đánh dấu đã áp dụng. Database mới không chạy migration:baseline. Các script npm gọi Prisma CLI chuẩn. prisma.config.ts dùng DATABASE_URL, bật sslmode=require/sslaccept=strict cho Prisma schema engine và cung cấp CA qua file tạm từ DATABASE_SSL_CA, rồi xóa file khi CLI kết thúc. Không có CLI runner riêng; có thể gọi npx prisma migrate với cùng cấu hình. Seed dùng Prisma createMany/skipDuplicates trong một transaction và giữ tài khoản đã có.
+
 Backend: typecheck, lint, test, build. HTTP/config tests dùng URL giả và thay DB/Auth adapter; không chứng minh kết nối SSL/migration/permissions ở project thật. Frontend: typecheck/lint/build, chưa có test script. test:e2e vẫn thiếu config. Task 071 cần DB test Supabase/project test riêng và bằng chứng provider thật; không tạo dữ liệu test trong project làm việc.
 
 ### Nguồn kỹ thuật
@@ -191,3 +205,5 @@ Kafka, Redis và Elasticsearch không phải phụ thuộc hoặc yêu cầu c�
 | Phiên bản | Ngày       | Thay đổi                                                                                                      |
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------------- |
 | 2.3       | 27/10/2026 | Chuẩn hóa env root/backend, chỉ giữ cấu hình hai ứng dụng và Supabase; dọn tên biến/tài liệu đã được thay thế |
+| 2.4       | 29/10/2026 | Bỏ biến Storage chưa sử dụng khỏi env mẫu/Compose; làm rõ DATABASE_URL dùng chung cho backend và migration |
+| 2.5       | 29/10/2026 | Chuyển sang Prisma repositories/Migrate, baseline Auth cũ; mật khẩu tối thiểu 6 ký tự, giữ bcrypt và bỏ kiểm tra 72 byte |

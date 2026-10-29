@@ -2,8 +2,8 @@
 
 | Thông tin           | Giá trị                                                                                                                     |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.3                                                                                                                         |
-| Ngày                | 27/10/2026                                                                                                                  |
+| Phiên bản           | 2.4                                                                                                                         |
+| Ngày                | 29/10/2026                                                                                                                  |
 | Trạng thái          | Thiết kế cho monolith một database; Auth đã có migration, các bảng nghiệp vụ khác chưa triển khai                           |
 | Hệ quản trị         | PostgreSQL do Supabase quản lý; bytes ảnh ở Supabase Storage                                                                |
 | Tài liệu liên quan  | [BRD](BRD.md), [SRS](SRS.md), [Architecture — thiết kế triển khai hiện tại](Folder-ARCHITECTURE.md)                         |
@@ -26,7 +26,7 @@ Metadata/tables thuộc ứng dụng trong PostgreSQL của project, bytes ảnh
 | Transaction    | Một transaction cho đơn/tồn/giỏ/history/event/idempotency; gọi provider ngoài khi không giữ khóa DB                                   |
 | Email/tracking | email_outbox/job và business event ghi cùng transaction; worker gửi sau commit, không cần Kafka/inbox giữa module                     |
 | Ảnh            | Module Catalog sở hữu image_assets/product_images trong database chung, credential phía backend; Order giữ snapshot                   |
-| Migration      | TypeORM và lịch sử auth_schema_migrations dùng chung, giữ migration Auth hiện có; các bảng mới thêm qua migration có version          |
+| Migration      | Prisma Migrate dùng _prisma_migrations; baseline giữ Auth và lịch sử auth_schema_migrations cũ; thêm bảng qua migration có version |
 
 1. [Các quyết định nền tảng](#decisions)
 2. [Danh sách bảng và quan hệ](#tables)
@@ -46,7 +46,7 @@ Metadata/tables thuộc ứng dụng trong PostgreSQL của project, bytes ảnh
 
 ## 1. Các quyết định nền tảng
 
-Đây là thiết kế vật lý cho một database dùng chung bởi backend monolith. Transaction/FK giữa các module được áp dụng trực tiếp khi triển khai; vẫn giữ snapshot và ranh giới nghiệp vụ. Các migration mới bổ sung trên schema Auth hiện có, không tự tạo toàn bộ bảng bằng synchronize.
+Đây là thiết kế vật lý cho một database dùng chung bởi backend monolith. Transaction/FK giữa các module được áp dụng trực tiếp khi triển khai; vẫn giữ snapshot và ranh giới nghiệp vụ. Các migration mới bổ sung trên schema Auth hiện có, không tự tạo toàn bộ bảng bằng db push hoặc migrate reset.
 
 | Nội dung         | Thiết kế                                                                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -143,7 +143,7 @@ Thiết kế gồm **29 bảng nghiệp vụ** và image_assets bổ sung cho up
 | Cột                    | Kiểu         | Null/default | Ý nghĩa                                      |
 | ---------------------- | ------------ | ------------ | -------------------------------------------- |
 | email                  | varchar(254) | NN, UQ       | Email trim/lowercase, bất biến qua API hồ sơ |
-| password_hash          | varchar(255) | NN           | Hash bcrypt; không lưu mật khẩu rõ           |
+| password_hash          | varchar(255) | NN           | Hash bcrypt; mật khẩu mới tối thiểu 6 ký tự, không kiểm tra 72 byte; không lưu mật khẩu rõ |
 | full_name              | varchar(100) | NN           | Tên hồ sơ                                    |
 | phone                  | varchar(16)  | NULL         | Tối đa 15 chữ số và dấu `+`                  |
 | role                   | varchar(16)  | NN, CUSTOMER | CUSTOMER / ADMIN                             |
@@ -888,7 +888,7 @@ UQ event_key bảo đảm một email cho mỗi loại sự kiện; CHECK attemp
 
 ## 9. Transaction và xử lý cạnh tranh trong database chung
 
-Các use case dưới đây dùng transaction trên database chung; provider của các module tham gia phải dùng cùng EntityManager/transaction context. Không dùng Saga hoặc messaging để thay thế tính nguyên tử giữa đơn/tồn/giỏ.
+Các use case dưới đây dùng transaction trên database chung; provider của các module tham gia phải dùng cùng Prisma.TransactionClient/transaction context. Không dùng Saga hoặc messaging để thay thế tính nguyên tử giữa đơn/tồn/giỏ.
 
 ### 9.1. Quy tắc khóa chung
 
@@ -1043,13 +1043,13 @@ products_demo không xuất categoryid của item, nên products.retailrocket_ca
 
 Các đợt trên là các nhóm nội dung thiết kế, không phải số migration phải chạy lại. Phần users/auth_sessions trong đợt 01 đã có ở migration 1; không tạo lại bảng. Các mục còn thiếu như địa giới/địa chỉ phải nằm trong migration mới. Task 002/010/019/021/024/029/040/043/049/063 theo dõi tại [Implementation tasks](IMPLEMENTATION_TASKS.md).
 
-Các đợt trên là kế hoạch nghiệp vụ trong một backend và một database. Hiện TypeORM đã có migration Auth và bảng lịch sử auth_schema_migrations; các đợt tiếp theo mở rộng có version, không chạy lại hoặc sửa migration đã áp dụng. Module ảnh thêm image_assets và FK product_images.image_asset_id trước seed. Tracking/gợi ý website thuộc backend; model Python/FastAPI là tích hợp tương lai, chưa cần database riêng.
+Các đợt trên là kế hoạch nghiệp vụ trong một backend và một database. Hiện Prisma có baseline Auth, giữ bảng lịch sử auth_schema_migrations và dùng _prisma_migrations cho migration mới; các đợt tiếp theo mở rộng có version, không chạy lại hoặc sửa migration đã áp dụng. Module ảnh thêm image_assets và FK product_images.image_asset_id trước seed. Tracking/gợi ý website thuộc backend; model Python/FastAPI là tích hợp tương lai, chưa cần database riêng.
 
 ### 11.4. Triển khai Catalog trong schema ứng dụng
 
 users/auth_sessions đã có migration; Catalog/Order chưa có migration hoặc dữ liệu do code hiện tại tạo. Triển khai trực tiếp thiết kế đa ngành: Category parent_id/attribute_config, Product attributes/variant_option_keys, SKU options/options_key và first_reserved_at. Thêm image_assets/product_images theo Supabase Storage trước khi seed ảnh.
 
-Mỗi thay đổi schema thêm migration có version, dùng cùng lịch sử auth_schema_migrations và giữ phần Auth đã áp dụng. Không tự tạo schema bằng synchronize hoặc nhập artifact chưa được xác minh. Bất biến snapshot/ID/tồn và quyền schema được kiểm chứng bằng DB test riêng trước bàn giao.
+Mỗi thay đổi schema thêm Prisma migration có version, dùng _prisma_migrations sau baseline và giữ auth_schema_migrations cùng phần Auth đã áp dụng. Không tự tạo schema bằng db push/migrate reset hoặc nhập artifact chưa được xác minh. Bất biến snapshot/ID/tồn và quyền schema được kiểm chứng bằng DB test riêng trước bàn giao.
 
 <a id="verification"></a>
 
@@ -1109,5 +1109,6 @@ Mỗi thay đổi schema thêm migration có version, dùng cùng lịch sử au
 | Phiên bản | Ngày       | Thay đổi                                                                                                                    |
 | --------- | ---------- | --------------------------------------------------------------------------------------------------------------------------- |
 | 2.3       | 27/10/2026 | Chỉ giữ thiết kế schema Supabase hiện hành, migration có version và cấu hình đang dùng; bỏ phương án chuyển đổi đã lỗi thời |
+| 2.4 | 29/10/2026 | Giữ schema Auth qua Prisma baseline và lịch sử cũ; dùng chung Prisma.TransactionClient, mật khẩu tối thiểu 6 ký tự |
 
 Auth đã có migration/seed; các bảng nghiệp vụ khác và ca kiểm chứng trong tài liệu là thiết kế, chưa phải kết quả đã triển khai hoặc kiểm thử. Task 071 phải bổ sung suite chạy DB test riêng; các HTTP tests thay DB adapter không xác nhận migration, khóa, retry hoặc ràng buộc PostgreSQL. Các ví dụ ID/giá chỉ minh họa.

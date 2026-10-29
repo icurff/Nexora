@@ -8,6 +8,7 @@ coverage/
 .vite/
 .cache/
 *.tsbuildinfo
+/backend/src/generated/prisma/
 
 # Secrets (keep configuration templates)
 .env

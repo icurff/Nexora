@@ -7,14 +7,19 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "build": "nest build",
+    "build": "prisma generate && nest build",
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main.js",
-    "migration:run": "node dist/database/cli.js migration:run",
-    "seed:demo": "node dist/database/cli.js seed:demo",
+    "migration:run": "prisma migrate deploy",
+    "migration:baseline": "prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code && prisma migrate resolve --applied 0_auth",
+    "migration:status": "prisma migrate status",
+    "seed:demo": "prisma db seed",
     "lint": "eslint src/",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -27,14 +32,16 @@
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "jose": "^6.2.13",
     "pg": "^8.23.1",
+    "prisma": "7.10.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "typeorm": "^0.3.31"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -44,6 +51,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
     "@types/supertest": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.2",
     "eslint": "^10.10.0",
@@ -61,6 +69,8 @@
     "npm": ">=11 <12"
   },
   "allowScripts": {
-    "bcrypt@6.0.0": true
+    "bcrypt@6.0.0": true,
+    "prisma@7.10.1": true,
+    "@prisma/engines@7.10.1": true
   }
 }

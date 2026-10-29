@@ -1,5 +1,5 @@
 import { loadEnvFile } from 'node:process';
-import { DataSource, type DataSourceOptions } from 'typeorm';
+import type { PoolConfig } from 'pg';
 
 try {
   loadEnvFile('.env');
@@ -16,7 +16,7 @@ function required(environment: NodeJS.ProcessEnv, name: string): string {
 
 export function createDatabaseOptions(
   environment: NodeJS.ProcessEnv = process.env,
-): DataSourceOptions {
+): PoolConfig {
   const connectionString = required(environment, 'DATABASE_URL');
   let parsed: URL;
   try {
@@ -50,14 +50,7 @@ export function createDatabaseOptions(
   }
   const ca = environment.DATABASE_SSL_CA?.trim().replace(/\\n/g, '\n');
   return {
-    type: 'postgres',
-    url: connectionString,
+    connectionString,
     ssl: { rejectUnauthorized: true, ...(ca ? { ca } : {}) },
-    synchronize: false,
-    migrationsRun: false,
-    logging: false,
-    migrationsTransactionMode: 'all',
   };
 }
-
-export const AppDataSource = new DataSource(createDatabaseOptions());

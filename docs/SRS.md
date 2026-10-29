@@ -4,9 +4,9 @@
 
 | Thông tin           | Giá trị                                                                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.3                                                                                                                                     |
+| Phiên bản           | 2.4                                                                                                                                     |
 | Ngày lập            | 09/10/2026                                                                                                                              |
-| Cập nhật            | 27/10/2026                                                                                                                              |
+| Cập nhật            | 29/10/2026                                                                                                                              |
 | Trạng thái          | Draft — sẵn sàng rà soát trước triển khai                                                                                               |
 | Tài liệu nghiệp vụ  | [BRD](BRD.md)                                                                                                                           |
 | Thiết kế dữ liệu    | [Database design](DATABASE_DESIGN.md); một database chung theo [Architecture](Folder-ARCHITECTURE.md)                                   |
@@ -107,7 +107,7 @@ Tài khoản bị khóa bị từ chối các thao tác yêu cầu xác thực, 
 
 ## 3. Yêu cầu chức năng
 
-Hiện tại repository gồm frontend React/Vite và backend NestJS monolith với AuthModule, TypeORM kết nối Supabase PostgreSQL qua DATABASE_URL/SSL và một database chung. Supabase Auth không thay AuthModule hiện có. Auth đã có đăng ký/login/refresh/logout/session/đổi mật khẩu và guard Customer/Admin; các module nghiệp vụ khác bên dưới là yêu cầu chưa triển khai. Không có gateway hoặc broker. Model Python/FastAPI là tích hợp AI tương lai, chưa có mã nguồn/container/database. Xem [Architecture](Folder-ARCHITECTURE.md).
+Hiện tại repository gồm frontend React/Vite và backend NestJS monolith với AuthModule, Prisma kết nối Supabase PostgreSQL qua DATABASE_URL/SSL và một database chung. Supabase Auth không thay AuthModule hiện có. Auth đã có đăng ký/login/refresh/logout/session/đổi mật khẩu và guard Customer/Admin; các module nghiệp vụ khác bên dưới là yêu cầu chưa triển khai. Không có gateway hoặc broker. Model Python/FastAPI là tích hợp AI tương lai, chưa có mã nguồn/container/database. Xem [Architecture](Folder-ARCHITECTURE.md).
 
 Transaction nghiệp vụ có thể bao gồm nhiều module trong database chung. Checkout và lifecycle cập nhật đơn, giỏ, tồn, ledger và business event nguyên tử, rollback toàn bộ khi lỗi. Lời gọi provider ngoài transaction; ghi job email bền vững cùng nghiệp vụ rồi gửi sau commit. Không dùng Saga hoặc HTTP/Kafka giữa module.
 
@@ -193,7 +193,7 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 
 ## 4. Đặc tả use case
 
-Các bước ghi nghiệp vụ liên quan dùng chung transaction/EntityManager; lỗi trước commit rollback toàn bộ. Provider ngoài được gọi sau commit hoặc trước khi bắt đầu khóa, có retry/idempotency phù hợp. Khi yêu cầu bị từ chối, UI giữ dữ liệu có thể tái sử dụng và không báo thành công giả; không tự gửi lại đặt hàng dưới danh tính mới.
+Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.TransactionClient; lỗi trước commit rollback toàn bộ. Provider ngoài được gọi sau commit hoặc trước khi bắt đầu khóa, có retry/idempotency phù hợp. Khi yêu cầu bị từ chối, UI giữ dữ liệu có thể tái sử dụng và không báo thành công giả; không tự gửi lại đặt hàng dưới danh tính mới.
 
 ### UC-01 — Đăng ký Customer
 
@@ -580,7 +580,7 @@ Các giới hạn độ dài/dung lượng dưới đây là **mặc định đ�
 | ------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Họ tên hồ sơ/người nhận                           | Có                            | 1–100 ký tự sau trim; cho phép Unicode và khoảng trắng                                                                                                                                                                   |
 | Email đăng ký/đăng nhập                           | Có                            | Tối đa 254 ký tự; định dạng email; trim và chuẩn hóa không phân biệt hoa/thường; không bỏ dấu chấm hoặc phần +tag                                                                                                        |
-| Mật khẩu                                          | Có                            | Tối thiểu 8 ký tự; tối đa 72 byte UTF-8 để phù hợp bcrypt; không trim/cắt; kiểm tra trùng xác nhận                                                                                                                       |
+| Mật khẩu                                          | Có                            | Mật khẩu mới tối thiểu 6 ký tự; giữ bcrypt, không kiểm tra giới hạn 72 byte; không trim; kiểm tra trùng xác nhận. Với đầu vào dài, bcrypt vẫn chỉ xử lý 72 byte đầu |
 | Điện thoại hồ sơ                                  | Không                         | Nếu có, áp dụng quy tắc định dạng như điện thoại nhận hàng                                                                                                                                                               |
 | Điện thoại nhận hàng                              | Có                            | Bỏ khoảng trắng/dấu gạch nối; chấp nhận dấu + ở đầu và 10–15 chữ số; chỉ kiểm tra định dạng, không xác minh sở hữu                                                                                                       |
 | Tỉnh/đơn vị cấp xã                                | Có khi giao hàng              | Mã có trong snapshot và quan hệ cha–con hợp lệ; đơn vị còn hoạt động cho địa chỉ mua mới                                                                                                                                 |
@@ -985,7 +985,7 @@ Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, 
 - Luồng payOS cần client ID, API key, checksum key, return/cancel URL và webhook URL được cấu hình phía backend. Thiếu cấu hình hoặc provider lỗi thì báo lỗi thanh toán, giữ đơn UNPAID; không giả lập thành công.
 - Email cần cấu hình nhà cung cấp SMTP/API và địa chỉ gửi phía backend; thiếu cấu hình thì báo trạng thái gửi lỗi/thử lại, không làm sai giao dịch đơn hàng.
 - Việc tải dữ liệu ban đầu có thể cần Internet/quyền truy cập nguồn; chạy demo sau chuẩn bị không cần gọi nguồn đó trực tiếp.
-- Frontend ReactJS/Vite và backend NestJS là hai ứng dụng, mỗi ứng dụng có package/lockfile/Dockerfile riêng. Backend dùng TypeORM, migration có version và AuthModule; các module nghiệp vụ tiếp tục trong cùng ứng dụng. Model Python/FastAPI là tích hợp tương lai.
+- Frontend ReactJS/Vite và backend NestJS là hai ứng dụng, mỗi ứng dụng có package/lockfile/Dockerfile riêng. Backend dùng Prisma, migration có version và AuthModule; các module nghiệp vụ tiếp tục trong cùng ứng dụng. Model Python/FastAPI là tích hợp tương lai.
 - Cấu trúc module, transaction chung, Compose, CI và hướng dẫn chạy theo [Architecture](Folder-ARCHITECTURE.md). CD AWS là giai đoạn sau; không cần database riêng hoặc Kafka giữa module.
 
 ### 10.3. Điều kiện hoàn thành phần mềm
@@ -1019,3 +1019,4 @@ Nếu yêu cầu mới thay đổi quyền, thời hạn, tồn, tiền, event h
 | Phiên bản | Ngày       | Nội dung                                                                                                                         |
 | --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | 2.3       | 27/10/2026 | Đồng bộ env và Docker hiện hành; chỉ giữ yêu cầu/contract của backend monolith và Supabase, bỏ lịch sử cấu hình đã được thay thế |
+| 2.4 | 29/10/2026 | Đồng bộ Prisma repositories/Migrate; mật khẩu mới tối thiểu 6 ký tự, giữ bcrypt và bỏ kiểm tra giới hạn 72 byte |
