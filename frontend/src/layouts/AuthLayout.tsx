@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { BrandIcon } from '../features/auth/components/AuthIcons';
+import { BrandLogo } from '../components/BrandLogo';
 
 export function AuthLayout({
   children,
@@ -13,10 +13,7 @@ export function AuthLayout({
     <div className="auth-page">
       <header className="site-header">
         <Link className="brand" to="/" aria-label="Nexora, trang chủ">
-          <span className="brand-mark">
-            <BrandIcon />
-          </span>
-          <span>Nexora</span>
+          <BrandLogo />
         </Link>
         <div className="header-note">Mua sắm dễ dàng, an tâm mỗi ngày</div>
         <a className="header-help" href="mailto:support@nexora.vn">

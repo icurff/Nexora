@@ -331,6 +331,117 @@ a:focus-visible {
   font-weight: 680;
   text-decoration: none;
 }
+.forgot-password-link {
+  margin-top: -8px;
+  text-align: right;
+  font-size: 11px;
+}
+.forgot-password-link a,
+.recovery-card .form-switch a {
+  color: #4b62ce;
+  font-weight: 650;
+  text-decoration: none;
+}
+.recovery-card .form-switch a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.recovery-card .form-switch a svg {
+  width: 14px;
+  height: 14px;
+}
+.recovery-success > p {
+  margin: 0 0 18px;
+  color: #78839a;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.recovery-success > p strong {
+  color: #394662;
+  overflow-wrap: anywhere;
+}
+.admin-check-card {
+  text-align: center;
+}
+.admin-check-card h1 {
+  margin: 0 0 9px;
+  color: #182342;
+  font-size: 25px;
+  font-weight: 730;
+  letter-spacing: -0.8px;
+}
+.admin-check-card > p {
+  margin-bottom: 20px;
+  color: #78839a;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.admin-check-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 18px;
+  color: #33895e;
+  background: #e7f7ee;
+  border-radius: 50%;
+}
+.admin-check-icon.denied {
+  color: #b44c53;
+  background: #fff0f0;
+}
+.admin-check-icon svg {
+  width: 27px;
+  height: 27px;
+}
+.admin-identity {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 10px 12px;
+  margin: 20px 0;
+  padding: 16px;
+  text-align: left;
+  border: 1px solid #ebeff6;
+  border-radius: 11px;
+  background: #fafbfe;
+  font-size: 11px;
+}
+.admin-identity span {
+  color: #8791a4;
+}
+.admin-identity strong {
+  color: #303b55;
+  overflow-wrap: anywhere;
+}
+.admin-result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px 0;
+  padding: 12px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+.admin-result svg {
+  width: 17px;
+  height: 17px;
+}
+.admin-result.success {
+  color: #26724f;
+  border: 1px solid #cce9d9;
+  background: #f2fbf6;
+}
+.admin-result.pending {
+  color: #65718b;
+  background: #f3f5fa;
+}
+.admin-back-button {
+  width: 100%;
+  min-height: 43px;
+  margin-top: 4px;
+}
 .secure-note {
   display: flex;
   align-items: center;
@@ -439,6 +550,32 @@ a:focus-visible {
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
+}
+.admin-account-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 12px 14px;
+  color: #65718b;
+  border: 1px solid #e5e9f5;
+  border-radius: 10px;
+  background: #f7f8ff;
+  font-size: 11px;
+}
+.admin-account-link a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #4b62ce;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.admin-account-link svg {
+  width: 14px;
+  height: 14px;
 }
 .account-topline h1 {
   margin-top: 1px;
@@ -632,6 +769,10 @@ a:focus-visible {
   }
   .account-profile {
     padding: 13px;
+  }
+  .admin-account-link {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .role-badge {
     font-size: 9px;

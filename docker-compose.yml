@@ -14,6 +14,9 @@ services:
       AUTH_ACCESS_SECRET: ${AUTH_ACCESS_SECRET:-}
       AUTH_REFRESH_SECRET: ${AUTH_REFRESH_SECRET:-}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     ports:
       - '${BACKEND_PORT:-3000}:3000'
 
@@ -25,7 +28,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      API_PROXY_TARGET: http://backend:3000
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:3000/api/v1}
       WATCH_POLLING: 'true'
     ports:
       - '${FRONTEND_PORT:-5173}:5173'

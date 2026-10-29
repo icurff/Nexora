@@ -5,10 +5,22 @@ import { AuthGuard } from '../shared/guards/auth.guard.js';
 import { RolesGuard } from '../shared/guards/roles.guard.js';
 import { UserRepository } from './repositories/user.repository.js';
 import { SessionRepository } from './repositories/session.repository.js';
+import { PasswordResetService } from './services/password-reset.service.js';
+import { PasswordResetTokenRepository } from './repositories/password-reset-token.repository.js';
+import { NotificationModule } from '../notification/notification.module.js';
 
 @Module({
+  imports: [NotificationModule],
   controllers: [AuthController],
-  providers: [AuthService, UserRepository, SessionRepository, AuthGuard, RolesGuard],
+  providers: [
+    AuthService,
+    PasswordResetService,
+    PasswordResetTokenRepository,
+    UserRepository,
+    SessionRepository,
+    AuthGuard,
+    RolesGuard,
+  ],
   exports: [AuthService, AuthGuard, RolesGuard],
 })
 export class AuthModule {}

@@ -20,6 +20,9 @@ import {
 } from '../shared/decorators/current-actor.decorator.js';
 import { Roles } from '../shared/decorators/roles.decorator.js';
 import { RolesGuard } from '../shared/guards/roles.guard.js';
+import { PasswordResetRequestDto } from './dto/password-reset-request.dto.js';
+import { PasswordResetDto } from './dto/password-reset.dto.js';
+import { PasswordResetService } from './services/password-reset.service.js';
 
 const refreshCookie = (req: Request) => {
   const value = req.headers.cookie
@@ -37,7 +40,10 @@ const refreshCookie = (req: Request) => {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly passwordReset: PasswordResetService,
+  ) {}
   @Post('register') register(@Body() body: RegisterDto) {
     return this.auth.register(body);
   }
@@ -75,6 +81,14 @@ export class AuthController {
   async session(@CurrentActor() actor: AuthenticatedActor) {
     return this.auth.session(actor);
   }
+
+  @Get('admin-access')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  adminAccess() {
+    return { authorized: true };
+  }
+
   @Post('change-password')
   @HttpCode(204)
   @UseGuards(AuthGuard, RolesGuard)
@@ -85,6 +99,26 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.auth.changePassword(actor, body);
+    res.setHeader('Set-Cookie', this.auth.clearCookie());
+  }
+
+  @Post('password-reset-requests')
+  @HttpCode(202)
+  requestPasswordReset(@Body() body: PasswordResetRequestDto) {
+    return this.passwordReset.request(body.email);
+  }
+
+  @Post('password-resets')
+  @HttpCode(204)
+  async resetPassword(
+    @Body() body: PasswordResetDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.passwordReset.reset(
+      body.token,
+      body.newPassword,
+      body.confirmPassword,
+    );
     res.setHeader('Set-Cookie', this.auth.clearCookie());
   }
 }

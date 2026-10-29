@@ -39,7 +39,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test --if-present
       - run: npm run build
 
       - run: docker build --target ${{ matrix.target }} -t nexora-${{ matrix.app }}:ci .

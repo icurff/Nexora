@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#e8ecf8"/><stop offset="1" stop-color="#d4daf0"/></linearGradient><linearGradient id="ear" x2="1"><stop stop-color="#34405f"/><stop offset="1" stop-color="#68769a"/></linearGradient></defs>
+  <rect width="800" height="800" rx="72" fill="url(#bg)"/><circle cx="630" cy="165" r="95" fill="#fff" opacity=".45"/><ellipse cx="400" cy="630" rx="205" ry="36" fill="#5a6485" opacity=".15"/>
+  <path d="M236 424v-58c0-102 73-179 164-179s164 77 164 179v58" fill="none" stroke="#3c4768" stroke-width="42" stroke-linecap="round"/><rect x="205" y="390" width="110" height="204" rx="48" fill="url(#ear)"/><rect x="485" y="390" width="110" height="204" rx="48" fill="url(#ear)"/><rect x="224" y="420" width="24" height="130" rx="12" fill="#aeb9dc" opacity=".65"/><rect x="504" y="420" width="24" height="130" rx="12" fill="#aeb9dc" opacity=".65"/>
+  <text x="400" y="700" text-anchor="middle" fill="#475274" font-family="Arial,sans-serif" font-size="28" letter-spacing="5">SOUND, SIMPLIFIED</text>
+</svg>

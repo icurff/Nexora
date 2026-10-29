@@ -34,11 +34,11 @@ Last reviewed: 2026-10-29. Verify and update this table as the code evolves.
 
 | Component      | Status                                                                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `frontend`     | React/Vite/TypeScript; Auth registration, login, session restore/logout and password change integrated with the backend                     |
-| `backend`      | One NestJS modular monolith; AuthModule, registration/login/refresh/logout/session/password change and session-backed Customer/Admin guards |
-| Database       | Supabase PostgreSQL via Prisma repositories and verified TLS; Auth migration baseline/demo seed; live reads verified, Prisma baseline not applied |
+| `frontend`     | React/Vite/TypeScript; Auth flows integrated with the backend; mockup screens are organized by feature; Catalog/cart/checkout/orders still use local fixture data, while `/admin` requires an authenticated Admin and checks backend authorization |
+| `backend`      | One NestJS modular monolith; AuthModule registration/login/session/password change/password reset, session-backed guards and Gmail SMTP reset email; email jobs/workers remain deferred |
+| Database       | Supabase PostgreSQL via Prisma repositories and verified TLS; Auth baseline and password-reset migration authored; existing project migration status must be checked before deploy |
 | Docker         | Compose runs frontend/backend only; external Supabase database/storage; no healthcheck or local database volume/init script                 |
-| Other modules  | Catalog, Order, Payment, Notification, Tracking and rule-based Recommendation are planned inside backend, without empty scaffolds           |
+| Other modules  | Catalog, Order, Payment, Tracking and rule-based Recommendation are planned inside backend; Notification currently only sends password reset email directly, without email jobs/workers |
 | AI model       | Python/FastAPI integration is deferred; no application/container/database exists                                                            |
 | Infrastructure | No Gateway, Saga, Kafka, Redis or Elasticsearch dependency in the current architecture                                                      |
 | CI             | GitHub Actions verifies and Docker-builds backend/frontend on pushes and pull requests to main                                              |

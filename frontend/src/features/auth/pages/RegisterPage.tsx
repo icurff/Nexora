@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   ArrowRight,
@@ -8,16 +8,13 @@ import {
   UserRound,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AuthLayout, AuthHeading } from '../layouts/AuthLayout';
-import {
-  FormField,
-  PasswordField,
-} from '../features/auth/components/FormField';
-import { Notice } from '../features/auth/components/Notice';
-import { errorMessage, fieldError } from '../features/auth/services/auth-api';
-import { useAuth } from '../features/auth/hooks/useAuth';
-import { useRegister } from '../features/auth/hooks/useAuthMutations';
-import { Button } from '../components/ui/button';
+import { AuthLayout, AuthHeading } from '../../../layouts/AuthLayout';
+import { FormField, PasswordField } from '../components/FormField';
+import { Notice } from '../components/Notice';
+import { errorMessage, fieldError } from '../services/auth-api';
+import { useAuth } from '../hooks/useAuth';
+import { useRegister } from '../hooks/useAuthMutations';
+import { Button } from '../../../components/ui/button';
 
 type RegisterForm = {
   fullName: string;
@@ -46,7 +43,8 @@ export default function RegisterPage() {
   const [complete, setComplete] = useState(false);
 
   useEffect(() => {
-    if (status === 'authenticated') navigate('/account', { replace: true });
+    if (status === 'authenticated')
+      navigate('/account', { replace: true });
   }, [status, navigate]);
 
   async function submit(form: RegisterForm) {
@@ -144,7 +142,10 @@ export default function RegisterPage() {
             placeholder="Tối thiểu 6 ký tự"
             {...register('password', {
               required: 'Nhập mật khẩu.',
-              minLength: { value: 6, message: 'Mật khẩu cần ít nhất 6 ký tự.' },
+              minLength: {
+                value: 6,
+                message: 'Mật khẩu cần ít nhất 6 ký tự.',
+              },
             })}
             hint="Ít nhất 6 ký tự."
             error={errors.password?.message ?? fieldError(error, 'password')}

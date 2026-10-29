@@ -2,9 +2,9 @@
 
 | Thông tin           | Giá trị                                                                                                                     |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.4                                                                                                                         |
+| Phiên bản           | 2.5                                                                                                                         |
 | Ngày                | 29/10/2026                                                                                                                  |
-| Trạng thái          | Thiết kế cho monolith một database; Auth đã có migration, các bảng nghiệp vụ khác chưa triển khai                           |
+| Trạng thái          | Thiết kế cho monolith một database; Auth và password_reset_tokens có versioned migrations                                  |
 | Hệ quản trị         | PostgreSQL do Supabase quản lý; bytes ảnh ở Supabase Storage                                                                |
 | Tài liệu liên quan  | [BRD](BRD.md), [SRS](SRS.md), [Architecture — thiết kế triển khai hiện tại](Folder-ARCHITECTURE.md)                         |
 | Phạm vi             | Ecommerce đa ngành COD/payOS, catalog synthetic/placeholder theo notebook, một kho, tracking và recommendation theo quy tắc |
@@ -177,16 +177,19 @@ Access token chứa session ID. Guard kiểm tra cả trạng thái user và ses
 
 ### 3.3. `password_reset_tokens`
 
+Migration `1_password_reset` tạo bảng này sau baseline `0_auth`.
+
 | Cột        | Kiểu        | Null/default | Ý nghĩa                                                             |
 | ---------- | ----------- | ------------ | ------------------------------------------------------------------- |
+| id         | bigint      | PK, identity | Khóa token                                                          |
 | user_id    | bigint      | NN, FK users | Tài khoản yêu cầu đặt lại mật khẩu                                  |
 | token_hash | char(64)    | NN, UQ       | SHA-256 token ngẫu nhiên; token rõ chỉ tồn tại trong liên kết email |
 | expires_at | timestamptz | NN           | Hạn 30 phút từ lúc tạo                                              |
 | used_at    | timestamptz | NULL         | Đã dùng thành công thì không dùng lại                               |
 | created_at | timestamptz | NN           | Thời điểm yêu cầu                                                   |
 
-Index `(user_id, created_at DESC)` và `(expires_at)`. Chỉ cho dùng khi chưa hết hạn, chưa dùng và tài khoản còn hợp lệ. Token tiêu thụ, đổi hash mật khẩu và thu hồi toàn bộ `auth_sessions` phải cùng transaction. Token hết hạn được dọn định kỳ; giới hạn tần suất yêu cầu được thực thi tại API.
-Khi phát hành token mới, các token chưa dùng trước đó của user bị vô hiệu hóa. Tạo token và gửi email không được trả khác biệt quan sát được giữa email có/không có tài khoản; lỗi gửi cho phép khách yêu cầu lại.
+Index `(user_id, created_at DESC)` và `(expires_at)`. Chỉ cho dùng khi chưa hết hạn, chưa dùng và tài khoản còn hợp lệ. Token tiêu thụ, đổi hash mật khẩu và thu hồi toàn bộ `auth_sessions` phải cùng transaction. Khi phát hành token mới, token cũ của user bị xóa; token hết hạn/dùng rồi có thể được dọn khi user yêu cầu token mới.
+Gửi reset hiện gọi Gmail SMTP trực tiếp sau commit, không lưu job bền vững và không tự retry. Hai endpoint không tiết lộ tài khoản tồn tại; lỗi provider xóa token vừa cấp để khách yêu cầu lại. Task 015 vẫn dự kiến email_outbox/worker cho email nghiệp vụ và retry.
 
 ### 3.4. `location_datasets`
 
@@ -1110,5 +1113,7 @@ Mỗi thay đổi schema thêm Prisma migration có version, dùng _prisma_migra
 | --------- | ---------- | --------------------------------------------------------------------------------------------------------------------------- |
 | 2.3       | 27/10/2026 | Chỉ giữ thiết kế schema Supabase hiện hành, migration có version và cấu hình đang dùng; bỏ phương án chuyển đổi đã lỗi thời |
 | 2.4 | 29/10/2026 | Giữ schema Auth qua Prisma baseline và lịch sử cũ; dùng chung Prisma.TransactionClient, mật khẩu tối thiểu 6 ký tự |
+| 2.5 | 29/10/2026 | Thêm migration password_reset_tokens; reset gửi Resend trực tiếp, chưa có email_outbox/worker |
+| 2.6 | 29/10/2026 | Chuyển gửi email reset sang Gmail SMTP qua Nodemailer |
 
-Auth đã có migration/seed; các bảng nghiệp vụ khác và ca kiểm chứng trong tài liệu là thiết kế, chưa phải kết quả đã triển khai hoặc kiểm thử. Task 071 phải bổ sung suite chạy DB test riêng; các HTTP tests thay DB adapter không xác nhận migration, khóa, retry hoặc ràng buộc PostgreSQL. Các ví dụ ID/giá chỉ minh họa.
+Auth và password_reset_tokens có migration/seed; các bảng nghiệp vụ khác và ca kiểm chứng trong tài liệu là thiết kế, chưa phải kết quả đã triển khai hoặc kiểm thử. Task 071 phải bổ sung suite chạy DB test riêng; các HTTP tests thay DB adapter không xác nhận migration, khóa, retry hoặc ràng buộc PostgreSQL. Các ví dụ ID/giá chỉ minh họa.
