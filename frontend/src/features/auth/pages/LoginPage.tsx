@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   ArrowRight,
@@ -7,16 +7,13 @@ import {
   LoaderCircle,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AuthLayout, AuthHeading } from '../layouts/AuthLayout';
-import {
-  FormField,
-  PasswordField,
-} from '../features/auth/components/FormField';
-import { Notice } from '../features/auth/components/Notice';
-import { errorMessage } from '../features/auth/services/auth-api';
-import { useAuth } from '../features/auth/hooks/useAuth';
-import { useLogin } from '../features/auth/hooks/useAuthMutations';
-import { Button } from '../components/ui/button';
+import { AuthLayout, AuthHeading } from '../../../layouts/AuthLayout';
+import { FormField, PasswordField } from '../components/FormField';
+import { Notice } from '../components/Notice';
+import { errorMessage } from '../services/auth-api';
+import { useAuth } from '../hooks/useAuth';
+import { useLogin } from '../hooks/useAuthMutations';
+import { Button } from '../../../components/ui/button';
 
 export default function LoginPage() {
   const { status } = useAuth();
@@ -39,7 +36,8 @@ export default function LoginPage() {
       : '/account';
 
   useEffect(() => {
-    if (status === 'authenticated') navigate(destination, { replace: true });
+    if (status === 'authenticated')
+      navigate(destination, { replace: true });
   }, [status, navigate, destination]);
 
   async function submit(values: { email: string; password: string }) {
@@ -72,6 +70,11 @@ export default function LoginPage() {
             Mật khẩu đã được cập nhật. Vui lòng đăng nhập lại.
           </Notice>
         ) : null}
+        {params.get('passwordReset') === '1' ? (
+          <Notice tone="success">
+            Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.
+          </Notice>
+        ) : null}
         {params.get('loggedOut') === '1' ? (
           <Notice tone="success">Bạn đã đăng xuất thành công.</Notice>
         ) : null}
@@ -101,9 +104,14 @@ export default function LoginPage() {
             label="Mật khẩu"
             autoComplete="current-password"
             placeholder="Nhập mật khẩu"
-            {...register('password', { required: 'Nhập mật khẩu của bạn.' })}
+            {...register('password', {
+              required: 'Nhập mật khẩu của bạn.',
+            })}
             error={errors.password?.message}
           />
+          <div className="forgot-password-link">
+            <Link to="/forgot-password">Quên mật khẩu?</Link>
+          </div>
           <Button
             className="primary-button"
             type="submit"

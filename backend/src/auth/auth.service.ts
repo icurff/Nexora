@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../database/prisma.service.js';
 import { UserRepository, EmailAlreadyExistsError } from './repositories/user.repository.js';
 import { SessionRepository } from './repositories/session.repository.js';
+import { PasswordResetTokenRepository } from './repositories/password-reset-token.repository.js';
 import bcrypt from 'bcrypt';
 import { SignJWT, jwtVerify } from 'jose';
 import type { User } from './entities/user.entity.js';
@@ -38,6 +39,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly users: UserRepository,
     private readonly sessions: SessionRepository,
+    private readonly passwordResetTokens: PasswordResetTokenRepository,
   ) {
     this.accessKey = this.secret('AUTH_ACCESS_SECRET');
     this.refreshKey = this.secret('AUTH_REFRESH_SECRET');
@@ -209,6 +211,7 @@ export class AuthService {
       if (!user || user.status !== 'ACTIVE' || !(await bcrypt.compare(dto.currentPassword, user.passwordHash)))
         throw new UnauthorizedException({ code: 'CURRENT_PASSWORD_INVALID', message: 'Current password is incorrect' });
       await this.users.updatePassword(user.id, await bcrypt.hash(dto.newPassword, 6), transaction);
+      await this.passwordResetTokens.deleteUnusedForUser(user.id, transaction);
       await this.sessions.revokeAll(user.id, 'PASSWORD_CHANGED', transaction);
     });
   }

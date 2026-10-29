@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#f7f1e5"/><stop offset="1" stop-color="#eee1c9"/></linearGradient></defs>
+  <rect width="800" height="800" rx="72" fill="url(#bg)"/><circle cx="170" cy="160" r="80" fill="#fff" opacity=".5"/><ellipse cx="400" cy="650" rx="195" ry="32" fill="#8e7754" opacity=".16"/>
+  <path d="M280 345h240l-52-147H332z" fill="#d4ac69" stroke="#a88043" stroke-width="12" stroke-linejoin="round"/><path d="M400 346v188" stroke="#7e775f" stroke-width="22"/><path d="M325 553h150l37 35H288z" fill="#74715f"/><path d="M338 369l62 135 62-135" fill="#fff3ca" opacity=".55"/>
+  <text x="400" y="690" text-anchor="middle" fill="#80704f" font-family="Arial,sans-serif" font-size="28" letter-spacing="5">SOFT LIGHT, SLOW DAYS</text>
+</svg>
