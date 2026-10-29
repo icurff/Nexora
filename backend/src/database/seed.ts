@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import type { DataSource, QueryRunner } from 'typeorm';
+import type { PrismaService } from './prisma.service.js';
 
 export interface DemoSeedConfig {
   customerEmail: string;
@@ -24,10 +24,9 @@ function validateEmail(email: string, variable: string): string {
 }
 
 function validatePassword(password: string, variable: string): void {
-  const byteLength = Buffer.byteLength(password, 'utf8');
-  if (password.length < 8 || byteLength > 72) {
+  if ([...password].length < 6) {
     throw new Error(
-      `${variable} must be at least 8 characters and at most 72 UTF-8 bytes`,
+      `${variable} must be at least 6 characters`,
     );
   }
 }
@@ -62,52 +61,23 @@ export function readDemoSeedConfig(
   return { customerEmail, customerPassword, adminEmail, adminPassword };
 }
 
-async function insertIfMissing(
-  queryRunner: QueryRunner,
-  email: string,
-  password: string,
-  fullName: string,
-  role: 'CUSTOMER' | 'ADMIN',
-): Promise<boolean> {
-  const passwordHash = await bcrypt.hash(password, 12);
-  const rows = (await queryRunner.query(
-    `INSERT INTO users (email, password_hash, full_name, role, status)
-     VALUES ($1, $2, $3, $4, 'ACTIVE')
-     ON CONFLICT (email) DO NOTHING
-     RETURNING id`,
-    [email, passwordHash, fullName, role],
-  )) as unknown as Array<{ id: string }>;
-  return rows.length === 1;
-}
-
 export async function seedDemoAccounts(
-  dataSource: DataSource,
+  prisma: PrismaService,
   config: DemoSeedConfig,
 ): Promise<{ customerCreated: boolean; adminCreated: boolean }> {
-  const queryRunner = dataSource.createQueryRunner();
-  await queryRunner.connect();
-  await queryRunner.startTransaction();
-  try {
-    const customerCreated = await insertIfMissing(
-      queryRunner,
-      config.customerEmail,
-      config.customerPassword,
-      'Demo Customer',
-      'CUSTOMER',
-    );
-    const adminCreated = await insertIfMissing(
-      queryRunner,
-      config.adminEmail,
-      config.adminPassword,
-      'Demo Admin',
-      'ADMIN',
-    );
-    await queryRunner.commitTransaction();
-    return { customerCreated, adminCreated };
-  } catch (error) {
-    await queryRunner.rollbackTransaction();
-    throw error;
-  } finally {
-    await queryRunner.release();
-  }
+  const [customerHash, adminHash] = await Promise.all([
+    bcrypt.hash(config.customerPassword, 6),
+    bcrypt.hash(config.adminPassword, 6),
+  ]);
+  return prisma.transaction(async (transaction) => {
+    const customer = await transaction.user.createMany({
+      data: [{ email: config.customerEmail, passwordHash: customerHash, fullName: 'Demo Customer', role: 'CUSTOMER', status: 'ACTIVE' }],
+      skipDuplicates: true,
+    });
+    const admin = await transaction.user.createMany({
+      data: [{ email: config.adminEmail, passwordHash: adminHash, fullName: 'Demo Admin', role: 'ADMIN', status: 'ACTIVE' }],
+      skipDuplicates: true,
+    });
+    return { customerCreated: customer.count === 1, adminCreated: admin.count === 1 };
+  });
 }

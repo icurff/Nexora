@@ -12,7 +12,7 @@ Paths below are relative to the repository root.
 ## Inspect and implement
 
 - Inspect backend/package.json, modules, controllers, providers, DTOs and tests.
-  AuthModule, guards, TypeORM and migrations exist; other business modules are planned.
+  AuthModule, guards, Prisma repositories and migrations exist; other business modules are planned.
 - Keep one NestJS application and one PostgreSQL database. Add feature modules
   when implementing real behavior; avoid empty scaffolds or independent services.
 - Preserve ESM/NodeNext and relative .js imports. Register modules/providers and
@@ -20,7 +20,9 @@ Paths below are relative to the repository root.
 - Controllers handle HTTP/DTOs; providers own business rules; adapters handle DB
   and external providers. Import AuthModule to use AuthService/AuthGuard/RolesGuard.
 - Validate runtime inputs, role and ownership; never trust client actor/role headers.
-- Share the transaction EntityManager for writes across modules. Checkout and
+- Keep Prisma queries in feature repositories; services coordinate business logic.
+  Parameterized row-lock SQL belongs in repositories because Prisma has no row-lock API.
+- Share the Prisma.TransactionClient for writes across modules. Checkout and
   lifecycle commit orders/stock/cart/history/event/idempotency together. Use stable
   lock ordering, exact money arithmetic and string bigint IDs.
 - Call payOS/Supabase Storage/email outside transactions holding row locks. Queue email

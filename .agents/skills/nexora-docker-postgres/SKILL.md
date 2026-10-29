@@ -31,9 +31,15 @@ backend database/config.ts and versioned migrations. Use docker compose config
   secrets, and remove unused settings when cleanup is requested. Missing Supabase
   credentials stay blank with instructions; never invent a project URL or key.
 - Auth remains Nexora accounts/sessions/JWT, not Supabase Auth. Application code
-  accesses its own schema through TypeORM/pg; do not edit provider auth/storage tables.
-- TypeORM uses explicit versioned migrations and synchronize:false. Preserve
-  auth_schema_migrations and applied Auth migrations; no automatic reseed/startup DDL.
+  accesses its own schema through Prisma repositories/pg; do not edit provider auth/storage tables.
+- Prisma Migrate uses explicit versioned migrations in backend/prisma/migrations.
+  Preserve auth_schema_migrations as legacy history. Existing Auth databases need
+  an explicit migration:baseline before migration:run; baseline checks schema drift
+  before recording 0_auth in _prisma_migrations. Never reset or automatically reseed.
+- Prisma CLI loads strict TLS options and a temporary CA file from DATABASE_SSL_CA
+  through prisma.config.ts; npm scripts call the standard CLI without a custom runner. Do not use db push or migrate reset on
+  a working database. Generate Prisma Client after schema changes; generated code
+  is ignored and compiled into dist for the runtime image.
 - Confirm the target before any real project migration or seed. Test schema/roles
   and data transfer on isolated project/database inputs, never by resetting live data.
 - Supabase Storage upload is planned Catalog work. Public catalog bucket reads are

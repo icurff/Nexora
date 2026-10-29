@@ -30,13 +30,13 @@ Codex settings and agent roles are in `.codex/config.toml` and `.codex/agents/`.
 
 ## Current implementation
 
-Last reviewed: 2026-10-27. Verify and update this table as the code evolves.
+Last reviewed: 2026-10-29. Verify and update this table as the code evolves.
 
 | Component      | Status                                                                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `frontend`     | React/Vite/TypeScript; Auth registration, login, session restore/logout and password change integrated with the backend                     |
 | `backend`      | One NestJS modular monolith; AuthModule, registration/login/refresh/logout/session/password change and session-backed Customer/Admin guards |
-| Database       | Supabase PostgreSQL via DATABASE_URL and verified TLS; TypeORM Auth migrations/demo seed; live project connection not yet verified          |
+| Database       | Supabase PostgreSQL via Prisma repositories and verified TLS; Auth migration baseline/demo seed; live reads verified, Prisma baseline not applied |
 | Docker         | Compose runs frontend/backend only; external Supabase database/storage; no healthcheck or local database volume/init script                 |
 | Other modules  | Catalog, Order, Payment, Notification, Tracking and rule-based Recommendation are planned inside backend, without empty scaffolds           |
 | AI model       | Python/FastAPI integration is deferred; no application/container/database exists                                                            |
@@ -98,7 +98,7 @@ implemented.
   payment rules; Notification owns email delivery jobs. These are module boundaries,
   not independently deployed services or databases.
 - Modules communicate through providers in the same process. Keep controllers thin
-  and avoid circular imports. Share the transaction EntityManager when one use case
+  and avoid circular imports. Share the Prisma.TransactionClient when one use case
   changes data across modules; do not make HTTP calls between backend modules.
 - Checkout and lifecycle use one transaction for orders, stock, carts, history,
   business events and idempotency. Preserve row locking, stable lock ordering and
@@ -120,8 +120,8 @@ implemented.
 - Backend code uses strict TypeScript and ESM/NodeNext. Preserve `.js` extensions
   on relative imports. Frontend code follows its own Vite configuration.
 - Keep controllers thin, business logic in providers/services, and persistence
-  behind the appropriate adapter boundary. Backend already uses TypeORM/PostgreSQL; extend its versioned migrations and
-  keep synchronize disabled.
+  behind feature repositories. Backend uses Prisma/PostgreSQL; extend versioned
+  Prisma migrations and do not run db push or migrate reset on working databases.
 - Create modules and abstractions for current features. Do not generate empty
   files from the illustrative Architecture directory tree.
 - Use ESLint in every Node application and Prettier for formatting. Each app has

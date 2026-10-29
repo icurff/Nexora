@@ -6,13 +6,16 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { PrismaService } from '../database/prisma.service.js';
+import { UserRepository, EmailAlreadyExistsError } from './repositories/user.repository.js';
+import { SessionRepository } from './repositories/session.repository.js';
 import bcrypt from 'bcrypt';
 import { SignJWT, jwtVerify } from 'jose';
-import type { User } from '../database/entities/user.entity.js';
-import type { AuthSession } from '../database/entities/auth-session.entity.js';
+import type { User } from './entities/user.entity.js';
 import { hashRefreshToken } from '../database/crypto.js';
-import type { RegisterDto, LoginDto, ChangePasswordDto } from './auth.dto.js';
+import type { RegisterDto } from './dto/register.dto.js';
+import type { LoginDto } from './dto/login.dto.js';
+import type { ChangePasswordDto } from './dto/change-password.dto.js';
 
 type Actor = { userId: string; sessionId: string; role: 'CUSTOMER' | 'ADMIN' };
 const userView = (u: User) => ({
@@ -31,15 +34,18 @@ export class AuthService {
   private readonly accessKey: Uint8Array;
   private readonly refreshKey: Uint8Array;
   private readonly secureCookie: boolean;
-  constructor(private readonly db: DataSource) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly users: UserRepository,
+    private readonly sessions: SessionRepository,
+  ) {
     this.accessKey = this.secret('AUTH_ACCESS_SECRET');
     this.refreshKey = this.secret('AUTH_REFRESH_SECRET');
     this.secureCookie = process.env.COOKIE_SECURE === 'true';
   }
   private secret(name: string): Uint8Array {
     const v = process.env[name] ?? '';
-    if (v.length < 32)
-      throw new Error(`${name} must contain at least 32 characters`);
+    if (!v.trim()) throw new Error(`${name} is required`);
     return new TextEncoder().encode(v);
   }
   cookie(token: string, maxAge = 604800): string {
@@ -86,220 +92,130 @@ export class AuthService {
     if (
       payload.tokenUse !== use ||
       typeof payload.sub !== 'string' ||
-      typeof payload.sid !== 'string'
+      typeof payload.sid !== 'string' ||
+      !this.validId(payload.sub) || !this.validId(payload.sid)
     )
       throw new UnauthorizedException();
-    return payload;
+    return { ...payload, sub: payload.sub, sid: payload.sid, version: payload.version };
   }
+  private validId(value: string): boolean {
+    return /^[1-9][0-9]{0,18}$/.test(value) && BigInt(value) <= 9223372036854775807n;
+  }
+
   async register(dto: RegisterDto) {
     const fullName = dto.fullName.trim();
     const email = dto.email.trim().toLowerCase();
-    if (
-      !fullName ||
-      Buffer.byteLength(dto.password, 'utf8') > 72 ||
-      dto.password !== dto.confirmPassword
-    )
+    if (!fullName || dto.password !== dto.confirmPassword)
       throw new BadRequestException({
-        code: 'VALIDATION_FAILED',
-        message: 'Invalid registration data',
+        code: 'VALIDATION_FAILED', message: 'Invalid registration data',
         fieldErrors: { confirmPassword: ['Passwords must match'] },
       });
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = await bcrypt.hash(dto.password, 6);
     try {
-      const rows = (await this.db.query(
-        `INSERT INTO users (email,password_hash,full_name,role,status) VALUES ($1,$2,$3,'CUSTOMER','ACTIVE') RETURNING id,email,password_hash AS "passwordHash",full_name AS "fullName",phone,role,status,locked_at AS "lockedAt",lock_reason AS "lockReason",created_at AS "createdAt",updated_at AS "updatedAt"`,
-        [email, passwordHash, fullName],
-      )) as unknown as User[];
-      return userView(rows[0]);
-    } catch (e) {
-      const pgError = e as { code?: string; driverError?: { code?: string } };
-      if (pgError.code === '23505' || pgError.driverError?.code === '23505')
+      return userView(await this.users.createCustomer({ email, passwordHash, fullName }));
+    } catch (error) {
+      if (error instanceof EmailAlreadyExistsError)
         throw new ConflictException({
-          code: 'EMAIL_ALREADY_EXISTS',
-          message: 'Email is already registered',
+          code: 'EMAIL_ALREADY_EXISTS', message: 'Email is already registered',
           fieldErrors: { email: ['Email is already registered'] },
         });
-      throw e;
+      throw error;
     }
   }
+
   async login(dto: LoginDto) {
-    return this.db.transaction(async (m) => {
-      const rows = (await m.query(
-        `SELECT id,email,password_hash AS "passwordHash",full_name AS "fullName",phone,role,status,locked_at AS "lockedAt",lock_reason AS "lockReason",created_at AS "createdAt",updated_at AS "updatedAt" FROM users WHERE email=$1 FOR UPDATE`,
-        [dto.email],
-      )) as unknown as User[];
-      const user = rows[0];
+    return this.prisma.transaction(async (transaction) => {
+      const user = await this.users.findByEmailForUpdate(dto.email, transaction);
       if (!user || !(await bcrypt.compare(dto.password, user.passwordHash)))
-        throw new UnauthorizedException({
-          code: 'INVALID_CREDENTIALS',
-          message: 'Email or password is incorrect',
-        });
+        throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email or password is incorrect' });
       if (user.status !== 'ACTIVE')
-        throw new ForbiddenException({
-          code: 'ACCOUNT_LOCKED',
-          message: 'Account is locked',
-        });
-      const sessionRows = (await m.query(
-        `INSERT INTO auth_sessions (user_id,refresh_token_hash,refresh_version,expires_at,last_used_at) VALUES ($1,$2,0,NOW()+INTERVAL '7 days',NOW()) RETURNING id`,
-        [user.id, randomBytes(32).toString('hex')],
-      )) as unknown as Array<{ id: string }>;
-      const sid = String(sessionRows[0].id);
-      const refreshToken = await this.jwt(user.id, sid, 'refresh', 0, '7d');
-      await m.query(
-        'UPDATE auth_sessions SET refresh_token_hash=$1 WHERE id=$2',
-        [hashRefreshToken(refreshToken), sid],
+        throw new ForbiddenException({ code: 'ACCOUNT_LOCKED', message: 'Account is locked' });
+      const session = await this.sessions.create(
+        user.id, randomBytes(32).toString('hex'), new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), transaction,
       );
-      return {
-        accessToken: await this.jwt(user.id, sid, 'access'),
-        refreshToken,
-        user: userView(user),
-      };
+      const refreshToken = await this.jwt(user.id, session.id, 'refresh', 0, '7d');
+      await this.sessions.rotate(session.id, 0, hashRefreshToken(refreshToken), transaction);
+      return { accessToken: await this.jwt(user.id, session.id, 'access'), refreshToken, user: userView(user) };
     });
   }
+
   async refresh(token?: string) {
     if (!token) throw new UnauthorizedException();
-    let p;
+    let payload;
     try {
-      p = await this.verify(token, 'refresh');
+      payload = await this.verify(token, 'refresh');
     } catch {
       throw new UnauthorizedException();
     }
-    const result = await this.db.transaction(async (m) => {
-      await m.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [p.sub]);
-      const rows = (await m.query(
-        `SELECT s.id,s.user_id AS "userId",s.refresh_token_hash AS "refreshTokenHash",s.refresh_version AS "refreshVersion",s.expires_at AS "expiresAt",s.revoked_at AS "revokedAt",u.email,u.full_name AS "fullName",u.phone,u.role,u.status,u.created_at AS "createdAt",u.updated_at AS "updatedAt" FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.user_id=$2 FOR UPDATE OF s`,
-        [p.sid, p.sub],
-      )) as unknown as Array<AuthSession & User>;
-      const s = rows[0] as (AuthSession & User) | undefined;
-      if (!s || s.userId !== p.sub || s.status !== 'ACTIVE')
-        throw new UnauthorizedException();
-      const valid =
-        s.refreshTokenHash === hashRefreshToken(token) &&
-        Number(s.refreshVersion) === p.version &&
-        !s.revokedAt &&
-        new Date(s.expiresAt) > new Date();
+    const result = await this.prisma.transaction(async (transaction) => {
+      // All session mutations lock the user before locking or updating sessions.
+      const user = await this.users.findByIdForUpdate(payload.sub, transaction);
+      if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException();
+      const session = await this.sessions.findOwnedForUpdate(payload.sid, user.id, transaction);
+      if (!session) throw new UnauthorizedException();
+      const valid = session.refreshTokenHash === hashRefreshToken(token) &&
+        session.refreshVersion === payload.version && !session.revokedAt && session.expiresAt > new Date();
       if (!valid) {
-        const replay = Boolean(
-          s &&
-          !s.revokedAt &&
-          p.version !== undefined &&
-          Number(s.refreshVersion) > Number(p.version),
-        );
-        if (replay)
-          await m.query(
-            `UPDATE auth_sessions SET revoked_at=NOW(),revoke_reason='TOKEN_REUSE' WHERE id=$1 AND revoked_at IS NULL`,
-            [s.id],
-          );
+        if (!session.revokedAt && typeof payload.version === 'number' && session.refreshVersion > payload.version)
+          await this.sessions.revoke(session.id, user.id, 'TOKEN_REUSE', transaction);
+        // Commit replay revocation before the HTTP layer returns 401.
         return null;
       }
-      const version = Number(s.refreshVersion) + 1;
-      const next = await this.jwt(
-        s.userId,
-        s.id,
-        'refresh',
-        version,
-        Math.max(
-          1,
-          Math.floor((new Date(s.expiresAt).getTime() - Date.now()) / 1000),
-        ) + 's',
-      );
-      await m.query(
-        'UPDATE auth_sessions SET refresh_version=$1,refresh_token_hash=$2,last_used_at=NOW() WHERE id=$3',
-        [version, hashRefreshToken(next), s.id],
-      );
-      return {
-        accessToken: await this.jwt(s.userId, s.id, 'access'),
-        refreshToken: next,
-        user: userView(s),
-      };
+      const version = session.refreshVersion + 1;
+      const next = await this.jwt(user.id, session.id, 'refresh', version,
+        Math.max(1, Math.floor((session.expiresAt.getTime() - Date.now()) / 1000)) + 's');
+      await this.sessions.rotate(session.id, version, hashRefreshToken(next), transaction);
+      return { accessToken: await this.jwt(user.id, session.id, 'access'), refreshToken: next, user: userView(user) };
     });
     if (!result) throw new UnauthorizedException();
     return result;
   }
+
   async authenticate(token?: string): Promise<Actor> {
     if (!token) throw new UnauthorizedException();
-    let p;
+    let payload;
     try {
-      p = await this.verify(token, 'access');
+      payload = await this.verify(token, 'access');
     } catch {
       throw new UnauthorizedException();
     }
-    const rows = (await this.db.query(
-      `SELECT u.id AS "userId",s.id AS "sessionId",u.role FROM users u JOIN auth_sessions s ON s.user_id=u.id WHERE u.id=$1 AND s.id=$2 AND u.status='ACTIVE' AND s.revoked_at IS NULL AND s.expires_at>NOW()`,
-      [p.sub, p.sid],
-    )) as unknown as Array<{
-      userId: string;
-      sessionId: string;
-      role: User['role'];
-    }>;
-    if (!rows[0]) throw new UnauthorizedException();
-    return {
-      userId: String(rows[0].userId),
-      sessionId: String(rows[0].sessionId),
-      role: rows[0].role,
-    };
+    const actor = await this.sessions.findActiveActor(payload.sid, payload.sub);
+    if (!actor) throw new UnauthorizedException();
+    return actor;
   }
+
   async logout(token?: string) {
-    if (token) {
-      let p;
-      try {
-        p = await this.verify(token, 'refresh', true);
-      } catch {
-        return; // Invalid or forged cookies are cleared by the controller.
-      }
-      await this.db.transaction(async (manager) => {
-        await manager.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [
-          p.sub,
-        ]);
-        await manager.query(
-          `UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,NOW()),revoke_reason=COALESCE(revoke_reason,'LOGOUT') WHERE id=$1 AND user_id=$2`,
-          [p.sid, p.sub],
-        );
-      });
+    if (!token) return;
+    let payload;
+    try {
+      payload = await this.verify(token, 'refresh', true);
+    } catch {
+      return; // Invalid or forged cookies are cleared by the controller.
     }
-  }
-  async changePassword(actor: Actor, dto: ChangePasswordDto) {
-    if (
-      dto.newPassword !== dto.confirmPassword ||
-      Buffer.byteLength(dto.newPassword, 'utf8') > 72
-    )
-      throw new BadRequestException({
-        code: 'VALIDATION_FAILED',
-        message: 'Invalid password data',
-        fieldErrors: { confirmPassword: ['Passwords must match'] },
-      });
-    await this.db.transaction(async (m) => {
-      const rows = (await m.query(
-        `SELECT id,email,password_hash AS "passwordHash",full_name AS "fullName",phone,role,status,created_at AS "createdAt",updated_at AS "updatedAt" FROM users WHERE id=$1 FOR UPDATE`,
-        [actor.userId],
-      )) as unknown as User[];
-      const user = rows[0] as User | undefined;
-      if (
-        !user ||
-        user.status !== 'ACTIVE' ||
-        !(await bcrypt.compare(dto.currentPassword, user.passwordHash))
-      )
-        throw new UnauthorizedException({
-          code: 'CURRENT_PASSWORD_INVALID',
-          message: 'Current password is incorrect',
-        });
-      const nextHash = await bcrypt.hash(dto.newPassword, 12);
-      await m.query(
-        'UPDATE users SET password_hash=$1,updated_at=NOW() WHERE id=$2',
-        [nextHash, actor.userId],
-      );
-      await m.query(
-        `UPDATE auth_sessions SET revoked_at=NOW(),revoke_reason='PASSWORD_CHANGED' WHERE user_id=$1 AND revoked_at IS NULL`,
-        [actor.userId],
-      );
+    await this.prisma.transaction(async (transaction) => {
+      const user = await this.users.findByIdForUpdate(payload.sub, transaction);
+      if (user) await this.sessions.revoke(payload.sid, user.id, 'LOGOUT', transaction);
     });
   }
+
+  async changePassword(actor: Actor, dto: ChangePasswordDto) {
+    if (dto.newPassword !== dto.confirmPassword)
+      throw new BadRequestException({
+        code: 'VALIDATION_FAILED', message: 'Invalid password data',
+        fieldErrors: { confirmPassword: ['Passwords must match'] },
+      });
+    await this.prisma.transaction(async (transaction) => {
+      const user = await this.users.findByIdForUpdate(actor.userId, transaction);
+      if (!user || user.status !== 'ACTIVE' || !(await bcrypt.compare(dto.currentPassword, user.passwordHash)))
+        throw new UnauthorizedException({ code: 'CURRENT_PASSWORD_INVALID', message: 'Current password is incorrect' });
+      await this.users.updatePassword(user.id, await bcrypt.hash(dto.newPassword, 6), transaction);
+      await this.sessions.revokeAll(user.id, 'PASSWORD_CHANGED', transaction);
+    });
+  }
+
   async session(actor: Actor) {
-    const rows = (await this.db.query(
-      `SELECT id,email,full_name AS "fullName",phone,role,status,created_at AS "createdAt",updated_at AS "updatedAt" FROM users WHERE id=$1`,
-      [actor.userId],
-    )) as unknown as User[];
-    if (!rows[0]) throw new UnauthorizedException();
-    return userView(rows[0]);
+    const user = await this.users.findById(actor.userId);
+    if (!user) throw new UnauthorizedException();
+    return userView(user);
   }
 }
