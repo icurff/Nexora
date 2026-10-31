@@ -34,11 +34,11 @@ Last reviewed: 2026-10-29. Verify and update this table as the code evolves.
 
 | Component      | Status                                                                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `frontend`     | React/Vite/TypeScript; Auth flows integrated with the backend; mockup screens are organized by feature; Catalog/cart/checkout/orders still use local fixture data, while `/admin` requires an authenticated Admin and checks backend authorization |
-| `backend`      | One NestJS modular monolith; AuthModule registration/login/session/password change/password reset, session-backed guards and Gmail SMTP reset email; email jobs/workers remain deferred |
-| Database       | Supabase PostgreSQL via Prisma repositories and verified TLS; Auth baseline and password-reset migration authored; existing project migration status must be checked before deploy |
+| `frontend`     | React/Vite/TypeScript; Auth and Admin Category use backend APIs; public catalog/Product/SKU/cart/checkout/orders still use local fixture data; `/admin` requires an authenticated Admin and checks backend authorization |
+| `backend`      | One NestJS modular monolith; AuthModule and CatalogModule Category CRUD, session-backed guards, Gmail SMTP reset email; email jobs/workers remain deferred |
+| Database       | Supabase PostgreSQL via Prisma repositories and verified TLS; Auth baseline, password-reset and Category migrations applied to the configured project |
 | Docker         | Compose runs frontend/backend only; external Supabase database/storage; no healthcheck or local database volume/init script                 |
-| Other modules  | Catalog, Order, Payment, Tracking and rule-based Recommendation are planned inside backend; Notification currently only sends password reset email directly, without email jobs/workers |
+| Other modules  | Product/SKU Catalog, Order, Payment, Tracking and rule-based Recommendation are planned inside backend; Notification currently only sends password reset email directly, without email jobs/workers |
 | AI model       | Python/FastAPI integration is deferred; no application/container/database exists                                                            |
 | Infrastructure | No Gateway, Saga, Kafka, Redis or Elasticsearch dependency in the current architecture                                                      |
 | CI             | GitHub Actions verifies and Docker-builds backend/frontend on pushes and pull requests to main                                              |
@@ -67,8 +67,9 @@ Keep code existence, partial work, deferred scope and verified integration separ
 
 `DATABASE_DESIGN.md` describes the shared PostgreSQL database target. Foreign
 keys, joins and transactions across backend modules are allowed in this database;
-module ownership guides code organization. Only the Auth schema has migrations
-currently. Keep order snapshots immutable even when foreign keys exist.
+module ownership guides code organization. Auth and Category have versioned
+migrations; Product/SKU and the other business schemas remain planned. Keep order
+snapshots immutable even when foreign keys exist.
 
 ## Repository skills
 

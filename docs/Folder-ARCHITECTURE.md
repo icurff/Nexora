@@ -2,8 +2,8 @@
 
 | Thông tin           | Giá trị                                                                                     |
 | ------------------- | ------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.9                                                                                         |
-| Cập nhật            | 29/10/2026                                                                                  |
+| Phiên bản           | 3.0                                                                                         |
+| Cập nhật            | 30/10/2026                                                                                  |
 | Kiến trúc           | Một frontend React/Vite, một backend NestJS, một database PostgreSQL trên Supabase          |
 | Tài liệu liên quan  | [BRD](BRD.md), [SRS](SRS.md), [Thiết kế database](DATABASE_DESIGN.md)                       |
 | Kế hoạch triển khai | [Implementation tasks](IMPLEMENTATION_TASKS.md) — mã task, hiện trạng và điều kiện bàn giao |
@@ -14,14 +14,14 @@ Nexora dùng modular monolith: các nghiệp vụ nằm trong cùng tiến trìn
 
 | Thành phần  | Đã triển khai                                                                                               |
 | ----------- | ----------------------------------------------------------------------------------------------------------- |
-| Frontend    | React/Vite/TypeScript; Auth dùng API backend; các màn mockup Catalog, cart/checkout/orders và dữ liệu Admin dùng fixture/state cục bộ, chưa nối API nghiệp vụ |
-| Backend     | NestJS, AuthModule, guard Customer/Admin, API khôi phục mật khẩu và endpoint Admin-only; không healthcheck |
+| Frontend    | React/Vite/TypeScript; Auth và Admin Category gọi API backend; catalog công khai, Product/SKU, cart/checkout/orders vẫn dùng fixture/state cục bộ |
+| Backend     | NestJS, AuthModule, CatalogModule Category CRUD, guard Customer/Admin, API khôi phục mật khẩu; không healthcheck |
 | Auth        | Đăng ký Customer, login/refresh/logout/session, đổi/khôi phục mật khẩu và thu hồi phiên; JWT, refresh cookie HttpOnly |
-| Persistence | Prisma repositories/PostgreSQL; Auth baseline, migration token reset và seed tài khoản demo                  |
+| Persistence | Prisma repositories/PostgreSQL; Auth baseline, migration token reset, migration Category và seed tài khoản demo |
 | Docker      | Chỉ frontend/backend; PostgreSQL và Storage dùng Supabase bên ngoài, không healthcheck                      |
 | CI          | Kiểm tra và Docker build cho hai ứng dụng frontend/backend                                                  |
 
-Catalog, giỏ/đơn hàng, thanh toán, email thông báo đơn, tracking, rule-based recommendation và tích hợp Supabase Storage chưa được triển khai. Khôi phục mật khẩu gửi trực tiếp qua Gmail SMTP; task 015 về email job/worker/retry chưa triển khai. Các luồng khác bên dưới là thiết kế cho các bước tiếp theo. Task chi tiết và hiện trạng nằm trong [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status); không tạo folder ứng dụng mới để làm những task này.
+Category CRUD đã triển khai trong CatalogModule và nối với trang Admin. Product/SKU, ảnh, giỏ/đơn hàng, thanh toán, email thông báo đơn, tracking, rule-based recommendation và tích hợp Supabase Storage chưa được triển khai. Khôi phục mật khẩu gửi trực tiếp qua Gmail SMTP; task 015 về email job/worker/retry chưa triển khai. Task chi tiết và hiện trạng nằm trong [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status); không tạo folder ứng dụng mới để làm những task này.
 
 Khoảng trống hiện tại: frontend lưu access token trong localStorage, khác mục tiêu bộ nhớ frontend ở NFR-02; Origin/CSRF, rate limit, request ID và chuẩn lỗi chung chưa hoàn chỉnh. Rate limit hiện chưa bật; dự kiến dùng Redis khi triển khai sau. HTTP/guard tests hiện thay Auth/DB adapter, chưa chứng minh hành vi PostgreSQL/provider/trình duyệt thực tế. Các cấu hình Compose/CI có sẵn chưa phải bằng chứng nghiệm thu startup/persistence hoặc pipeline từ xa.
 
@@ -116,7 +116,7 @@ Kết nối luôn bật SSL và rejectUnauthorized:true. DATABASE_SSL_CA nhận 
 
 Compose chỉ mô tả hai ứng dụng. File .env ở root và backend/.env dùng DATABASE_URL, DATABASE_SSL_CA tùy chọn cùng cấu hình Auth/port/cookie. Chỉ giữ các biến được code hiện tại sử dụng; chưa khai báo API key hoặc biến Storage. Backend và migration cùng đọc DATABASE_URL, không đọc DIRECT_URL. Connection URL cần được người dùng điền từ Dashboard > Connect, không dùng hostname giả.
 
-Dọn cấu hình repository không xóa tài khoản, phiên hoặc dữ liệu thật. Không tự dump/upload dữ liệu hay chạy migration lên project Supabase thật; xác định project đích và phạm vi dữ liệu trước thao tác. Task 002 kiểm chứng schema/role/permission, task 069 kiểm chứng backup/restore DB và Storage riêng.
+Dọn cấu hình repository không xóa tài khoản, phiên hoặc dữ liệu thật. Migration Category đã được áp dụng lên project Supabase cấu hình trong `backend/.env` theo yêu cầu triển khai task 025. Các migration tiếp theo tiếp tục dùng Prisma Migrate và giữ dữ liệu hiện có.
 
 Prisma schema nằm ở backend/prisma/schema.prisma, migration SQL có version ở backend/prisma/migrations. Baseline 0_auth giữ nguyên DDL, CHECK, FK, index và lịch sử auth_schema_migrations của Auth cũ. Prisma Migrate ghi lịch sử mới trong _prisma_migrations. Database mới chạy migration:run; database đã áp dụng Auth cũ cần migration:baseline một lần trước migration:run. Baseline kiểm tra schema diff trước khi đánh dấu đã áp dụng; không tạo lại bảng hoặc đổi dữ liệu. Không dùng db push/migrate reset hoặc tự reseed database làm việc. Các module chia sẻ Prisma.TransactionClient; FK/JOIN chung hợp lệ và đơn giữ snapshot bất biến.
 
@@ -189,7 +189,7 @@ npm ci
 npm run dev
 ```
 
-Không cần Docker để chạy npm vì database/storage ở Supabase. Seed demo chỉ khi đã chủ động cấu hình DEMO_CUSTOMER_EMAIL/PASSWORD và DEMO_ADMIN_EMAIL/PASSWORD: npm run seed:demo sau build/migration. Không tự seed project đang làm việc để test.
+Không cần Docker để chạy npm vì database/storage ở Supabase. Seed demo chỉ khi đã chủ động cấu hình ít nhất một cặp DEMO_CUSTOMER_EMAIL/PASSWORD hoặc DEMO_ADMIN_EMAIL/PASSWORD: npm run seed:demo sau build/migration. Mỗi loại tài khoản có thể seed độc lập; seed không ghi đè email đã tồn tại. Không tự seed project đang làm việc để test.
 
 ### Validation
 
