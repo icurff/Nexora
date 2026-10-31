@@ -2,10 +2,10 @@ import bcrypt from 'bcrypt';
 import type { PrismaService } from './prisma.service.js';
 
 export interface DemoSeedConfig {
-  customerEmail: string;
-  customerPassword: string;
-  adminEmail: string;
-  adminPassword: string;
+  customerEmail?: string;
+  customerPassword?: string;
+  adminEmail?: string;
+  adminPassword?: string;
 }
 
 export function normalizeEmail(email: string): string {
@@ -38,25 +38,33 @@ export function readDemoSeedConfig(
   const customerPassword = environment.DEMO_CUSTOMER_PASSWORD;
   const adminEmailValue = environment.DEMO_ADMIN_EMAIL;
   const adminPassword = environment.DEMO_ADMIN_PASSWORD;
-  if (
-    !customerEmailValue ||
-    !customerPassword ||
-    !adminEmailValue ||
-    !adminPassword
-  ) {
-    throw new Error('Demo seed requires both account emails and passwords');
+  if (Boolean(customerEmailValue) !== Boolean(customerPassword)) {
+    throw new Error(
+      'Demo customer seed requires both DEMO_CUSTOMER_EMAIL and DEMO_CUSTOMER_PASSWORD',
+    );
+  }
+  if (Boolean(adminEmailValue) !== Boolean(adminPassword)) {
+    throw new Error(
+      'Demo admin seed requires both DEMO_ADMIN_EMAIL and DEMO_ADMIN_PASSWORD',
+    );
+  }
+  if (!customerEmailValue && !adminEmailValue) {
+    throw new Error('Demo seed requires at least one configured demo account');
   }
 
-  const customerEmail = validateEmail(
-    customerEmailValue,
-    'DEMO_CUSTOMER_EMAIL',
-  );
-  const adminEmail = validateEmail(adminEmailValue, 'DEMO_ADMIN_EMAIL');
-  if (customerEmail === adminEmail) {
+  const customerEmail = customerEmailValue
+    ? validateEmail(customerEmailValue, 'DEMO_CUSTOMER_EMAIL')
+    : undefined;
+  const adminEmail = adminEmailValue
+    ? validateEmail(adminEmailValue, 'DEMO_ADMIN_EMAIL')
+    : undefined;
+  if (customerEmail && customerEmail === adminEmail) {
     throw new Error('Demo account emails must be different');
   }
-  validatePassword(customerPassword, 'DEMO_CUSTOMER_PASSWORD');
-  validatePassword(adminPassword, 'DEMO_ADMIN_PASSWORD');
+  if (customerPassword) {
+    validatePassword(customerPassword, 'DEMO_CUSTOMER_PASSWORD');
+  }
+  if (adminPassword) validatePassword(adminPassword, 'DEMO_ADMIN_PASSWORD');
 
   return { customerEmail, customerPassword, adminEmail, adminPassword };
 }
@@ -66,18 +74,44 @@ export async function seedDemoAccounts(
   config: DemoSeedConfig,
 ): Promise<{ customerCreated: boolean; adminCreated: boolean }> {
   const [customerHash, adminHash] = await Promise.all([
-    bcrypt.hash(config.customerPassword, 6),
-    bcrypt.hash(config.adminPassword, 6),
+    config.customerPassword
+      ? bcrypt.hash(config.customerPassword, 6)
+      : undefined,
+    config.adminPassword ? bcrypt.hash(config.adminPassword, 6) : undefined,
   ]);
   return prisma.transaction(async (transaction) => {
-    const customer = await transaction.user.createMany({
-      data: [{ email: config.customerEmail, passwordHash: customerHash, fullName: 'Demo Customer', role: 'CUSTOMER', status: 'ACTIVE' }],
-      skipDuplicates: true,
-    });
-    const admin = await transaction.user.createMany({
-      data: [{ email: config.adminEmail, passwordHash: adminHash, fullName: 'Demo Admin', role: 'ADMIN', status: 'ACTIVE' }],
-      skipDuplicates: true,
-    });
-    return { customerCreated: customer.count === 1, adminCreated: admin.count === 1 };
+    let customerCreated = false;
+    let adminCreated = false;
+    if (config.customerEmail && customerHash) {
+      const customer = await transaction.user.createMany({
+        data: [
+          {
+            email: config.customerEmail,
+            passwordHash: customerHash,
+            fullName: 'Demo Customer',
+            role: 'CUSTOMER',
+            status: 'ACTIVE',
+          },
+        ],
+        skipDuplicates: true,
+      });
+      customerCreated = customer.count === 1;
+    }
+    if (config.adminEmail && adminHash) {
+      const admin = await transaction.user.createMany({
+        data: [
+          {
+            email: config.adminEmail,
+            passwordHash: adminHash,
+            fullName: 'Demo Admin',
+            role: 'ADMIN',
+            status: 'ACTIVE',
+          },
+        ],
+        skipDuplicates: true,
+      });
+      adminCreated = admin.count === 1;
+    }
+    return { customerCreated, adminCreated };
   });
 }

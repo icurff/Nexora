@@ -4,7 +4,7 @@
 
 | Thông tin           | Giá trị                                                                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.4                                                                                                                                     |
+| Phiên bản           | 2.6                                                                                                                                     |
 | Ngày lập            | 09/10/2026                                                                                                                              |
 | Cập nhật            | 29/10/2026                                                                                                                              |
 | Trạng thái          | Draft — sẵn sàng rà soát trước triển khai                                                                                               |
@@ -701,9 +701,8 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | GET, PATCH /admin/products/:id                                                   | Chi tiết/sửa nội dung, trạng thái hợp lệ                                                                         | Admin                                                   |
 | POST /admin/products/:id/variants                                                | Thêm SKU                                                                                                         | Admin                                                   |
 | PATCH /admin/variants/:id                                                        | Sửa trường SKU được phép, không cập nhật tồn trực tiếp                                                           | Admin                                                   |
-| GET, POST, PATCH /admin/categories                                               | Quản lý Category cha–con và attribute_config; không có API /admin/brands hoặc module thuộc tính riêng            | Admin                                                   |
+| GET /admin/categories, GET /admin/categories/:id, POST, PATCH /admin/categories | Quản lý Category cha–con và attribute_config; không có API /admin/brands hoặc module thuộc tính riêng            | Admin                                                   |
 | POST /admin/images                                                               | Catalog upload Supabase Storage; multipart file + Idempotency-Key, trả imageAssetId/status/metadata              | Admin                                                   |
-| GET /admin/images/:id                                                            | Catalog trả trạng thái upload/metadata                                                                           | Admin                                                   |
 | POST /admin/products/:id/images                                                  | Catalog gắn imageAssetId READY vào Product/SKU                                                                   | Admin                                                   |
 | PATCH, DELETE /admin/products/:id/images/:imageId                                | Catalog sửa thứ tự/alt text/ảnh đại diện hoặc gỡ liên kết; không xóa asset Supabase Storage                      | Admin                                                   |
 | GET /admin/inventory, /admin/inventory/:skuId/history                            | Tồn và lịch sử                                                                                                   | Admin                                                   |
@@ -720,22 +719,27 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 
 POST /auth/password-reset-requests nhận email và trả phản hồi chung; POST /auth/password-resets xác nhận token cùng mật khẩu mới. Các endpoint này công khai, chưa có rate limit và không tiết lộ tài khoản tồn tại; giới hạn tần suất dự kiến dùng Redis. Không có endpoint wishlist, đổi email, mua lại, reset mật khẩu do Admin thực hiện thay khách, cổng thanh toán ngoài payOS, refund hoặc sửa nội dung đơn. Không có endpoint công khai để sửa ánh xạ dataset hoặc gửi event transaction.
 
+#### 8.1.1. Hợp đồng API quản trị Category
+
+Các route `/api/v1/admin/categories` yêu cầu Admin. `GET` trả `{ items: Category[] }`; `GET /:id` trả một Category; `POST` tạo (201); `PATCH /:id` cập nhật (200). ID là chuỗi bigint thập phân, thời gian là ISO 8601 UTC. Category gồm `id`, `name`, `slug`, `parentId`, `isActive`, `effectiveActive`, `attributeConfig`, `createdAt`, `updatedAt`.
+
+`attributeConfig` dùng danh sách để form có thể thêm/xóa dòng: `attributes: [{ code, label, type, unit? }]` với type `string|number|boolean`, và `options: [{ code, label }]`. Catalog kiểm tra cấu hình rồi lưu thành JSONB object keyed-by-code. Cấu hình không kế thừa từ cha; tối đa 30 thông số và 5 lựa chọn. Backend xác thực tên/slug duy nhất, cha tồn tại/đang dùng và không chọn chính mình/hậu duệ. Không có API xóa Category; ngừng dùng không tự ngừng bán Product cũ. Ghi cây chưa tuần tự hóa các thao tác Admin đồng thời.
+
+#### 8.1.2. Hợp đồng API ảnh của Catalog
+
 <a id="image-api"></a>
 
-#### 8.1.1. Hợp đồng API ảnh của Catalog
-
-Các route dưới đây là đặc tả mục tiêu có prefix `/api/v1` trực tiếp trên backend. Module Catalog sở hữu upload, metadata, trạng thái và liên kết ảnh trong database chung.
+Các route dưới đây là đặc tả mục tiêu có prefix `/api/v1` trực tiếp trên backend. Module Catalog sở hữu upload, metadata, trạng thái và liên kết ảnh trong database chung. Không có API tra cứu ảnh riêng; frontend nhận imageAssetId và URL public từ kết quả upload READY. Khi nhận PENDING hoặc chưa rõ kết quả do timeout, frontend cho thử lại POST upload cùng Idempotency-Key và file để nhận trạng thái/kết quả của cùng operation.
 
 | Method / route                               | Đích             | Đầu vào / kết quả                                                                                           |
 | -------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------- |
 | `POST /admin/images`                         | Catalog          | Admin; multipart `file` + `Idempotency-Key`; 201 khi READY mới, 200 khi trả READY cũ, 202 khi PENDING       |
-| `GET /admin/images/:id`                      | Catalog          | Admin; trạng thái upload và metadata hoặc mã lỗi an toàn                                                    |
 | `POST /admin/products/:id/images`            | Catalog          | Admin; imageAssetId, variantId?, altText?, sortOrder?, isPrimary?; kiểm tra/khóa READY trong database chung |
 | `PATCH /admin/products/:id/images/:imageId`  | Catalog          | Sửa thứ tự/alt text/ảnh đại diện; thay asset bằng liên kết mới                                              |
 | `DELETE /admin/products/:id/images/:imageId` | Catalog          | Chỉ gỡ liên kết nếu Product vẫn hợp lệ; giữ asset lịch sử                                                   |
 | Seed upload trong CLI backend                | Catalog provider | Job seed gọi provider trong tiến trình, cùng validation/idempotency; không có HTTP route seed công khai     |
 
-Lỗi: 400 thiếu key/file hoặc ảnh hỏng; 401/403 chưa xác thực/sai quyền; 404 asset không tồn tại; 409 cùng key khác payload hoặc asset chưa READY; 413 quá 5 MiB; 415 sai định dạng; 429 quá giới hạn; 502/503/504 lỗi provider/timeout. Không nhận URL/provider/READY do client tự khai. Timeout chưa rõ giữ PENDING và đối soát bucket/object_path trước upload lại. Backend giới hạn multipart hữu hạn và timeout phù hợp; lỗi trả imageAssetId để tra cứu khi đã có operation.
+Lỗi: 400 thiếu key/file hoặc ảnh hỏng; 401/403 chưa xác thực/sai quyền; 404 asset không tồn tại khi gắn ảnh; 409 cùng key khác payload hoặc asset chưa READY; 413 quá 5 MiB; 415 sai định dạng; 429 quá giới hạn; 502/503/504 lỗi provider/timeout. Không nhận URL/provider/READY do client tự khai. Timeout chưa rõ giữ PENDING và đối soát bucket/object_path trước upload lại. Backend giới hạn multipart hữu hạn và timeout phù hợp; thử lại POST upload cùng key/file không tạo operation mới.
 
 ### 8.2. Hành vi lỗi ở mức nghiệp vụ
 
@@ -839,7 +843,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-24 | Giao thất bại rồi giao lại nhiều lần                                                                                                                       | Lý do bắt buộc; lịch sử đầy đủ; không nhập/xuất kho hoặc thu thêm phí ship                                                                                                                               |
 | TC-25 | Nhận toàn bộ hàng về, retry; thử hoàn trước khi nhận                                                                                                       | Hoàn đủ một lần rồi CANCELLED/UNPAID; chỉ thất bại chưa làm tăng tồn                                                                                                                                     |
 | TC-26 | Tạo/mở bán Product đa ngành; options trùng khác thứ tự/hoa thường/khoảng trắng, sai kiểu/mã/tập khóa; đổi options SKU đã reserve hoặc có đơn               | Chặn tổ hợp trùng và dữ liệu sai; SKU đã dùng bất biến; không sửa nguồn/snapshot; giá/tồn riêng từng SKU                                                                                                 |
-| TC-27 | Tạo cây Category, tự trỏ/chu trình đồng thời; sửa cấu hình/đổi Category làm SKU đang bán sai; thử quản lý Brand hoặc xóa Category đang dùng                | Cây hợp lệ, lọc gồm danh mục con; chặn chu trình/thay đổi sai; không có CRUD Brand/module thuộc tính riêng; giữ tham chiếu cũ                                                                            |
+| TC-27 | Tạo cây Category, tự trỏ/chu trình; sửa cấu hình/đổi Category làm SKU đang bán sai; thử quản lý Brand hoặc xóa Category đang dùng                         | Cây hợp lệ, lọc gồm danh mục con; chặn chu trình/thay đổi sai; không có CRUD Brand/module thuộc tính riêng; giữ tham chiếu cũ                                                                            |
 | TC-28 | Upload ảnh hợp lệ/sai định dạng/quá giới hạn/thiếu quyền; gắn SKU khác Product; dùng chung asset nhiều SKU; Supabase Storage timeout và thay ảnh đã có đơn | Chỉ asset xác minh được READY; chặn SKU sai Product; ưu tiên ảnh SKU rồi ảnh chung; gỡ một liên kết không xóa asset Supabase Storage; chỉ lưu metadata/URL, giải phóng buffer, giữ asset lịch sử         |
 | TC-29 | Nhập hàng/kiểm kê với reserved đang thay đổi                                                                                                               | Không cho onHand < reserved; có người/lý do/trước–sau; không tự sửa reserved                                                                                                                             |
 | TC-30 | Admin tìm/lọc đơn, xem lịch sử, thêm ghi chú                                                                                                               | Kết quả đúng; ghi chú nội bộ không trả cho Customer; không sửa nội dung đơn                                                                                                                              |
@@ -866,7 +870,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-51 | Backend dừng trước/sau commit checkout/lifecycle; request/webhook lặp và cạnh tranh SKU cuối                                                               | Trước commit rollback toàn bộ; sau commit cùng key trả kết quả cũ; tồn/ledger/event đúng một lần, không cần Saga hoặc broker để phục hồi                                                                 |
 | TC-52 | Tìm tên, lọc options/giá/còn hàng nhiều ngành và danh mục cha trong PostgreSQL                                                                             | Các điều kiện khớp cùng SKU, gồm danh mục con; kết quả search/stock/payment dùng database chung; không cần ES/Redis                                                                                      |
 | TC-53 | Upload Admin qua backend/Catalog/Supabase Storage; giả URL/READY hoặc gọi route seed từ client                                                             | Metadata/liên kết trong database chung, kiểm tra READY/bucket/path/hash trong transaction; URL public HTTPS hợp lệ, chặn vượt quyền, không lộ secret hoặc giữ file gốc                                   |
-| TC-54 | Upload lặp/khác payload, timeout/restart sau upload trước commit metadata; thay/gỡ ảnh                                                                     | Cùng key trả asset/PENDING, khác bytes trả 409; đối soát bucket/path và hash, upsert:false không ghi đè object lịch sử; không READY chỉ vì URL dựng được                                                 |
+| TC-54 | Upload lặp/khác payload, timeout/restart sau upload trước commit metadata; thay/gỡ ảnh                                                                     | Thử lại POST upload cùng key/file trả asset/PENDING của cùng operation, khác bytes trả 409; không cần API tra cứu ảnh riêng; đối soát bucket/path và hash, upsert:false không ghi đè object lịch sử; không READY chỉ vì URL dựng được |
 
 Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, triển khai trong backend theo task 063–067; chúng chưa có code trong snapshot hiện tại. Không cần chờ hoặc khởi tạo Python/FastAPI để làm các chức năng này. Nghiên cứu/model serving thật ở task 073–077 nằm ngoài nghiệm thu bản web local.
 
@@ -1021,3 +1025,5 @@ Nếu yêu cầu mới thay đổi quyền, thời hạn, tồn, tiền, event h
 | --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | 2.3       | 27/10/2026 | Đồng bộ env và Docker hiện hành; chỉ giữ yêu cầu/contract của backend monolith và Supabase, bỏ lịch sử cấu hình đã được thay thế |
 | 2.4 | 29/10/2026 | Đồng bộ Prisma repositories/Migrate; mật khẩu mới tối thiểu 6 ký tự, giữ bcrypt và bỏ kiểm tra giới hạn 72 byte |
+| 2.5 | 29/10/2026 | Bỏ API tra cứu ảnh riêng; đồng bộ hợp đồng upload và TC-54 để thử lại POST cùng key/file khi chưa rõ kết quả |
+| 2.6 | 30/10/2026 | Bổ sung trạng thái API Category đã triển khai và bỏ yêu cầu xử lý cạnh tranh cây danh mục trong TC-27 |

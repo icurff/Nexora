@@ -2,9 +2,9 @@
 
 | Thông tin           | Giá trị                                                                                                                     |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.5                                                                                                                         |
-| Ngày                | 29/10/2026                                                                                                                  |
-| Trạng thái          | Thiết kế cho monolith một database; Auth và password_reset_tokens có versioned migrations                                  |
+| Phiên bản           | 2.6                                                                                                                         |
+| Ngày                | 30/10/2026                                                                                                                  |
+| Trạng thái          | Thiết kế cho monolith một database; Auth, password_reset_tokens và categories có versioned migrations                      |
 | Hệ quản trị         | PostgreSQL do Supabase quản lý; bytes ảnh ở Supabase Storage                                                                |
 | Tài liệu liên quan  | [BRD](BRD.md), [SRS](SRS.md), [Architecture — thiết kế triển khai hiện tại](Folder-ARCHITECTURE.md)                         |
 | Phạm vi             | Ecommerce đa ngành COD/payOS, catalog synthetic/placeholder theo notebook, một kho, tracking và recommendation theo quy tắc |
@@ -12,14 +12,14 @@
 
 ## Mục lục
 
-Thiết kế hiện hành dùng một database PostgreSQL cho backend modular monolith theo [Architecture](Folder-ARCHITECTURE.md). Các FK/JOIN và transaction xuyên module trong tài liệu này được áp dụng trong database chung. Auth đã có migration users/auth_sessions; các bảng nghiệp vụ còn lại là thiết kế chưa triển khai.
+Thiết kế hiện hành dùng một database PostgreSQL cho backend modular monolith theo [Architecture](Folder-ARCHITECTURE.md). Các FK/JOIN và transaction xuyên module trong tài liệu này được áp dụng trong database chung. Auth, password_reset_tokens và categories đã có migration; Product/SKU và các bảng nghiệp vụ còn lại vẫn là thiết kế chưa triển khai.
 
 Metadata/tables thuộc ứng dụng trong PostgreSQL của project, bytes ảnh ở Storage. Cấu hình DATABASE_URL/SSL theo Architecture; Auth dùng users/auth_sessions của Nexora, tách khỏi auth.users của Supabase. Task 002 kiểm chứng migration/role/grants/RLS; kết nối Supabase thật chưa được xác minh.
 
 | Nội dung       | Thiết kế hiện hành                                                                                                                    |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Database       | PostgreSQL trên Supabase, một database chung; DATABASE_URL/SSL phía backend, không PostgreSQL container local                         |
-| Module         | Auth, Catalog, Order, Payment, Notification, Tracking/Recommendation trong cùng backend; hiện chỉ AuthModule đã có                    |
+| Module         | Auth, Catalog, Order, Payment, Notification, Tracking/Recommendation trong cùng backend; AuthModule và Catalog Category đã có         |
 | FK/JOIN        | Cho phép giữa các bảng trong database chung; đơn vẫn lưu snapshot bất biến                                                            |
 | Reservation    | Giữ hàng theo dòng đơn PENDING/CONFIRMED và tổng reserved trên SKU; không cần bảng reservation phân tán                               |
 | Payment        | Trạng thái/mã giao dịch/link trên đơn theo mục 6; webhook cập nhật đơn và event nguyên tử, không dùng payment projection giữa service |
@@ -257,7 +257,7 @@ Ba artifact đầu vào và quy trình latest category/quota được đặc t�
 | Cột                           | Kiểu         | Null/default              | Ý nghĩa                                                      |
 | ----------------------------- | ------------ | ------------------------- | ------------------------------------------------------------ |
 | name                          | varchar(100) | NN                        | Tên danh mục                                                 |
-| name_key                      | text         | Generated, UQ             | normalize_label(name)                                        |
+| name_key                      | text         | NN, UQ, database-maintained | normalize_label(name); trigger tính lại khi tạo/đổi tên để Prisma ghi được |
 | slug                          | varchar(150) | NN, UQ                    | Đường dẫn thân thiện                                         |
 | parent_id                     | bigint       | NULL, FK categories       | Danh mục cha trong catalog vận hành; NULL là danh mục gốc    |
 | attribute_config              | jsonb        | NN, `{}`                  | Cấu hình thông số và lựa chọn SKU được phép tại danh mục này |
@@ -268,6 +268,8 @@ Ba artifact đầu vào và quy trình latest category/quota được đặc t�
 | created_at, updated_at        | timestamptz  | NN                        | Thời gian                                                    |
 
 CHECK `parent_id IS NULL OR parent_id <> id`, `jsonb_typeof(attribute_config) = 'object'`; index `(parent_id, is_active)`. Tên chuẩn hóa vẫn duy nhất toàn catalog để giữ thiết kế đơn giản. Không tự làm cây phân cấp từ tên synthetic hoặc import toàn bộ cây RetailRocket vào cây danh mục vận hành. 23 danh mục seed ban đầu có parent_id NULL và attribute_config = `{}`.
+
+Triển khai hiện tại dùng `BEFORE INSERT OR UPDATE OF name` trigger để chuẩn hóa `name` về NFC và duy trì `name_key` bằng hàm SQL `normalize_label`; cột là thường với unique constraint, không phải generated column vì Prisma không mô tả generated column PostgreSQL. Trigger giữ chuẩn hóa ở database ngay cả khi tên được ghi ngoài API Catalog. Source of truth là migration `2_catalog_categories`.
 
 Catalog kiểm tra cha tồn tại/đang dùng và không có chu trình; thao tác đổi cây dùng khóa transaction cấp cây trong database chung rồi kiểm tra tổ tiên. CHECK chống tự trỏ không đủ chống chu trình nhiều nút. Product gán một danh mục đang dùng; lọc gồm danh mục con. Không cho gán mới nếu danh mục/tổ tiên ngừng dùng; không tự ngừng bán Product cũ.
 
@@ -1046,11 +1048,11 @@ products_demo không xuất categoryid của item, nên products.retailrocket_ca
 
 Các đợt trên là các nhóm nội dung thiết kế, không phải số migration phải chạy lại. Phần users/auth_sessions trong đợt 01 đã có ở migration 1; không tạo lại bảng. Các mục còn thiếu như địa giới/địa chỉ phải nằm trong migration mới. Task 002/010/019/021/024/029/040/043/049/063 theo dõi tại [Implementation tasks](IMPLEMENTATION_TASKS.md).
 
-Các đợt trên là kế hoạch nghiệp vụ trong một backend và một database. Hiện Prisma có baseline Auth, giữ bảng lịch sử auth_schema_migrations và dùng _prisma_migrations cho migration mới; các đợt tiếp theo mở rộng có version, không chạy lại hoặc sửa migration đã áp dụng. Module ảnh thêm image_assets và FK product_images.image_asset_id trước seed. Tracking/gợi ý website thuộc backend; model Python/FastAPI là tích hợp tương lai, chưa cần database riêng.
+Các đợt trên là kế hoạch nghiệp vụ trong một backend và một database. Prisma giữ baseline Auth, bảng lịch sử auth_schema_migrations và dùng _prisma_migrations cho migration mới; Auth, password reset và Category đã có migration. Các đợt tiếp theo mở rộng có version, không chạy lại hoặc sửa migration đã áp dụng. Module ảnh thêm image_assets và FK product_images.image_asset_id trước seed. Tracking/gợi ý website thuộc backend; model Python/FastAPI là tích hợp tương lai, chưa cần database riêng.
 
 ### 11.4. Triển khai Catalog trong schema ứng dụng
 
-users/auth_sessions đã có migration; Catalog/Order chưa có migration hoặc dữ liệu do code hiện tại tạo. Triển khai trực tiếp thiết kế đa ngành: Category parent_id/attribute_config, Product attributes/variant_option_keys, SKU options/options_key và first_reserved_at. Thêm image_assets/product_images theo Supabase Storage trước khi seed ảnh.
+users/auth_sessions, password_reset_tokens và Category đã có migration; Product/SKU, image_assets, Order và các bảng còn lại chưa có migration hoặc dữ liệu do code hiện tại tạo. Triển khai các phần còn lại theo thiết kế đa ngành, mở rộng schema Category/Product/SKU cùng Catalog khi cần.
 
 Mỗi thay đổi schema thêm Prisma migration có version, dùng _prisma_migrations sau baseline và giữ auth_schema_migrations cùng phần Auth đã áp dụng. Không tự tạo schema bằng db push/migrate reset hoặc nhập artifact chưa được xác minh. Bất biến snapshot/ID/tồn và quyền schema được kiểm chứng bằng DB test riêng trước bàn giao.
 
@@ -1115,5 +1117,7 @@ Mỗi thay đổi schema thêm Prisma migration có version, dùng _prisma_migra
 | 2.4 | 29/10/2026 | Giữ schema Auth qua Prisma baseline và lịch sử cũ; dùng chung Prisma.TransactionClient, mật khẩu tối thiểu 6 ký tự |
 | 2.5 | 29/10/2026 | Thêm migration password_reset_tokens; reset gửi Resend trực tiếp, chưa có email_outbox/worker |
 | 2.6 | 29/10/2026 | Chuyển gửi email reset sang Gmail SMTP qua Nodemailer |
+| 2.7 | 30/10/2026 | Thêm schema/migration Category và ghi rõ cách Prisma duy trì name_key bằng trigger |
+| 2.8 | 30/10/2026 | Chuẩn hóa NFC, trim và gộp khoảng trắng Unicode của tên Category trong migration mới |
 
-Auth và password_reset_tokens có migration/seed; các bảng nghiệp vụ khác và ca kiểm chứng trong tài liệu là thiết kế, chưa phải kết quả đã triển khai hoặc kiểm thử. Task 071 phải bổ sung suite chạy DB test riêng; các HTTP tests thay DB adapter không xác nhận migration, khóa, retry hoặc ràng buộc PostgreSQL. Các ví dụ ID/giá chỉ minh họa.
+Auth, password_reset_tokens và categories có migration; các bảng nghiệp vụ khác và ca kiểm chứng trong tài liệu là thiết kế, chưa phải kết quả đã triển khai. Các ví dụ ID/giá chỉ minh họa.

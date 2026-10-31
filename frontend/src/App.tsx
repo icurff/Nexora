@@ -37,6 +37,7 @@ import {
 import { AdminLayout } from './layouts/AdminLayout';
 import { StoreLayout } from './layouts/StoreLayout';
 import { AdminManagementPage } from './pages/AdminPages';
+import { AdminCategoriesPage } from './features/catalog/pages/AdminCategoriesPage.js';
 import './App.css';
 import './Store.css';
 import './Brand.css';
@@ -118,7 +119,7 @@ export default function App() {
               />
               <Route
                 path="/admin/categories"
-                element={<AdminManagementPage kind="categories" />}
+                element={<AdminCategoriesPage />}
               />
               <Route
                 path="/admin/coupons"
