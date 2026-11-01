@@ -5,9 +5,7 @@ import {
   storedAccessToken,
 } from '../../auth/services/auth-api';
 
-export type InventoryRow = {
-  skuId: string;
-  sku: string;
+type InventoryRowBase = {
   options: Record<string, string>;
   optionLabels: Record<string, string>;
   product: {
@@ -23,6 +21,17 @@ export type InventoryRow = {
   updatedAt: string;
   deleted: boolean;
 };
+export type InventorySkuRow = InventoryRowBase & {
+  kind: 'SKU';
+  skuId: string;
+  sku: string;
+};
+export type InventoryProductRow = InventoryRowBase & {
+  kind: 'PRODUCT';
+  skuId?: never;
+  sku?: never;
+};
+export type InventoryRow = InventorySkuRow | InventoryProductRow;
 export type InventoryPage = {
   items: InventoryRow[];
   page: number;
@@ -76,7 +85,7 @@ export function getAdminInventoryItem(id: string) {
   return request(
     async (token) =>
       (
-        await apiClient.get<InventoryRow>(`/admin/inventory/${id}`, {
+        await apiClient.get<InventorySkuRow>(`/admin/inventory/${id}`, {
           headers: headers(token),
         })
       ).data,
@@ -86,7 +95,7 @@ export function adjustAdminInventory(id: string, input: InventoryAdjustment) {
   return request(
     async (token) =>
       (
-        await apiClient.post<InventoryRow>(
+        await apiClient.post<InventorySkuRow>(
           `/admin/inventory/${id}/adjustments`,
           input,
           {

@@ -15,6 +15,11 @@ function toDraft(product: AdminProduct): { name: string; description: string; ca
 }
 
 export function AdminProductsPage() {
+  const { id } = useParams();
+  return <AdminProductsContent key={id ?? 'list'} />;
+}
+
+function AdminProductsContent() {
   const { id } = useParams(); const isNew = id === 'new';
   const [params, setParams] = useSearchParams(); const navigate = useNavigate(); const client = useQueryClient();
   const [name, setName] = useState(''); const [description, setDescription] = useState(''); const [categoryId, setCategoryId] = useState(''); const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE'); const [optionConfig, setOptionConfig] = useState<ProductOptionConfig>({ options: [] });

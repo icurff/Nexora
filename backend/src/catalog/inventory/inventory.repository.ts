@@ -18,7 +18,10 @@ export class InventoryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(filters: InventoryListFilters, skip: number, take: number) {
-    const conditions: Prisma.Sql[] = [Prisma.sql`v.deleted_at IS NULL`];
+    const skuConditions: Prisma.Sql[] = [Prisma.sql`v.deleted_at IS NULL`];
+    const productConditions: Prisma.Sql[] = [
+      Prisma.sql`NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.deleted_at IS NULL)`,
+    ];
     if (filters.q) {
       const q = filters.q
         .normalize('NFD')
@@ -26,53 +29,93 @@ export class InventoryRepository {
         .replace(/[đĐ]/g, (c) => (c === 'Đ' ? 'D' : 'd'))
         .toLocaleLowerCase('vi')
         .trim();
-      conditions.push(
+      skuConditions.push(
         Prisma.sql`(p.name_key LIKE ${`%${q}%`} OR v.sku ILIKE ${`%${filters.q}%`})`,
       );
+      productConditions.push(Prisma.sql`p.name_key LIKE ${`%${q}%`}`);
     }
-    if (filters.categoryIds)
-      conditions.push(
-        Prisma.sql`p.category_id IN (${Prisma.join(filters.categoryIds)})`,
-      );
-    if (filters.status)
-      conditions.push(Prisma.sql`p.status = ${filters.status}`);
-    if (filters.productId)
-      conditions.push(Prisma.sql`p.id = ${filters.productId}`);
-    if (filters.availability === 'IN_STOCK')
-      conditions.push(Prisma.sql`i.on_hand > i.reserved`);
-    if (filters.availability === 'OUT_OF_STOCK')
-      conditions.push(Prisma.sql`i.on_hand <= i.reserved`);
-    const where = Prisma.join(conditions, ' AND ');
+    if (filters.categoryIds) {
+      const categoryFilter = Prisma.sql`p.category_id IN (${Prisma.join(filters.categoryIds)})`;
+      skuConditions.push(categoryFilter);
+      productConditions.push(categoryFilter);
+    }
+    if (filters.status) {
+      const statusFilter = Prisma.sql`p.status = ${filters.status}`;
+      skuConditions.push(statusFilter);
+      productConditions.push(statusFilter);
+    }
+    if (filters.productId) {
+      const productFilter = Prisma.sql`p.id = ${filters.productId}`;
+      skuConditions.push(productFilter);
+      productConditions.push(productFilter);
+    }
+    if (filters.availability === 'IN_STOCK') {
+      skuConditions.push(Prisma.sql`i.on_hand > i.reserved`);
+      productConditions.push(Prisma.sql`pi.on_hand > pi.reserved`);
+    }
+    if (filters.availability === 'OUT_OF_STOCK') {
+      skuConditions.push(Prisma.sql`i.on_hand <= i.reserved`);
+      productConditions.push(Prisma.sql`pi.on_hand <= pi.reserved`);
+    }
+    const skuWhere = Prisma.join(skuConditions, ' AND ');
+    const productWhere = Prisma.join(productConditions, ' AND ');
     const [ids, totalRows] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ variant_id: bigint }>>(
-        Prisma.sql`SELECT i.variant_id FROM inventory i JOIN product_variants v ON v.id = i.variant_id JOIN products p ON p.id = v.product_id WHERE ${where} ORDER BY i.variant_id DESC LIMIT ${take} OFFSET ${skip}`,
+      this.prisma.$queryRaw<Array<{ kind: 'SKU' | 'PRODUCT'; id: bigint }>>(
+        Prisma.sql`SELECT kind, id FROM (SELECT 'SKU'::text AS kind, i.variant_id AS id FROM inventory i JOIN product_variants v ON v.id = i.variant_id JOIN products p ON p.id = v.product_id WHERE ${skuWhere} UNION ALL SELECT 'PRODUCT'::text AS kind, pi.product_id AS id FROM product_inventory pi JOIN products p ON p.id = pi.product_id WHERE ${productWhere}) rows ORDER BY id DESC, kind ASC LIMIT ${take} OFFSET ${skip}`,
       ),
       this.prisma.$queryRaw<Array<{ total: bigint }>>(
-        Prisma.sql`SELECT COUNT(*)::bigint AS total FROM inventory i JOIN product_variants v ON v.id = i.variant_id JOIN products p ON p.id = v.product_id WHERE ${where}`,
+        Prisma.sql`SELECT COUNT(*)::bigint AS total FROM (SELECT i.variant_id AS id FROM inventory i JOIN product_variants v ON v.id = i.variant_id JOIN products p ON p.id = v.product_id WHERE ${skuWhere} UNION ALL SELECT pi.product_id AS id FROM product_inventory pi JOIN products p ON p.id = pi.product_id WHERE ${productWhere}) rows`,
       ),
     ]);
     if (!ids.length)
       return { items: [], total: Number(totalRows[0]?.total ?? 0) };
-    const order = new Map(
-      ids.map((row, index) => [row.variant_id.toString(), index]),
-    );
-    const rows = await this.prisma.inventory.findMany({
-      where: { variantId: { in: ids.map((row) => row.variant_id) } },
-      include: {
-        variant: {
-          include: {
-            product: {
-              include: { category: { select: { id: true, name: true } } },
+    const skuIds = ids.filter((row) => row.kind === 'SKU').map((row) => row.id);
+    const productIds = ids
+      .filter((row) => row.kind === 'PRODUCT')
+      .map((row) => row.id);
+    const [skuRows, productRows] = await Promise.all([
+      this.prisma.inventory.findMany({
+        where: { variantId: { in: skuIds } },
+        include: {
+          variant: {
+            include: {
+              product: {
+                include: { category: { select: { id: true, name: true } } },
+              },
             },
           },
         },
-      },
-    });
-    rows.sort(
-      (a, b) =>
-        order.get(a.variantId.toString())! - order.get(b.variantId.toString())!,
+      }),
+      this.prisma.productInventory.findMany({
+        where: { productId: { in: productIds } },
+        include: {
+          product: {
+            include: { category: { select: { id: true, name: true } } },
+          },
+        },
+      }),
+    ]);
+    const skuById = new Map(
+      skuRows.map((row) => [row.variantId.toString(), row]),
     );
-    return { items: rows, total: Number(totalRows[0]?.total ?? 0) };
+    const productById = new Map(
+      productRows.map((row) => [row.productId.toString(), row]),
+    );
+    const items: Array<
+      | { kind: 'SKU'; row: (typeof skuRows)[number] }
+      | { kind: 'PRODUCT'; row: (typeof productRows)[number] }
+    > = [];
+    for (const row of ids) {
+      const id = row.id.toString();
+      if (row.kind === 'SKU') {
+        const item = skuById.get(id);
+        if (item) items.push({ kind: 'SKU', row: item });
+      } else {
+        const item = productById.get(id);
+        if (item) items.push({ kind: 'PRODUCT', row: item });
+      }
+    }
+    return { items, total: Number(totalRows[0]?.total ?? 0) };
   }
 
   categories() {

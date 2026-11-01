@@ -47,6 +47,16 @@ export function ProductDetailPage() {
   });
   const product = query.data;
   const options = useMemo(() => product?.optionConfig.options ?? [], [product]);
+  const matchingVariants = useMemo(
+    () =>
+      product?.variants.filter((variant) =>
+        options.every(
+          ({ code }) =>
+            !selection[code] || selection[code] === variant.options[code],
+        ),
+      ) ?? [],
+    [options, product, selection],
+  );
   const selectedVariant = useMemo(() => {
     if (!product) return undefined;
     if (preferredVariantId) {
@@ -97,7 +107,8 @@ export function ProductDetailPage() {
 
   async function addToCart() {
     if (!product) return;
-    if (product.variants.length ? !selectedVariant : product.priceVnd === null) return;
+    if (product.variants.length ? !selectedVariant : product.priceVnd === null)
+      return;
     const target = selectedVariant
       ? { variantId: selectedVariant.id }
       : { productId: product.id };
@@ -186,7 +197,8 @@ export function ProductDetailPage() {
           <h1>{product.name}</h1>
           <div className="detail-rating">
             <span>
-              {(selectedVariant?.available ?? (!product.variants.length ? product.available : 0)) > 0
+              {(selectedVariant?.available ??
+                (!product.variants.length ? product.available : 0)) > 0
                 ? 'Còn hàng'
                 : product.variants.length && !selectedVariant
                   ? 'Chọn phiên bản'
@@ -198,49 +210,79 @@ export function ProductDetailPage() {
               {selectedVariant
                 ? formatVnd(selectedVariant.priceVnd)
                 : product.variants.length
-                  ? `Từ ${formatVnd(product.variants.reduce((min, v) => (BigInt(v.priceVnd) < min ? BigInt(v.priceVnd) : min), BigInt(product.variants[0].priceVnd)))}`
-                  : product.priceVnd === null ? 'Chưa có giá' : formatVnd(product.priceVnd)}
+                  ? (() => {
+                      const relevantVariants = Object.keys(selection).length
+                        ? matchingVariants
+                        : product.variants;
+                      const prices = relevantVariants.map((variant) =>
+                        BigInt(variant.priceVnd),
+                      );
+                      const min = prices.reduce(
+                        (current, price) => (price < current ? price : current),
+                        prices[0] ?? BigInt(product.variants[0].priceVnd),
+                      );
+                      const max = prices.reduce(
+                        (current, price) => (price > current ? price : current),
+                        prices[0] ?? min,
+                      );
+                      if (min === max) return formatVnd(min);
+                      return Object.keys(selection).length
+                        ? `${formatVnd(min)} – ${formatVnd(max)}`
+                        : `Từ ${formatVnd(min)}`;
+                    })()
+                  : product.priceVnd === null
+                    ? 'Chưa có giá'
+                    : formatVnd(product.priceVnd)}
             </strong>
           </div>
           <p className="detail-description">{product.description}</p>
           <div className="detail-divider" />
-          {pendingAdd && ((pendingAdd.productId && (pendingAdd.productId !== product.id || product.variants.length > 0)) || (pendingAdd.variantId && product.variants.every((variant) => variant.id !== pendingAdd.variantId)) ) ? (
+          {pendingAdd &&
+          ((pendingAdd.productId &&
+            (pendingAdd.productId !== product.id ||
+              product.variants.length > 0)) ||
+            (pendingAdd.variantId &&
+              product.variants.every(
+                (variant) => variant.id !== pendingAdd.variantId,
+              ))) ? (
             <div className="inline-error" role="alert">
               Phiên bản đã chọn không còn bán. Vui lòng chọn lại.
             </div>
           ) : null}
-          {product.variants.length ? options.map((option) => {
-            const values = [
-              ...new Set(
-                product.variants
-                  .map((variant) => variant.options[option.code])
-                  .filter(Boolean),
-              ),
-            ];
-            return (
-              <fieldset className="detail-option" key={option.code}>
-                <legend>{option.label}</legend>
-                <div className="option-chip-row">
-                  {values.map((value) => {
-                    const enabled = product.variants.some(
-                      (variant) => variant.options[option.code] === value,
-                    );
-                    return (
-                      <button
-                        type="button"
-                        key={value}
-                        disabled={!enabled}
-                        className={`option-chip${selectedVariant?.options[option.code] === value ? ' selected' : ''}`}
-                        onClick={() => chooseOption(option.code, value)}
-                      >
-                        {value}
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            );
-          }) : null}
+          {product.variants.length
+            ? options.map((option) => {
+                const values = [
+                  ...new Set(
+                    product.variants
+                      .map((variant) => variant.options[option.code])
+                      .filter(Boolean),
+                  ),
+                ];
+                return (
+                  <fieldset className="detail-option" key={option.code}>
+                    <legend>{option.label}</legend>
+                    <div className="option-chip-row">
+                      {values.map((value) => {
+                        const enabled = product.variants.some(
+                          (variant) => variant.options[option.code] === value,
+                        );
+                        return (
+                          <button
+                            type="button"
+                            key={value}
+                            disabled={!enabled}
+                            className={`option-chip${selection[option.code] === value ? ' selected' : ''}`}
+                            onClick={() => chooseOption(option.code, value)}
+                          >
+                            {value}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                );
+              })
+            : null}
           <div className="detail-buy-row">
             <div className="quantity-control">
               <button
@@ -259,7 +301,8 @@ export function ProductDetailPage() {
                   setQuantity((current) =>
                     Math.min(
                       current + 1,
-                      (selectedVariant?.available ?? product.available) || current + 1,
+                      (selectedVariant?.available ?? product.available) ||
+                        current + 1,
                     ),
                   )
                 }
@@ -271,7 +314,9 @@ export function ProductDetailPage() {
             <button
               className="button-primary add-cart-button"
               disabled={
-                (product.variants.length ? !selectedVariant || selectedVariant.available < 1 : product.available < 1 || product.priceVnd === null) ||
+                (product.variants.length
+                  ? !selectedVariant || selectedVariant.available < 1
+                  : product.available < 1 || product.priceVnd === null) ||
                 addMutation.isPending
               }
               onClick={() => void addToCart()}

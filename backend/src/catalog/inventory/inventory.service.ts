@@ -20,6 +20,11 @@ type VariantRow = Prisma.ProductVariantGetPayload<{
     product: { include: { category: { select: { id: true; name: true } } } };
   };
 }>;
+type ProductInventoryRow = Prisma.ProductInventoryGetPayload<{
+  include: {
+    product: { include: { category: { select: { id: true; name: true } } } };
+  };
+}>;
 
 function parseId(value: string) {
   if (!/^[1-9]\d*$/.test(value))
@@ -63,6 +68,7 @@ function inventoryResponse(row: VariantRow | null) {
     throw new NotFoundException({ code: 'SKU_NOT_FOUND' });
   const { inventory, product } = row;
   return {
+    kind: 'SKU' as const,
     skuId: row.id.toString(),
     sku: row.sku,
     options: row.options,
@@ -82,6 +88,30 @@ function inventoryResponse(row: VariantRow | null) {
     version: inventory.version.toString(),
     updatedAt: inventory.updatedAt.toISOString(),
     deleted: row.deletedAt !== null,
+  };
+}
+
+function productInventoryResponse(row: ProductInventoryRow) {
+  const { product, ...inventory } = row;
+  return {
+    kind: 'PRODUCT' as const,
+    options: {},
+    optionLabels: {},
+    product: {
+      id: product.id.toString(),
+      name: product.name,
+      status: product.status,
+      category: {
+        id: product.category.id.toString(),
+        name: product.category.name,
+      },
+    },
+    onHand: inventory.onHand,
+    reserved: inventory.reserved,
+    available: inventory.onHand - inventory.reserved,
+    version: inventory.version.toString(),
+    updatedAt: inventory.updatedAt.toISOString(),
+    deleted: false,
   };
 }
 
@@ -152,30 +182,35 @@ export class InventoryService {
       pageSize,
     );
     return {
-      items: result.items.map((row) => ({
-        skuId: row.variant.id.toString(),
-        sku: row.variant.sku,
-        options: row.variant.options,
-        optionLabels: optionLabels(
-          row.variant.product.optionConfig,
-          row.variant.options,
-        ),
-        product: {
-          id: row.variant.product.id.toString(),
-          name: row.variant.product.name,
-          status: row.variant.product.status,
-          category: {
-            id: row.variant.product.category.id.toString(),
-            name: row.variant.product.category.name,
-          },
-        },
-        onHand: row.onHand,
-        reserved: row.reserved,
-        available: row.onHand - row.reserved,
-        version: row.version.toString(),
-        updatedAt: row.updatedAt.toISOString(),
-        deleted: false,
-      })),
+      items: result.items.map((row) =>
+        row.kind === 'SKU'
+          ? {
+              kind: 'SKU' as const,
+              skuId: row.row.variant.id.toString(),
+              sku: row.row.variant.sku,
+              options: row.row.variant.options,
+              optionLabels: optionLabels(
+                row.row.variant.product.optionConfig,
+                row.row.variant.options,
+              ),
+              product: {
+                id: row.row.variant.product.id.toString(),
+                name: row.row.variant.product.name,
+                status: row.row.variant.product.status,
+                category: {
+                  id: row.row.variant.product.category.id.toString(),
+                  name: row.row.variant.product.category.name,
+                },
+              },
+              onHand: row.row.onHand,
+              reserved: row.row.reserved,
+              available: row.row.onHand - row.row.reserved,
+              version: row.row.version.toString(),
+              updatedAt: row.row.updatedAt.toISOString(),
+              deleted: false,
+            }
+          : productInventoryResponse(row.row),
+      ),
       page,
       pageSize,
       total: result.total,
@@ -256,6 +291,7 @@ export class InventoryService {
           data: { onHand: next, version: { increment: 1n } },
         });
         const response = {
+          kind: 'SKU' as const,
           skuId: variant.id.toString(),
           sku: variant.sku,
           options: variant.options,

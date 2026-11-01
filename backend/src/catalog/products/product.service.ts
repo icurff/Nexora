@@ -85,6 +85,7 @@ function storedOptionConfig(
   config: ProductOptionConfigDto,
 ): Prisma.InputJsonObject {
   return {
+    order: config.options.map(({ code }) => code),
     options: Object.fromEntries(
       config.options.map(({ code, label }) => [code, { label }]),
     ),
@@ -97,8 +98,21 @@ function optionConfigResponse(value: Prisma.JsonValue) {
   const options = (value as Record<string, Prisma.JsonValue>).options;
   if (!options || typeof options !== 'object' || Array.isArray(options))
     return { options: [] };
+  const optionMap = options as Record<string, Prisma.JsonValue>;
+  const storedOrder = (value as Record<string, Prisma.JsonValue>).order;
+  const orderedCodes = Array.isArray(storedOrder)
+    ? storedOrder.filter(
+        (code): code is string =>
+          typeof code === 'string' && Object.hasOwn(optionMap, code),
+      )
+    : [];
+  const missingCodes = Object.keys(optionMap)
+    .filter((code) => !orderedCodes.includes(code))
+    .sort();
+  const orderedOptionCodes = [...orderedCodes, ...missingCodes];
   return {
-    options: Object.entries(options).flatMap(([code, entry]) => {
+    options: orderedOptionCodes.flatMap((code) => {
+      const entry = optionMap[code];
       if (!entry || typeof entry !== 'object' || Array.isArray(entry))
         return [];
       const label = (entry as Record<string, Prisma.JsonValue>).label;
