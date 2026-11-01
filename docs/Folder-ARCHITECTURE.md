@@ -1,4 +1,4 @@
-# Kiến trúc modular monolith — Nexora
+﻿# Kiến trúc modular monolith — Nexora
 
 | Thông tin           | Giá trị                                                                                     |
 | ------------------- | ------------------------------------------------------------------------------------------- |
@@ -14,14 +14,14 @@ Nexora dùng modular monolith: các nghiệp vụ nằm trong cùng tiến trìn
 
 | Thành phần  | Đã triển khai                                                                                               |
 | ----------- | ----------------------------------------------------------------------------------------------------------- |
-| Frontend    | React/Vite/TypeScript; Auth, Admin Category, Product/SKU, tồn kho và upload nhiều ảnh/video gọi API backend; catalog công khai, cart/checkout/orders vẫn dùng fixture/state cục bộ |
-| Backend     | NestJS, AuthModule, CatalogModule Category/Product/SKU và inventory API, upload ảnh/video lên Supabase Storage, guard Customer/Admin, API khôi phục mật khẩu; DB end-to-end kho chưa kiểm chứng |
+| Frontend    | React/Vite/TypeScript; Auth/Admin dùng API; danh sách, detail sản phẩm và giỏ Customer dùng API; checkout/orders chưa khả dụng, các trang catalog khác còn fixture |
+| Backend     | NestJS, AuthModule, CatalogModule public/admin Product/SKU/inventory APIs và OrderModule cart APIs; upload ảnh/video lên Supabase Storage, guard Customer/Admin; giỏ chưa có idempotency/event/transaction |
 | Auth        | Đăng ký Customer, login/refresh/logout/session, đổi/khôi phục mật khẩu và thu hồi phiên; JWT, refresh cookie HttpOnly |
 | Persistence | Prisma ORM/repositories và `schema.prisma`; PostgreSQL 17 local trong Compose, đồng bộ schema thủ công bằng `npm run db:push` |
 | Docker      | Compose chạy frontend/backend/PostgreSQL local với named volume; Supabase Storage vẫn ở ngoài, không healthcheck |
 | CI          | Kiểm tra và Docker build cho hai ứng dụng frontend/backend                                                  |
 
-Category CRUD, Product/SKU, inventory APIs và upload media thuộc CatalogModule. Admin UI có trang tồn kho để xem/tìm/lọc SKU, nhập hàng, điều chỉnh, kiểm kê có version và xem ledger; thao tác dùng transaction, row lock và idempotency theo Admin. SKU mới vẫn khởi tạo tồn bằng 0. Schema sẽ được đồng bộ thủ công vào PostgreSQL local bằng `npm run db:push`; dự án không dùng migration workflow. Tích hợp đồng thời với PostgreSQL và trình duyệt chưa được kiểm chứng end-to-end. Storage upload trực tiếp đã smoke-test thành công; luồng upload nhiều ảnh/video qua Admin API và ghi metadata chưa được kiểm chứng end-to-end. Catalog công khai, giỏ/đơn hàng, thanh toán, email thông báo đơn, tracking và rule-based recommendation chưa được triển khai. Khôi phục mật khẩu gửi trực tiếp qua Gmail SMTP; task 015 về email job/worker/retry chưa triển khai. Task chi tiết và hiện trạng nằm trong [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status); không tạo folder ứng dụng mới để làm những task này.
+Category CRUD, Product/SKU, public catalog listing/detail, account cart, inventory APIs và upload media thuộc CatalogModule hoặc OrderModule trong cùng backend. Order cart MVP lưu một giỏ/Customer và cho phép thêm, sửa, xóa SKU; giá/tồn được đọc lại từ Catalog. UI tính tạm tính cho các dòng đã chọn; checkout chưa khả dụng. Cart MVP không giữ tồn, không dùng cart version/idempotency/event hay transaction nghiệp vụ; các thao tác đồng thời chưa được kiểm chứng. Schema chỉ được đồng bộ thủ công vào PostgreSQL local bằng `npm run db:push`; dự án không dùng migration workflow. Tích hợp PostgreSQL thật và luồng trình duyệt chưa được kiểm chứng end-to-end. Storage upload trực tiếp đã smoke-test thành công; luồng upload nhiều ảnh/video qua Admin API và ghi metadata chưa được kiểm chứng end-to-end. Đơn hàng, thanh toán, email thông báo đơn, tracking và rule-based recommendation chưa được triển khai. Khôi phục mật khẩu gửi trực tiếp qua Gmail SMTP; task 015 về email job/worker/retry chưa triển khai. Task chi tiết và hiện trạng nằm trong [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status); không tạo folder ứng dụng mới để làm những task này.
 
 Mỗi Product tự cấu hình mã/nhãn lựa chọn SKU; Category chỉ phân loại. Cột `categories.option_config` cũ được giữ lại nhưng không còn dùng. Product dùng mô tả cho thông tin/thông số chung, không có Attributes riêng. Migration `5_product_sku_options` đã bổ sung cấu hình vào Product và backfill từ Category cũ.
 
@@ -95,7 +95,7 @@ AuthGuard xác minh access token và phiên/tài khoản còn hiệu lực trự
 
 ## 4. Ranh giới module
 
-Chỉ AuthModule và DatabaseModule hiện có. Tạo module nghiệp vụ khi triển khai chức năng tương ứng, không tạo scaffold rỗng.
+AuthModule, DatabaseModule, CatalogModule và OrderModule đã có. OrderModule hiện chỉ xử lý cart; tạo các module Payment, Tracking hoặc Recommendation khi triển khai nghiệp vụ tương ứng, không tạo scaffold rỗng.
 
 | Module dự kiến            | Trách nhiệm                                                          |
 | ------------------------- | -------------------------------------------------------------------- |

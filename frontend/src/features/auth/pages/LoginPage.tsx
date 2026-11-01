@@ -34,16 +34,17 @@ export default function LoginPage() {
     requestedPath?.startsWith('/') && !requestedPath.startsWith('//')
       ? requestedPath
       : '/account';
+  const returnState = location.state;
 
   useEffect(() => {
     if (status === 'authenticated')
-      navigate(destination, { replace: true });
-  }, [status, navigate, destination]);
+      navigate(destination, { replace: true, state: returnState });
+  }, [status, navigate, destination, returnState]);
 
   async function submit(values: { email: string; password: string }) {
     try {
       await loginMutation.mutateAsync(values);
-      navigate(destination, { replace: true });
+      navigate(destination, { replace: true, state: returnState });
     } catch {
       /* The mutation error is rendered below. */
     }

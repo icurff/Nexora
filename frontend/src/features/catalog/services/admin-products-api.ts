@@ -5,8 +5,8 @@ export type ProductImage = { id: string; imageAssetId: string; variantId: string
 export type ProductVariant = { id: string; sku: string; options: Record<string, string>; priceVnd: string };
 export type ProductOption = { code: string; label: string };
 export type ProductOptionConfig = { options: ProductOption[] };
-export type AdminProduct = { id: string; name: string; description: string; categoryId: string; category: { id: string; name: string }; status: 'ACTIVE' | 'INACTIVE'; optionConfig: ProductOptionConfig; variants: ProductVariant[]; images: ProductImage[]; createdAt: string; updatedAt: string };
-export type VariantInput = { options: Record<string, string>; priceVnd: number };
+export type AdminProduct = { id: string; name: string; description: string; categoryId: string; category: { id: string; name: string }; status: 'ACTIVE' | 'INACTIVE'; priceVnd: string | null; onHand: number; optionConfig: ProductOptionConfig; variants: ProductVariant[]; images: ProductImage[]; createdAt: string; updatedAt: string };
+export type VariantInput = { options: Record<string, string>; priceVnd: number; onHand?: number };
 export type ImageInput = { imageAssetId: string; variantId?: string; altText: string; sortOrder: number; isPrimary: boolean };
 
 async function request<T>(run: (token: string) => Promise<T>): Promise<T> {
@@ -33,8 +33,9 @@ export async function uploadAdminImage(file: File) {
     })).data;
   });
 }
-export async function createAdminProduct(input: { name: string; description: string; categoryId: string; optionConfig: ProductOptionConfig; variants: VariantInput[]; images: ImageInput[] }) { return request(async token => (await apiClient.post<AdminProduct>('/admin/products', input, { headers: headers(token) })).data); }
-export async function updateAdminProduct(id: string, input: Partial<Pick<AdminProduct, 'name' | 'description' | 'categoryId' | 'status'>>) { return request(async token => (await apiClient.patch<AdminProduct>(`/admin/products/${id}`, input, { headers: headers(token) })).data); }
+export async function createAdminProduct(input: { name: string; description: string; categoryId: string; priceVnd?: number; onHand?: number; optionConfig: ProductOptionConfig; variants: VariantInput[]; images: ImageInput[] }) { return request(async token => (await apiClient.post<AdminProduct>('/admin/products', input, { headers: headers(token) })).data); }
+export async function updateAdminProduct(id: string, input: { name?: string; description?: string; categoryId?: string; status?: 'ACTIVE' | 'INACTIVE'; priceVnd?: number }) { return request(async token => (await apiClient.patch<AdminProduct>(`/admin/products/${id}`, input, { headers: headers(token) })).data); }
+export async function setAdminProductStock(id: string, onHand: number) { return request(async token => (await apiClient.patch<AdminProduct>(`/admin/products/${id}/inventory`, { onHand }, { headers: headers(token) })).data); }
 export async function addAdminVariant(id: string, input: VariantInput) { return request(async token => (await apiClient.post<AdminProduct>(`/admin/products/${id}/variants`, input, { headers: headers(token) })).data); }
 export async function updateAdminVariant(id: string, input: { priceVnd?: number }) { return request(async token => (await apiClient.patch<AdminProduct>(`/admin/variants/${id}`, input, { headers: headers(token) })).data); }
 export async function deleteAdminVariant(id: string) { return request(async token => (await apiClient.delete<{ deleted: boolean }>(`/admin/variants/${id}`, { headers: headers(token) })).data); }

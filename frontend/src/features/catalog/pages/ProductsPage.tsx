@@ -1,35 +1,24 @@
-import { useMemo, useState } from 'react';
-import {
-  ArrowDownUp,
-  ArrowRight,
-  ChevronDown,
-  ChevronRight,
-  SlidersHorizontal,
-} from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, ChevronRight } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { demoCategories, demoProducts } from '../../catalog/demo-data.js';
-import { ProductGrid } from '../components/catalog-components.js';
+import { CatalogProductGrid } from '../components/catalog-components.js';
+import { getPublicProducts } from '../services/public-catalog-api.js';
 
 export function ProductsPage() {
   const [params, setParams] = useSearchParams();
-  const [selectedCategory, setSelectedCategory] = useState(
-    params.get('category') ?? 'all',
-  );
-  const [sort, setSort] = useState(params.get('sort') ?? 'featured');
-  const [showFilter, setShowFilter] = useState(false);
-  const products = useMemo(() => {
-    let result = demoProducts.filter(
-      (product) =>
-        selectedCategory === 'all' || product.categoryId === selectedCategory,
-    );
-    if (sort === 'price-asc')
-      result = [...result].sort((a, b) => a.price - b.price);
-    if (sort === 'price-desc')
-      result = [...result].sort((a, b) => b.price - a.price);
-    if (sort === 'popular')
-      result = [...result].sort((a, b) => b.sold - a.sold);
-    return result;
-  }, [selectedCategory, sort]);
+  const requestedPage = Number(params.get('page') ?? '1');
+  const page =
+    Number.isSafeInteger(requestedPage) && requestedPage > 0
+      ? requestedPage
+      : 1;
+  const products = useQuery({
+    queryKey: ['public-products', page],
+    queryFn: () => getPublicProducts(page),
+    retry: false,
+    refetchOnWindowFocus: true,
+  });
+  const result = products.data;
+
   return (
     <div className="page-container page-section">
       <div className="breadcrumbs">
@@ -43,64 +32,53 @@ export function ProductsPage() {
           <h1>Tất cả sản phẩm</h1>
           <p>Khám phá những món đồ được chọn lọc cho bạn.</p>
         </div>
-        <button
-          className="filter-toggle"
-          onClick={() => setShowFilter(!showFilter)}
-        >
-          <SlidersHorizontal size={16} /> Bộ lọc
-        </button>
       </div>
-      <div className={`catalog-toolbar${showFilter ? ' filters-open' : ''}`}>
-        <div className="catalog-categories">
-          <button
-            className={selectedCategory === 'all' ? 'active' : ''}
-            onClick={() => setSelectedCategory('all')}
-          >
-            Tất cả
-          </button>
-          {demoCategories.map((category) => (
-            <button
-              key={category.id}
-              className={selectedCategory === category.id ? 'active' : ''}
-              onClick={() => setSelectedCategory(category.id)}
-            >
-              {category.name}
-            </button>
-          ))}
+      {products.isPending ? (
+        <div className="empty-state" role="status">
+          Đang tải sản phẩm...
         </div>
-        <label className="sort-control">
-          <ArrowDownUp size={15} />
-          <select
-            value={sort}
-            onChange={(event) => {
-              setSort(event.target.value);
-              setParams(
-                event.target.value === 'featured'
-                  ? {}
-                  : { sort: event.target.value },
-              );
-            }}
+      ) : products.isError ? (
+        <div className="empty-state" role="alert">
+          <h3>Chưa thể tải sản phẩm</h3>
+          <p>Kiểm tra kết nối rồi thử lại.</p>
+          <button
+            className="button-primary"
+            onClick={() => void products.refetch()}
           >
-            <option value="featured">Sắp xếp: Nổi bật</option>
-            <option value="popular">Bán chạy nhất</option>
-            <option value="price-asc">Giá: Thấp đến cao</option>
-            <option value="price-desc">Giá: Cao đến thấp</option>
-          </select>
-          <ChevronDown size={14} />
-        </label>
-      </div>
-      <div className="catalog-count">
-        Hiển thị <strong>{products.length}</strong> sản phẩm
-      </div>
-      <ProductGrid products={products} />
-      <div className="pagination">
-        <button className="page-number active">1</button>
-        <button className="page-number">2</button>
-        <button className="page-number">3</button>
-        <button className="page-next">
-          Tiếp theo <ArrowRight size={15} />
-        </button>
-      </div>
+            Thử lại
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="catalog-count">
+            Có <strong>{result?.total ?? 0}</strong> sản phẩm
+          </div>
+          <CatalogProductGrid products={result?.items ?? []} />
+          {(result?.totalPages ?? 0) > 1 ? (
+            <nav className="pagination" aria-label="Phân trang sản phẩm">
+              <button
+                className="page-next"
+                disabled={page <= 1}
+                onClick={() =>
+                  setParams(page <= 2 ? {} : { page: String(page - 1) })
+                }
+              >
+                Trang trước
+              </button>
+              <span className="page-number active" aria-current="page">
+                {page}
+              </span>
+              <button
+                className="page-next"
+                disabled={page >= (result?.totalPages ?? 1)}
+                onClick={() => setParams({ page: String(page + 1) })}
+              >
+                Trang tiếp <ArrowRight size={15} />
+              </button>
+            </nav>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

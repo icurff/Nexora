@@ -1,4 +1,4 @@
-# Task triển khai Nexora
+﻿# Task triển khai Nexora
 
 | Thông tin     | Giá trị                                                                                                     |
 | ------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -21,7 +21,7 @@ Các task 003, 036 và 037 được giữ số để truy vết nhưng không th
 - **Ngoài phạm vi:** không triển khai theo kiến trúc đã chốt; chỉ mở lại khi có yêu cầu mới.
 - **Tùy chọn:** giai đoạn tương lai, không chặn nghiệm thu bản web local.
 
-Code hiện có: `backend/src/auth`, CatalogModule quản lý Category, Product/SKU và API upload media, Prisma schema, API prefix/validation, cấu hình DATABASE_URL cho PostgreSQL local, API reset password gửi trực tiếp qua Gmail SMTP, Vite proxy, các trang Auth, Admin Category và Product/SKU đã nối backend. PostgreSQL local được cấu hình để đồng bộ schema thủ công bằng `npm run db:push`; chưa chạy lệnh này trong lần cập nhật cấu hình. Prisma Migrate và các file migration đã được gỡ khỏi repo. UI chọn nhiều ảnh/video và tự gắn metadata vào Product, không nhập ID thủ công. Chưa kiểm chứng luồng upload nhiều media qua Admin API end-to-end. Order, Payment, Tracking và Recommendation chưa triển khai; Notification chưa có email job/worker.
+Code hiện có: `backend/src/auth`, CatalogModule quản lý Category, Product/SKU, public catalog và API upload media; OrderModule có cart API Customer cơ bản; Prisma schema, API prefix/validation, cấu hình DATABASE_URL cho PostgreSQL local, API reset password gửi trực tiếp qua Gmail SMTP, Vite proxy, các trang Auth, Admin Category/Product/SKU và storefront list/detail/cart đã nối backend. Cart không có transaction nghiệp vụ, cart version, idempotency hoặc event; checkout chưa khả dụng. PostgreSQL schema đã đồng bộ thủ công bằng `npm run db:push`; API catalog đã smoke-test với PostgreSQL nhưng database hiện chưa có Product công khai, giỏ Customer và browser chưa kiểm chứng. Prisma Migrate và các file migration đã được gỡ khỏi repo. UI chọn nhiều ảnh/video và tự gắn metadata vào Product, không nhập ID thủ công. Chưa kiểm chứng luồng upload nhiều media qua Admin API end-to-end. Payment, Tracking và Recommendation chưa triển khai; Notification chưa có email job/worker.
 
 Giới hạn hiện tại: Gmail SMTP cần `GMAIL_USER` và App Password; gửi thật và tương tác UI trên trình duyệt chưa được kiểm chứng. Email reset gửi trực tiếp sau commit; provider lỗi thì khách yêu cầu lại, không có worker tự retry. API reset hiện chưa giới hạn tần suất; dự kiến triển khai cùng Redis. AuthProvider lưu access token trong localStorage, chưa đạt mục tiêu bộ nhớ frontend của NFR-02; Origin/CSRF, rate limit toàn ứng dụng, request ID và hợp đồng lỗi thống nhất chưa hoàn chỉnh. Chưa có test database/provider hoặc bộ test trình duyệt đầy đủ; test:e2e chưa có config và frontend chưa có test script. Cấu hình Docker/CI tồn tại không chứng minh đã chạy nghiệm thu container hoặc pipeline từ xa.
 
@@ -89,20 +89,20 @@ Trong snapshot này, `docs/data` và `docs/task` đang trống. Task 019, 031–
 
 | STT | Task                                                               | Hiện trạng    | Điều kiện bàn giao                                                                                                                                                                        |
 | --- | ------------------------------------------------------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 034 | [Catalog] Implement Public Catalog and Product/SKU Query Providers | Chưa          | API công khai chỉ trả Product được phép, SKU/giá/tồn/ảnh, paging/sort; Order lấy dữ liệu bằng provider Catalog trong tiến trình và cùng transaction khi cần, không batch HTTP API nội bộ. |
+| 034 | [Catalog] Implement Public Catalog and Product/SKU Query Providers | Một phần       | Có danh sách phân trang và detail công khai cho Product ACTIVE với SKU/giá/tồn/ảnh; tìm kiếm, lọc, sort và provider chia sẻ với Order còn thiếu. |
 | 035 | [Catalog] Implement Product Search, Filters, and Facets            | Chưa          | Tìm chuỗi con không phân biệt hoa/dấu; các điều kiện khớp cùng SKU; gồm danh mục con; chặn facet mơ hồ.                                                                                   |
 | 036 | [Catalog] Defer External Search Index Integration                  | Ngoài phạm vi | Ngoài phạm vi hiện tại; tìm kiếm PostgreSQL theo task 035 và TC-52. Không có index/projection/consumer cần dựng. Nếu sau này cần Elasticsearch, phải thống nhất yêu cầu và đồng bộ riêng. |
 | 037 | [Catalog] Defer External Cache Integration                         | Ngoài phạm vi | Ngoài phạm vi hiện tại; đọc từ PostgreSQL, chưa cần Redis/TTL/invalidation. Chỉ bổ sung cache khi có yêu cầu đo được và không lấy cache làm nguồn quyết định tồn/payment.                 |
-| 038 | [Frontend] Build the Home Page and Product Listing                 | Chưa          | Có danh mục/sản phẩm mới, tìm/lọc/sort/paging trên URL; nhãn dữ liệu minh họa; trạng thái rỗng/lỗi rõ.                                                                                    |
-| 039 | [Frontend] Build Product Details, SKU Selection, and Image Gallery | Chưa          | Chọn options mọi thứ tự, tự chọn SKU duy nhất; đúng giá/tồn; ưu tiên ảnh SKU rồi ảnh chung; CDN lỗi có fallback.                                                                          |
+| 038 | [Frontend] Build the Home Page and Product Listing                 | Một phần       | `/products` dùng API và phân trang; Home vẫn là nội dung demo, tìm/lọc/sort chưa có. |
+| 039 | [Frontend] Build Product Details, SKU Selection, and Image Gallery | Một phần       | Detail dùng API, chọn options/SKU và media theo variant; cần kiểm chứng browser với tổ hợp SKU/media thực tế. |
 
 ## 7. Giỏ hàng và quote
 
 | STT | Task                                                    | Hiện trạng | Điều kiện bàn giao                                                                                                                                                 |
 | --- | ------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 040 | [Order] Create Cart Schema and Implement Cart APIs      | Chưa       | Một giỏ/Customer; thêm/cộng/sửa/xóa đúng chủ; idempotency không cộng lặp; không giữ hàng. Ghi business event add/remove cùng transaction giỏ trong database chung. |
-| 041 | [Frontend] Build the Cart Page and Login Flow           | Chưa       | Guest phải login trước; chọn dòng/sửa quantity/xóa/tạm tính đúng; dòng hết hàng/ngừng bán có cảnh báo và không checkout.                                           |
-| 042 | [Order] Implement Checkout Quotes and Change Validation | Chưa       | Kiểm tra dòng chọn/giá/địa chỉ; ship 30.000đ; giỏ/giá đổi yêu cầu xác nhận lại; một dòng lỗi không đặt phần còn lại.                                               |
+| 040 | [Order] Create Cart Schema and Implement Cart APIs      | Một phần    | Một giỏ/Customer; API thêm/cộng/sửa/xóa kiểm tra quyền và tồn cơ bản; chưa có idempotency, event, transaction nghiệp vụ hoặc bảo đảm đồng thời. |
+| 041 | [Frontend] Build the Cart Page and Login Flow           | Một phần    | Giỏ Customer, login quay về thao tác dự định, chọn dòng/sửa quantity/xóa và tạm tính tiền hàng; browser/mobile chưa kiểm chứng, checkout unavailable. |
+| 042 | [Order] Implement Checkout Quotes and Change Validation | Chưa       | Chưa triển khai theo phạm vi hiện tại; tiền hàng đã chọn chỉ là tạm tính UI, chưa có quote/địa chỉ/checkout. |
 
 ## 8. Payment và provider tồn kho trong backend
 
@@ -226,7 +226,7 @@ Các nhóm trên là gợi ý phụ thuộc, không phải thứ tự bắt bu�
 | 3.0 | 30/10/2026 | Triển khai Category Management task 025; chưa triển khai Product/SKU hoặc xử lý ghi đồng thời cây |
 | 3.1 | 30/10/2026 | Bổ sung migration chuẩn hóa khoảng trắng Unicode cho name_key Category |
 | 3.2 | 01/11/2026 | Bỏ Attributes riêng của Product; thông tin chung dùng mô tả. Thiết kế lúc đó đặt optionConfig ở Category; thay đổi sau chuyển cấu hình này sang từng Product. |
-| 3.3 | 01/11/2026 | Bỏ DRAFT; tạo Product ACTIVE ngay với nội dung/SKU/ảnh đầy đủ; triển khai và nghiệm thu 026–028 cùng đợt, có phụ thuộc Storage và tồn/ledger. |
+| 3.3 | 01/11/2026 | Bỏ DRAFT; tạo Product ACTIVE ngay với nội dung/ảnh đầy đủ; SKU có thể được bổ sung sau; triển khai và nghiệm thu 026–028 cùng đợt, có phụ thuộc Storage và tồn/ledger. |
 | 3.4 | 01/11/2026 | Bổ sung Catalog Product/SKU API và UI; SKU không có trạng thái bán riêng, giá sửa được, options cố định, xóa mềm. |
 | 3.7 | 01/11/2026 | Chuyển cấu hình lựa chọn SKU sang từng Product; Category chỉ dùng để phân loại. |
 | 3.8 | 01/11/2026 | Bổ sung chọn nhiều ảnh/video trong form Product; bỏ nhập ID asset thủ công. |

@@ -127,7 +127,7 @@ Thiết kế gồm **29 bảng nghiệp vụ** và image_assets bổ sung cho up
 | Category → Category                                               | 1–N        | Cây danh mục vận hành; parent_id NULL là gốc, độc lập cây RetailRocket offline         |
 | Product → Variant / Image                                         | 1–N        | Ảnh chung hoặc gắn một SKU cùng Product; không phụ thuộc riêng màu sắc                 |
 | User → Cart                                                       | 1–1        | Mỗi Customer có tối đa một giỏ; Guest không có giỏ                                     |
-| Cart → CartItem → Variant                                         | 1–N, N–1   | Một SKU chỉ xuất hiện một dòng trong một giỏ                                           |
+| Cart -> CartItem -> Variant/Product | 1-N | A cart line targets one SKU or one Product without SKUs |
 | User → Order → OrderItem → Variant                                | 1–N–N, N–1 | Dòng đơn giữ FK và snapshot độc lập                                                    |
 | Order → StatusHistory / Note                                      | 1–N        | Ghi chú nội bộ tách khỏi lịch sử công khai                                             |
 | Variant → InventoryMovement                                       | 1–N        | Ghi cả thay đổi on_hand và reserved                                                    |
@@ -291,6 +291,7 @@ Migration `3_product_management` triển khai các trường Admin; migration `5
 | ------------------------ | ------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | name | varchar(200) | NN | Tên hiển thị 1–200 ký tự, không rỗng |
 | option_config | jsonb | NN, `{"options": {}}` | Cấu hình riêng của Product, tối đa 5 mã lựa chọn; cố định sau khi tạo |
+| price_vnd | bigint | NULL | Product-level price used when Product has no SKUs; each SKU has its own price |
 | search_name              | text          | NN                        | Tên chuẩn hóa bỏ dấu/lowercase phục vụ tìm chuỗi con                                                                          |
 | slug                     | varchar(250)  | NN, UQ                    | Sinh có hậu tố ID khi trùng tên                                                                                               |
 | description | varchar(5000) | NN | Văn bản mô tả 1–5.000 ký tự, chứa thông tin/thông số chung |
@@ -308,9 +309,9 @@ Migration `3_product_management` triển khai các trường Admin; migration `5
 | source_users             | bigint        | NULL                      | users lịch sử là visitor khác nhau của item                                                                                   |
 | created_at, updated_at   | timestamptz   | NN                        | Thời gian                                                                                                                     |
 
-CHECK status IN ('ACTIVE', 'INACTIVE'), tên/mô tả không rỗng, `jsonb_typeof(variant_option_keys) = 'array'`; category_id NOT NULL. Tạo Product qua Admin luôn ACTIVE; SKU, tồn ban đầu/INITIAL ledger khi tồn dương và liên kết ảnh đã upload thành công được ghi cùng transaction. Không có Product DRAFT hoặc lưu Product tạo dở. Product ACTIVE bắt buộc có ảnh chung đại diện và ít nhất một SKU hợp lệ đang bán, kể cả tồn 0. Cấu hình SKU nằm trên Product, tối đa 5 mã lựa chọn; các SKU của Product phải có cùng tập mã. Các điều kiện cần đọc bảng khác như cấu hình/ảnh/SKU hợp lệ do transaction Catalog kiểm tra dưới khóa Product và Category liên quan.
+CHECK status IN ('ACTIVE', 'INACTIVE'); name/description are required. Admin creates ACTIVE Products with a shared primary image. A Product without SKUs requires price_vnd and uses product_inventory; a Product with SKUs uses per-SKU prices and inventory. Products may be created without SKUs and receive them later.
 
-Mọi SKU chưa xóa của một Product có đúng tập khóa được cấu hình trên Product; không trộn SKU `{}` với SKU có lựa chọn. SKU không có trạng thái bán riêng: Product ACTIVE cùng tồn khả dụng dương là điều kiện bán. SKU được soft delete để giữ quan hệ ledger/đơn; không xóa SKU đang có reservation và Product ACTIVE phải còn ít nhất một SKU.
+Product inventory is used only while a Product has no active SKUs. Cart rows then reference product_id and read price from products.price_vnd. When SKUs exist, cart rows reference variant_id and use SKU prices and inventory. Adding the first SKU requires Product stock to be zero.
 
 `search_name` do cùng thao tác sửa tên cập nhật, có xử lý `đ → d`. Chỉ dùng tìm kiếm, không dùng làm khóa duy nhất. PostgreSQL tìm kiếm catalog 500 sản phẩm bằng LIKE đã escape ký tự `%`/`_` và điều kiện SKU tương đương; chưa cần Elasticsearch, cache hoặc extension tìm kiếm.
 
@@ -441,6 +442,8 @@ Snapshot đầu có 1.664 dòng từ inner join cây 1.669 category với 23 roo
 
 ## 5. Visitor, giỏ hàng và chống lặp
 
+**Hiện trạng cart MVP:** Prisma hiện có `carts` với ID riêng và unique `user_id`, cùng `cart_items` với ID riêng và unique `(cart_id, variant_id)`. API xác thực quantity dương, nhưng schema MVP chưa có `carts.version` hoặc CHECK quantity; chưa triển khai `idempotency_requests`, tracking events, transaction nghiệp vụ hay checkout. Các phần bên dưới mô tả target đầy đủ cho giai đoạn sau và không đồng nghĩa đã triển khai.
+
 ### 5.1. `visitors`
 
 | Cột          | Kiểu        | Null/default | Ý nghĩa                                        |
@@ -485,11 +488,12 @@ Giỏ tài khoản vẫn tồn tại sau checkout dù rỗng. Backend lấy user
 | Cột                    | Kiểu        | Null/default            | Ý nghĩa      |
 | ---------------------- | ----------- | ----------------------- | ------------ |
 | cart_id                | bigint      | NN, FK carts            | Giỏ          |
-| variant_id             | bigint      | NN, FK product_variants | SKU          |
+| variant_id             | bigint      | NULL, FK product_variants | SKU when Product has SKUs |
+| product_id             | bigint      | NULL, FK products | Product direct sale when no SKU |
 | quantity               | integer     | NN                      | Số lượng > 0 |
 | created_at, updated_at | timestamptz | NN                      | Thời gian    |
 
-UQ `(cart_id, variant_id)`; CHECK quantity > 0; index variant_id. Không lưu giá, total hoặc cờ giữ hàng. Giá và tình trạng mua được lấy từ catalog lúc đọc. Các dòng được chọn checkout là trạng thái frontend/quote, không cần cột `selected` trên giỏ.
+UQ `(cart_id, variant_id)` and `(cart_id, product_id)`; each row must reference exactly one target; CHECK quantity > 0; index variant_id. Price and availability are read from Catalog. Selection for subtotal is frontend state; cart rows do not store selection or price.
 
 ### 5.5. `idempotency_requests`
 
@@ -1082,4 +1086,4 @@ Schema được mô tả trong `backend/prisma/schema.prisma`; chỉ đồng b�
 | 3.4 | 01/11/2026 | Chuyển cấu hình SKU sang Product; Category chỉ phân loại, backfill cấu hình cũ. |
 | 3.5 | 01/11/2026 | Mở rộng metadata Catalog để lưu video MP4/WebM/MOV tối đa 50 MB. |
 
-Auth, password_reset_tokens, categories, Product/SKU, ảnh/video media và tồn kho Catalog đã có migration. Các bảng nghiệp vụ Order/Payment/Tracking/Recommendation và ca kiểm chứng trong tài liệu là thiết kế, chưa phải kết quả đã triển khai. Các ví dụ ID/giá chỉ minh họa.
+Auth, password_reset_tokens, categories, Product/SKU, ảnh/video media và tồn kho Catalog đã có migration. Các bảng nghiệp vụ Order/Payment/Tracking/Recommendation và ca kiểm chứng trong tài liệu là thiết kế, chưa phải kết quả đã triển khai. Các ví dụ ID/giá chỉ minh họa.\n

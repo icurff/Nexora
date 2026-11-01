@@ -60,6 +60,7 @@ export function useChangePassword() {
     onSuccess: () => {
       storeAccessToken(null);
       queryClient.setQueryData(authQueryKeys.session, null);
+      queryClient.removeQueries({ queryKey: ['cart'] });
       setUnauthenticated();
     },
   });
@@ -73,6 +74,7 @@ export function useLogout() {
     onSuccess: () => {
       storeAccessToken(null);
       queryClient.setQueryData(authQueryKeys.session, null);
+      queryClient.removeQueries({ queryKey: ['cart'] });
       setUnauthenticated();
     },
   });
