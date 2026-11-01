@@ -41,6 +41,7 @@ import { AdminCategoriesPage } from './features/catalog/pages/AdminCategoriesPag
 import { AdminProductsPage } from './features/catalog/pages/AdminProductsPage.js';
 import { AdminInventoryPage } from './features/catalog/pages/AdminInventoryPage.js';
 import { AdminOrdersPage } from './features/admin/pages/AdminOrdersPage.js';
+import { AdminCustomersPage } from './features/admin/pages/AdminCustomersPage.js';
 import './App.css';
 import './Store.css';
 import './Brand.css';
@@ -140,10 +141,8 @@ export default function App() {
                 path="/admin/reviews"
                 element={<AdminManagementPage kind="reviews" />}
               />
-              <Route
-                path="/admin/users"
-                element={<AdminManagementPage kind="users" />}
-              />
+              <Route path="/admin/users" element={<AdminCustomersPage />} />
+              <Route path="/admin/users/:id" element={<AdminCustomersPage />} />
               <Route
                 path="/admin/notifications"
                 element={<AdminManagementPage kind="notifications" />}

@@ -11,16 +11,23 @@ import { NotificationModule } from '../notification/notification.module.js';
 import { UserAddressService } from './services/user-address.service.js';
 import { UserAddressRepository } from './repositories/user-address.repository.js';
 import { UserAddressController } from './user-address.controller.js';
+import { CustomerManagementController } from './customer-management.controller.js';
+import { CustomerManagementService } from './services/customer-management.service.js';
 
 @Module({
   imports: [NotificationModule],
-  controllers: [AuthController, UserAddressController],
+  controllers: [
+    AuthController,
+    UserAddressController,
+    CustomerManagementController,
+  ],
   providers: [
     AuthService,
     PasswordResetService,
     PasswordResetTokenRepository,
     UserAddressService,
     UserAddressRepository,
+    CustomerManagementService,
     UserRepository,
     SessionRepository,
     AuthGuard,

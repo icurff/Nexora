@@ -10,6 +10,7 @@ import {
   register,
   storeAccessToken,
   storedAccessToken,
+  updateProfile,
 } from '../services/auth-api';
 
 export function useLogin() {
@@ -28,6 +29,45 @@ export function useLogin() {
 
 export function useRegister() {
   return useMutation({ mutationFn: register });
+}
+
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+  const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
+  const setUnauthenticated = useAuthStore((state) => state.setUnauthenticated);
+  return useMutation({
+    mutationFn: async (input: { fullName?: string; phone?: string | null }) => {
+      let token = storedAccessToken();
+      if (!token) {
+        const refreshed = await refreshSession();
+        token = refreshed?.accessToken ?? null;
+        storeAccessToken(token);
+      }
+      if (!token) throw new ApiError(401, { code: 'UNAUTHENTICATED' });
+      try {
+        return await updateProfile(input, token);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 401) throw error;
+        const refreshed = await refreshSession();
+        if (!refreshed) {
+          storeAccessToken(null);
+          queryClient.setQueryData(authQueryKeys.session, null);
+          queryClient.removeQueries({ queryKey: ['cart'] });
+          setUnauthenticated();
+          throw error;
+        }
+        storeAccessToken(refreshed.accessToken);
+        return updateProfile(input, refreshed.accessToken);
+      }
+    },
+    onSuccess: (user) => {
+      setAuthenticated(user);
+      queryClient.setQueryData(authQueryKeys.session, {
+        accessToken: storedAccessToken(),
+        user,
+      });
+    },
+  });
 }
 
 export function useChangePassword() {
@@ -52,7 +92,10 @@ export function useChangePassword() {
         storeAccessToken(refreshed?.accessToken ?? null);
         queryClient.setQueryData(authQueryKeys.session, refreshed);
         if (refreshed) setAuthenticated(refreshed.user);
-        if (!refreshed) throw error;
+        if (!refreshed) {
+          setUnauthenticated();
+          throw error;
+        }
 
         await changePassword(input, refreshed.accessToken);
       }

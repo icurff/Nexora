@@ -169,7 +169,7 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | FR-ADM-02 | Admin quản lý Product/SKU, tồn theo từng SKU và Category cha–con trong Catalog; Product tạo ACTIVE nguyên tử, SKU khởi tạo tồn 0 nếu được khai báo, ảnh đã upload thành công; Brand chỉ là metadata seed, không có CRUD/API quản trị Brand; không có module/bảng thuộc tính riêng |
 | FR-ADM-03 | Module Catalog upload nhiều ảnh JPEG/PNG/WebP (≤5 MiB) và video MP4/WebM/MOV (≤50 MB) lên Supabase Storage, lưu metadata sau phản hồi thành công và gắn media vào Product/SKU; không xác minh chữ ký bytes, tính SHA-256, dùng READY hoặc xóa vật lý asset lịch sử |
 | FR-ADM-04 | Admin tìm/lọc đơn, xem chi tiết, thêm ghi chú nội bộ và xem lịch sử; không lưu hãng vận chuyển/mã vận đơn                                                                                                                                            |
-| FR-ADM-05 | Admin tìm Customer, xem thông tin nghiệp vụ cần thiết, khóa/mở có lý do; không xem mật khẩu hoặc reset mật khẩu giúp khách                                                                                                                           |
+| FR-ADM-05 | Admin tìm Customer theo tên/email, lọc trạng thái, phân trang, xem thông tin tài khoản, khóa với lý do và mở khóa; không xem mật khẩu hoặc reset mật khẩu giúp khách |
 | FR-ADM-06 | Dashboard phân biệt đơn tạo theo createdAt, đơn đang chờ, kết quả hủy/thất bại và tiền đã thu theo paidAt; tiền hàng/phí ship tách riêng                                                                                                             |
 
 ### 3.5. Tracking, dữ liệu và local
@@ -420,7 +420,7 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 ### UC-28 — Khóa và mở Customer
 
 - **Tác nhân:** Admin. **Dữ liệu:** Customer và lý do khi khóa.
-- **Luồng:** tìm theo tên/email → xem hồ sơ/trạng thái → khóa hoặc mở → ghi lịch sử quản trị; khóa vô hiệu hóa quyền sử dụng phiên tài khoản hiện có.
+- **Luồng:** tìm theo tên/email, lọc trạng thái và phân trang → xem hồ sơ/trạng thái → khóa với lý do hoặc mở khóa; khóa lưu lý do/trạng thái hiện tại và thu hồi mọi phiên, không lưu lịch sử thao tác.
 - **Ngoại lệ:** không áp dụng cho tài khoản Admin; không có đổi role/reset mật khẩu trong màn hình này.
 - **Sau:** đơn đã có vẫn được xử lý; mở lại cho phép đăng nhập mới, không hồi sinh token/phiên đã thu hồi. **Nghiệm thu:** TC-31.
 
@@ -567,7 +567,7 @@ Client retry giữ event ID; thao tác mới thực sự tạo ID mới. Không 
 | Cart                               | Customer sở hữu giỏ, các dòng SKU/quantity và phiên bản thay đổi                                                                                       |
 | Order/OrderItem                    | Mã đơn hiển thị, chủ đơn, trạng thái/thanh toán, snapshot, hạn, paidAt                                                                                 |
 | Reservation                        | reserved đối soát với dòng đơn PENDING/CONFIRMED; đặt/hủy đơn cập nhật reserved cùng transaction với đơn                                             |
-| Order history/Admin audit          | Chuyển trạng thái và ghi chú nội bộ tách biệt; khóa/mở tài khoản, điều chỉnh tồn                                                                       |
+| Order history/Admin audit          | Chuyển trạng thái và ghi chú nội bộ tách biệt; điều chỉnh tồn                                                                                         |
 | Interaction/Recommendation         | Event và ngữ cảnh, liên kết phiên, request gợi ý/danh sách thứ tự/nguồn                                                                                |
 
 Đây là mô hình thông tin, không áp đặt tên bảng vật lý hoặc câu lệnh SQL. Giữ địa chỉ, thông tin đơn và nội dung nguồn cần thiết ngay cả khi tài nguyên master thay đổi.
@@ -629,7 +629,7 @@ Các giới hạn độ dài/dung lượng dưới đây là **mặc định đ�
 | Admin catalog                        | Form tạo ACTIVE ngay/ngừng bán/mở bán lại, mô tả Product, options SKU khai báo riêng theo Product, ảnh và danh mục cha–con | Thiếu dữ liệu mở bán, lựa chọn SKU sai, trùng tổ hợp SKU, chu trình, tài nguyên đang được tham chiếu |
 | Admin tồn                            | On hand/reserved/available, nhập/kiểm kê/lịch sử                                                                 | Không đủ hàng chưa giữ, xung đột khi lưu                                                           |
 | Admin đơn                            | Tìm/lọc, snapshot, thời hạn, ghi chú, nút theo trạng thái                                                        | Lý do bắt buộc, xác nhận tác động, trạng thái cũ bị từ chối                                        |
-| Admin Customer                       | Tìm tên/email, trạng thái, khóa/mở                                                                               | Xác nhận khóa, không hỗ trợ reset mật khẩu thay khách hoặc đổi role                                |
+| Admin Customer                       | Tìm tên/email, lọc trạng thái, phân trang, xem chi tiết, khóa/mở                                                 | Khóa bắt buộc lý do; xác nhận mở khóa; không reset mật khẩu thay khách hoặc đổi role                |
 | Email                                | Mẫu khôi phục mật khẩu/xác nhận đơn/thay đổi trạng thái; trạng thái gửi                                          | Đang chờ, đã gửi, thử lại, gửi thất bại; không lộ token trong log                                  |
 | Dashboard                            | Số đơn và doanh thu theo định nghĩa, SKU sắp hết                                                                 | Kỳ rỗng, khoảng ngày sai, không có quyền                                                           |
 
@@ -711,8 +711,9 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | POST /admin/orders/:id/confirm, /cancel, /ship                                   | Hành động đơn trước/đến giao; các hậu tố thuộc cùng :id                                                          | Admin, kiểm tra trạng thái                              |
 | POST /admin/orders/:id/deliver, /delivery-fail, /retry-delivery, /receive-return | Kết quả giao, giao lại và nhận hàng về                                                                           | Admin, kiểm tra trạng thái                              |
 | POST /admin/orders/:id/notes                                                     | Thêm ghi chú nội bộ                                                                                              | Admin                                                   |
-| GET /admin/customers, /admin/customers/:id                                       | Tra cứu Customer                                                                                                 | Admin                                                   |
-| POST /admin/customers/:id/lock, /unlock                                          | Khóa/mở                                                                                                          | Admin, chỉ Customer                                     |
+| GET /admin/customers?page=&pageSize=&q=&status=                                  | Tìm/lọc/phân trang Customer                                                                                     | Admin                                                   |
+| GET /admin/customers/:id                                                         | Chi tiết Customer                                                                                                | Admin                                                   |
+| POST /admin/customers/:id/lock, /unlock                                          | Khóa với lý do / mở khóa                                                                                         | Admin, chỉ Customer                                     |
 | GET /admin/dashboard                                                             | Số liệu theo định nghĩa                                                                                          | Admin                                                   |
 | POST /events                                                                     | Nhận event frontend theo danh sách cho phép                                                                      | Guest/Customer; server gắn danh tính                    |
 | POST /recommendations                                                            | Gợi ý theo quy tắc, lấy ngữ cảnh được phép                                                                       | Guest/Customer                                          |
