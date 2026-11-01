@@ -16,7 +16,7 @@ Thiết kế hiện hành dùng một database PostgreSQL cho backend modular mo
 
 Metadata/tables thuộc ứng dụng trong PostgreSQL local, bytes ảnh ở Supabase Storage. Cấu hình DATABASE_URL theo Architecture; Auth dùng users/auth_sessions của Nexora, tách khỏi Supabase Auth.
 
-Catalog đã có API/UI quản lý tồn cơ bản theo SKU; các phần reservation theo đơn hàng bên dưới mô tả tích hợp giai đoạn sau. SKU mới có `on_hand = 0`. `Inventory`, `InventoryLedger` là schema nguồn hiện tại; thao tác Admin và idempotency request được mô tả ở mục 4.4 và 7.
+Catalog đã có API/UI quản lý tồn cơ bản theo SKU; Product không SKU cũng có tồn cấp Product. Đơn và reservation được cập nhật cùng transaction; dự án không lưu lịch sử biến động tồn kho. `Inventory` là schema nguồn cho tồn SKU.
 
 | Nội dung       | Thiết kế hiện hành                                                                                                                    |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -108,7 +108,7 @@ Tiền tối đa mỗi trường là `99,999,999,999,999` VND. Giá trị này n
 | Nguồn catalog    | `catalog_datasets`, `retailrocket_category_mappings`                                  | Version/checksum artifact và category nguồn → root → danh mục seed |
 | Ngữ cảnh khách   | `visitors`, `tracking_sessions`                                                       | Nhận diện trình duyệt và phiên hành vi                             |
 | Giỏ và chống lặp | `carts`, `cart_items`, `idempotency_requests`                                         | Giỏ Customer, chống thực hiện lặp                                  |
-| Đơn và kho       | `orders`, `order_items`, `order_status_history`, `order_notes`, `inventory_movements` | Snapshot, vòng đời đơn và biến động tồn                            |
+| Đơn và kho       | `orders`, `order_items`, `order_status_history`, `order_notes`       | Snapshot và vòng đời đơn                                            |
 | Gợi ý và event   | `recommendation_requests`, `recommendation_items`, `interaction_events`               | Kết quả gợi ý theo thứ tự và hành vi                               |
 | Kiểm toán        | `admin_audit_logs`                                                                    | Ai thay đổi dữ liệu quản trị, lúc nào                              |
 | Thông báo        | `email_outbox`                                                                        | Hàng đợi và trạng thái gửi email thông báo đơn hàng                |
@@ -288,7 +288,7 @@ Index: `(status, created_at DESC, id DESC)`, `(category_id, status)`, `(brand_id
 
 ### 4.4. `product_variants`
 
-Migration hiện tại dùng các cột `id`, `product_id`, `sku`, `options`, `price_vnd`, `deleted_at`, `created_at`, `updated_at`; tồn và ledger là hai bảng riêng. Các cột seed/provenance trong thiết kế tổng thể vẫn dành cho import tương lai.
+Schema hiện tại dùng các cột `id`, `product_id`, `sku`, `options`, `price_vnd`, `deleted_at`, `created_at`, `updated_at`; tồn nằm riêng trong `inventory`. Các cột seed/provenance trong thiết kế tổng thể vẫn dành cho import tương lai.
 
 Một dòng là một SKU cụ thể có giá và tồn riêng. `options` là object mã lựa chọn → giá trị hiển thị, ví dụ `{"color":"Đen","storage":"256GB"}`. Sản phẩm không có biến thể có đúng một SKU mặc định với `options = {}`; không thêm nhãn màu/size giả để lấp dữ liệu.
 
@@ -301,13 +301,13 @@ Một dòng là một SKU cụ thể có giá và tồn riêng. `options` là ob
 | deleted_at             | timestamptz  | NULL            | Đánh dấu xóa mềm, giữ lịch sử SKU                               |
 | created_at, updated_at | timestamptz  | NN              | Thời gian                                                       |
 
-Tồn được lưu tại `inventory` theo từng SKU, không nằm trên ProductVariant. `on_hand` là hàng thực tế, `reserved` là lượng giữ; `available = on_hand - reserved` được tính khi đọc. Catalog hiện ghi từng thao tác Admin vào `inventory_ledger` với loại thao tác, on_hand/reserved trước-sau, actor, lý do và thời điểm. Bản ghi cũ giữ nguyên, trường mới nullable và hiển thị dạng lịch sử cũ. `reserved <= on_hand`; cập nhật tồn khóa dòng inventory và không sửa reserved trực tiếp. `inventory.version` tăng mỗi khi on_hand đổi để phát hiện kiểm kê dựa trên dữ liệu cũ.
+Tồn SKU lưu trong `inventory`; Product không SKU có `product_inventory`. `on_hand` là hàng thực tế, `reserved` là lượng giữ; `available = on_hand - reserved` được tính khi đọc. Không lưu lịch sử biến động tồn. Đặt/hủy đơn cập nhật `reserved` trong transaction; Admin chỉ điều chỉnh `on_hand`, không sửa reserved trực tiếp. `version` tăng khi tồn hoặc reservation đổi để phát hiện thao tác dựa trên dữ liệu cũ.
 
 Ràng buộc DB:
 
 - CHECK `jsonb_typeof(options) = 'object'`, `price_vnd > 0`; ứng dụng kiểm tra options theo `Product.optionConfig`.
 - CHECK `inventory.on_hand >= 0 AND inventory.reserved >= 0 AND inventory.reserved <= inventory.on_hand`.
-- Xóa SKU dùng `deleted_at`; không xóa dòng inventory/ledger hoặc SKU được đơn tham chiếu. Catalog từ chối xóa khi on_hand hoặc reserved còn dương. Tổ hợp options không trùng giữa các SKU chưa xóa; Catalog khóa Product → SKU → Inventory trong thao tác kho/SKU để tuần tự hóa kiểm tra.
+- Xóa SKU dùng `deleted_at`; không xóa dòng inventory hoặc SKU được đơn tham chiếu. Catalog từ chối xóa khi on_hand hoặc reserved còn dương. Tổ hợp options không trùng giữa các SKU chưa xóa; Catalog khóa Product → SKU → Inventory trong thao tác kho/SKU để tuần tự hóa kiểm tra.
 - Index `(product_id, deleted_at)`; `available` không lưu thành cột riêng.
 
 Định nghĩa hàm SQL IMMUTABLE `canonical_variant_options(jsonb)` cho cột generated options_key: kiểm tra object và giới hạn trường/mã/giá trị; chuẩn hóa từng giá trị bằng normalize_label, sắp mã theo thứ tự byte ổn định rồi serialize danh sách cặp thành JSON text có escaping xác định. `{}` cho khóa `[]`. Không ghép bằng dấu phân cách tùy ý hoặc lấy thứ tự khóa client làm khóa; không dùng hash làm bằng chứng duy nhất chống trùng. Tổng khóa tối đa 1.500 byte để giới hạn kích thước index. Khác thứ tự khóa/hoa thường/khoảng trắng vẫn trùng tổ hợp; `Đen` khác `Black`, `256GB` khác `256 GB` nếu chưa có quy tắc đồng nhất chủ động. Backend lưu giá trị hiển thị đã trim/NFC/gộp khoảng trắng và xác nhận đúng tập mã Product; DB bảo vệ chống trùng qua UQ. Hàm generated chỉ xử lý cùng dòng, không đọc cấu hình Category.
@@ -318,9 +318,9 @@ Không lưu cột `available`; không tạo bảng Color/Size hoặc EAV tổng 
 
 CSV không có thông số/lựa chọn; adapter dùng variant_option_keys = `[]`, options = `{}`, lấy toàn bộ price/stock vào một SKU và reserved = 0. sku_code vẫn sinh NX-SKU qua sequence, còn NXR của CSV ở products.seed_sku. Không suy đoán thông số thật từ nhãn synthetic, không sao chép stock sang nhiều biến thể. SKU thêm sau có tồn riêng qua Catalog; UI chọn sẵn SKU duy nhất. Khi chuyển sang nhiều biến thể, tạm ngừng bán Product, ngừng bán SKU mặc định, cập nhật tập mã và nhập các SKU mới/tồn riêng qua nghiệp vụ kho rồi mở lại Product khi hợp lệ; không nhân tồn cũ. Tồn SKU mặc định cũ không tự chuyển sang SKU mới và các reservation cũ vẫn được xử lý theo SKU đã giữ.
 
-SKU code và options cố định sau khi tạo; nếu options khai báo sai thì xử lý tồn về 0, xóa mềm SKU và thêm SKU đúng. Giá và tồn có thể điều chỉnh; mọi thay đổi tồn cần lý do và ghi ledger. Tồn 0 làm SKU không thể bán; không có trạng thái riêng cho SKU. Trang Admin Tồn kho hiện hỗ trợ nhập hàng, điều chỉnh +/- và kiểm kê riêng cho từng SKU, lịch sử chỉ đọc và bộ lọc/phân trang.
+SKU code và options cố định sau khi tạo; nếu options khai báo sai thì xử lý tồn về 0, xóa mềm SKU và thêm SKU đúng. Giá và tồn có thể điều chỉnh; thao tác tồn cần lý do. Tồn 0 làm SKU không thể bán; không có trạng thái riêng cho SKU. Trang Admin Tồn kho hỗ trợ nhập hàng, điều chỉnh +/- và kiểm kê riêng cho từng SKU; không có màn hình lịch sử tồn.
 
-Mỗi Admin gửi `idempotencyKey` cùng payload chuẩn hóa. `inventory_adjustment_requests` lưu actor, key, payload và response thành công trong cùng transaction với cập nhật Inventory/ledger; unique `(actor_user_id, key)` giúp retry cùng payload trả kết quả cũ và từ chối key dùng lại với payload khác. Khi kiểm kê, client gửi version đã đọc; mismatch bị từ chối để Admin tải lại. API không cho chỉnh `reserved` hoặc `available`.
+Mỗi Admin gửi `idempotencyKey` cùng payload chuẩn hóa. `inventory_adjustment_requests` lưu actor, key, payload và response thành công trong cùng transaction với cập nhật Inventory; unique `(actor_user_id, key)` giúp retry cùng payload trả kết quả cũ và từ chối key dùng lại với payload khác. Khi kiểm kê, client gửi version đã đọc; mismatch bị từ chối để Admin tải lại. API không cho chỉnh `reserved` hoặc `available`.
 
 ### 4.5. `product_images` — liên kết ảnh tại Catalog
 
@@ -476,7 +476,7 @@ Lưu kết quả thao tác đã thành công để request gửi lại không c�
 
 UQ `(scope_key, operation, idempotency_key)`. Chưa tự xóa trong demo để không mất khả năng chống lặp. result_metadata phải là JSON object. scope_key và resource_type không phải FK đa hình; backend chịu trách nhiệm, không tin client.
 
-Trong transaction, lấy advisory lock theo scope/operation/key, kiểm tra bản ghi cũ **trước khi kiểm tra quote đã hết hạn hoặc giỏ đã thay đổi**. Cùng hash trả kết quả cũ, khác hash trả xung đột. Nếu chưa có thì làm nghiệp vụ và chèn bản ghi kết quả trong cùng transaction. Lỗi rollback không để lại kết quả thành công. Unique constraint là lớp bảo vệ cuối cùng.
+Trong transaction, kiểm tra bản ghi idempotency cũ rồi chèn trước một bản ghi giữ chỗ theo scope/key. Unique constraint serialize các request đồng thời dùng cùng key; request sau đọc lại kết quả đã commit, hoặc tiếp tục nếu transaction trước rollback. Cùng payload trả kết quả cũ, payload khác trả xung đột. Cập nhật response vào bản ghi giữ chỗ cùng transaction với nghiệp vụ để rollback không để lại kết quả thành công.
 
 Không cache toàn bộ response chứa địa chỉ/token. Retry tạo đơn trả cùng ID/mã đơn; trạng thái đơn đọc lại có thể đã thay đổi. Mọi lần retry vẫn kiểm tra người gọi và quyền truy cập.
 
@@ -564,7 +564,7 @@ Không cần FK từ đơn tới sổ địa chỉ. Snapshot là dữ liệu gia
 | line_total                    | numeric(14,0) | Generated stored        | unit_price × quantity                                                                                           |
 | created_at                    | timestamptz   | NN                      | Thời gian tạo                                                                                                   |
 
-UQ (order_id, variant_id); CHECK unit_price > 0, quantity > 0, options_snapshot là object. Backend lấy label/value snapshot từ dữ liệu đã xác thực dưới khóa checkout. FK ghép Product/Variant/ledger và FK image_assets áp dụng trong database chung; không dùng dữ liệu Catalog hiện tại để viết lại snapshot. Index variant_id và product_id.
+UQ (order_id, variant_id); CHECK unit_price > 0, quantity > 0, options_snapshot là object. Backend lấy label/value snapshot từ dữ liệu đã xác thực dưới khóa checkout. FK ghép Product/Variant và FK image_assets áp dụng trong database chung; không dùng dữ liệu Catalog hiện tại để viết lại snapshot. Index variant_id và product_id.
 
 Sau khi tạo đơn, không sửa/xóa dòng, kể cả đơn CANCELLED. Không tính lại giá từ product_variants khi hiển thị đơn. Dòng đơn không cần `reservation_status`: trạng thái giữ hàng được xác định từ orders.status.
 
@@ -621,46 +621,9 @@ Index `(order_id, created_at, id)`. Chỉ thêm và đọc trong phạm vi Admin
 
 <a id="inventory"></a>
 
-## 7. Lịch sử tồn kho
+## 7. Tồn kho và đối soát reservation
 
-### 7.1. `inventory_movements`
-
-Phần này mô tả mục tiêu inventory movements tích hợp vòng đời Order. Schema hiện tại được triển khai trong Prisma là `inventory` + `inventory_ledger`; không suy ra Order/reservation nghiệp vụ đã được triển khai từ thiết kế bảng này.
-
-Mỗi biến động của một SKU là một dòng. Ledger lưu cả hai đại lượng để có thể giải thích nguồn thay đổi tồn.
-
-| Cột                             | Kiểu         | Null/default            | Ý nghĩa                                                            |
-| ------------------------------- | ------------ | ----------------------- | ------------------------------------------------------------------ |
-| variant_id                      | bigint       | NN, FK product_variants | SKU                                                                |
-| order_item_id                   | bigint       | NULL, FK order_items    | Dòng đơn nếu biến động do đơn                                      |
-| movement_type                   | varchar(24)  | NN                      | INITIAL / RESTOCK / ADJUSTMENT / RESERVE / RELEASE / SHIP / RETURN |
-| on_hand_delta                   | integer      | NN                      | Mức tăng/giảm hàng trong kho                                       |
-| reserved_delta                  | integer      | NN                      | Mức tăng/giảm hàng giữ                                             |
-| on_hand_before, on_hand_after   | integer      | NN                      | Trước/sau                                                          |
-| reserved_before, reserved_after | integer      | NN                      | Trước/sau                                                          |
-| actor_type                      | varchar(16)  | NN                      | CUSTOMER / ADMIN / SYSTEM                                          |
-| actor_user_id                   | bigint       | NULL, FK users          | Người thao tác nếu có                                              |
-| reason_code                     | varchar(50)  | NN                      | Lý do chuẩn                                                        |
-| reason_text                     | varchar(500) | NN                      | Diễn giải không rỗng                                               |
-| created_at                      | timestamptz  | NN                      | Thời điểm                                                          |
-
-CHECK after = before + delta cho mỗi đại lượng; tính phép cộng với bigint để kiểm tra tránh tràn integer. Cả trạng thái trước/sau không âm và reserved <= on_hand. Không ghi movement với cả hai delta bằng 0. actor_type SYSTEM tương đương actor_user_id NULL.
-
-FK ghép `(order_item_id, variant_id)` tới order_items `(id, variant_id)`. Partial UQ `(order_item_id, movement_type) WHERE order_item_id IS NOT NULL` bảo đảm mỗi dòng đơn chỉ RESERVE/RELEASE/SHIP/RETURN một lần. Index `(variant_id, created_at, id)`.
-
-| movement_type | on_hand_delta | reserved_delta | order_item_id |
-| ------------- | ------------: | -------------: | ------------- |
-| INITIAL       |     +q, q > 0 |              0 | NULL          |
-| RESTOCK       |     +q, q > 0 |              0 | NULL          |
-| ADJUSTMENT    |     Số khác 0 |              0 | NULL          |
-| RESERVE       |             0 |             +q | Bắt buộc      |
-| RELEASE       |             0 |             −q | Bắt buộc      |
-| SHIP          |            −q |             −q | Bắt buộc      |
-| RETURN        |            +q |              0 | Bắt buộc      |
-
-CHECK enforce dạng delta và yêu cầu order_item_id theo loại. Backend kiểm tra q bằng quantity dòng đơn và trạng thái nguồn cho phép. SKU khởi tạo tồn 0 không cần INITIAL; SKU có tồn seed dương ghi INITIAL. Partial UQ `(variant_id) WHERE movement_type = 'INITIAL'` chặn seed tồn đầu hai lần.
-
-RESTOCK/ADJUSTMENT chỉ Admin; thao tác do đơn theo quyền chuyển trạng thái; INITIAL là seed hoặc Admin tạo hàng. Không sửa/xóa ledger. Không cập nhật tổng tồn bằng form sửa SKU.
+Dự án không lưu lịch sử từng lần nhập, điều chỉnh, giữ hoặc giải phóng tồn. Giá trị hiện tại và ersion nằm trong inventory/product_inventory; nguồn reservation đối soát bằng các dòng đơn còn PENDING hoặc CONFIRMED. Lỗi hoặc trạng thái không nhất quán được xử lý trong cùng transaction, không suy ra từ bảng movement riêng.
 
 ### 7.2. Đối soát hàng đang giữ
 
@@ -681,9 +644,9 @@ HAVING v.reserved <> COALESCE(SUM(oi.quantity) FILTER (
 
 Kết quả đúng là không có dòng. Chạy một truy vấn nhất quán để kiểm tra; không tự sửa reserved khi có chênh lệch vì có thể che lỗi nghiệp vụ.
 
-Đơn PENDING đã tới hạn nhưng chưa được transaction hủy vẫn được tính vào reserved. Nó không được xác nhận hoặc đặt thêm tác động mới, nhưng hàng chỉ được giải phóng khi cập nhật đơn, ledger và tổng tồn cùng commit. Không trừ nó khỏi truy vấn đối soát chỉ dựa vào expires_at.
+Đơn PENDING đã tới hạn nhưng chưa được transaction hủy vẫn được tính vào reserved. Nó không được xác nhận hoặc đặt thêm tác động mới, nhưng hàng chỉ được giải phóng khi cập nhật đơn và tổng tồn cùng commit. Không trừ nó khỏi truy vấn đối soát chỉ dựa vào expires_at.
 
-Có thể đối soát thêm tổng delta ledger với on_hand/reserved hiện tại. Không dùng CHECK liên bảng để bảo đảm tổng reservation: [PostgreSQL quy định CHECK chỉ kiểm tra dòng hiện tại](https://www.postgresql.org/docs/current/ddl-constraints.html).
+Không dùng CHECK liên bảng để bảo đảm tổng reservation: [PostgreSQL quy định CHECK chỉ kiểm tra dòng hiện tại](https://www.postgresql.org/docs/current/ddl-constraints.html).
 
 <a id="tracking"></a>
 
@@ -823,25 +786,20 @@ Các use case dưới đây dùng transaction trên database chung; provider c�
 
 Dùng transaction ngắn ở mức READ COMMITTED, khóa bản ghi khi thao tác cần tính đúng trạng thái hiện tại. `SELECT ... FOR UPDATE` giữ khóa ghi dòng đến hết transaction: [tài liệu khóa của PostgreSQL](https://www.postgresql.org/docs/current/explicit-locking.html).
 
-Thứ tự thống nhất khi một thao tác cần nhiều nhóm: advisory lock idempotency → users theo ID → visitors theo ID → carts theo ID → orders theo ID → categories khi cần → products theo ID → product_variants theo ID. Brand seed chỉ đọc sau khởi tạo, không phải nhóm khóa quản trị/runtime. Những nhóm không dùng thì bỏ qua. Mọi đường ghi catalog/stock/checkout phải theo cùng thứ tự, không có nhánh khóa SKU rồi quay lại khóa product/order.
+Thứ tự thống nhất khi một thao tác cần nhiều nhóm: users theo ID → visitors theo ID → carts theo ID → orders theo ID → categories khi cần → products theo ID → product_variants theo ID. Bản ghi giữ chỗ idempotency được tạo trước các khóa dòng; unique constraint phân xử các request cùng scope/key. Brand seed chỉ đọc sau khởi tạo, không phải nhóm khóa quản trị/runtime. Những nhóm không dùng thì bỏ qua. Mọi đường ghi catalog/stock/checkout phải theo cùng thứ tự, không có nhánh khóa SKU rồi quay lại khóa product/order.
 
 Lock products khi checkout và khi sửa trạng thái/ảnh/SKU để không đặt đơn bằng snapshot nửa cũ nửa mới. Master dữ liệu ngừng dùng và thay bản địa giới cũng dùng cùng quy ước lock hoặc lock chia sẻ phù hợp khi đọc xác thực. Tất cả thao tác địa chỉ/khóa tài khoản/đổi mật khẩu trước hết khóa user, tránh tài khoản bị khóa giữa kiểm tra và commit.
 
 Nếu có deadlock/serialization failure, rollback toàn bộ và retry có giới hạn với cùng idempotency key; không retry từng câu lệnh rời rạc. Không upload file, gọi network hoặc gọi dịch vụ AI khi đang giữ transaction.
 
-### 9.2. Tạo đơn
+### 9.2. Tạo đơn COD
 
-1. Xác thực Customer, lấy idempotency lock và trả kết quả cũ nếu đã thành công.
-2. Khóa user, kiểm tra user/session còn hiệu lực; khóa giỏ user và kiểm tra quyền/version.
-3. Kiểm tra quote do server ký, danh sách dòng được chọn và quantity vẫn đúng; không tin giá client.
-4. Khóa bản địa giới/category cần kiểm tra, products rồi variants theo ID tăng dần; kiểm tra tất cả còn bán, giá/ảnh và available. Category ngừng cho gán mới không làm sản phẩm đang bán mất điều kiện mua; không nhầm cờ master với trạng thái bán của Product.
-5. Nếu một dòng sai, rollback toàn bộ và trả lý do để khách xác nhận lại.
-6. Tạo orders PENDING, order_items và snapshot từ dữ liệu server; tính tiền hàng + 30000; expires_at = created_at + 24 giờ. Với PAYOS cấp payos_order_code; không tạo provider order code do client gửi.
-7. Mỗi SKU tăng reserved đúng quantity, ghi RESERVE; ghi lịch sử NULL → PENDING và event order_created.
-8. Nếu khách chọn lưu địa chỉ mới thì lưu trong cùng transaction, xử lý mặc định dưới khóa user đã lấy.
-9. Xóa đúng các cart_items đã chọn; tăng carts.version; ghi kết quả idempotency rồi commit. Nếu chọn PAYOS, sau commit backend tạo payment link theo payos_order_code và total_amount, lưu link ID/URL; nếu payOS lỗi thì đơn giữ PENDING/UNPAID và cho retry tạo link cho chính đơn đó.
-
-Quote không cần bảng riêng: dùng payload server ký HMAC gồm user/cart/version, các ID/quantity/giá đã xem, ship, currency, issued_at và expires_at. Mặc định kỹ thuật hiệu lực **15 phút**; không chứa PII. Quote không giữ hàng. Địa chỉ vẫn kiểm tra lại khi đặt, request_hash bao gồm nội dung địa chỉ/save flag/ghi chú và quote. Hết hạn hoặc dữ liệu đổi thì trả quote mới để xác nhận, không tự đặt. Retry đã thành công vẫn trả đơn cũ dù quote cũ hết hạn.
+1. Xác thực Customer/session; kiểm tra bản ghi theo user và idempotency key; cùng key/payload đã thành công thì trả đơn cũ, payload khác thì trả xung đột; nếu chưa có thì tạo bản ghi giữ chỗ idempotency trong transaction.
+2. Khóa user, địa chỉ đã lưu và giỏ; kiểm tra quyền sở hữu, phiên bản địa chỉ và các dòng/quantity vừa xác nhận.
+3. Khóa Product → SKU → Inventory theo ID tăng dần; Catalog đọc lại trạng thái bán, giá và available. Giá client chỉ dùng đối chiếu, tổng tiền được tính từ dữ liệu Catalog trong transaction.
+4. Khi giá/dòng/địa chỉ thay đổi hoặc thiếu hàng, rollback và yêu cầu Customer tải lại/xác nhận; không giữ một phần.
+5. Tạo đơn COD `PENDING / UNPAID`, snapshot bất biến, phí 30.000đ, expires_at = created_at + 24 giờ, lịch sử và `order_created`; tăng reserved, xóa đúng cart_items đã chọn và lưu kết quả idempotency trong cùng transaction.
+6. Gửi lại cùng key/payload lấy đúng đơn đã commit; unique constraint khiến request đồng thời cùng key chờ kết quả của request trước. GET tra cứu có thể chưa thấy transaction chưa commit; khi đó client retry POST với cùng key/payload để nhận kết quả an toàn.
 
 ### 9.3. Chuyển trạng thái đơn
 
@@ -860,7 +818,7 @@ Mọi thao tác có version kỳ vọng và idempotency key; khóa order trướ
 | DELIVERY_FAILED   | Giao lại                                 | SHIPPING        | Không đổi; không ghi SHIP lần nữa                                                 |
 | DELIVERY_FAILED   | Xác nhận đã nhận đủ hàng nguyên vẹn      | CANCELLED       | Chỉ UNPAID; on_hand +q, RETURN                                                    |
 
-Update trạng thái/version/mốc thời gian, ledger, tổng tồn, history, business events và idempotency trong cùng transaction. PayOS webhook xác minh chữ ký và đối chiếu mã đơn/số tiền trước khi khóa đơn; cập nhật PAID và ghi transaction events nguyên tử. Webhook trùng trả thành công mà không ghi hiệu ứng lặp. COD ghi transaction lúc Admin xác nhận thu tiền; không ghi lại khi đơn PAID chuyển DELIVERED. Không hủy/hoàn tồn đơn đã PAID trong phạm vi này; đơn payOS giao thất bại chỉ có thể giao lại. Không có đường SHIPPING → CANCELLED trực tiếp hoặc mở lại DELIVERED/CANCELLED.
+Update trạng thái/version/mốc thời gian, tổng tồn, history, business events và idempotency trong cùng transaction. PayOS webhook xác minh chữ ký và đối chiếu mã đơn/số tiền trước khi khóa đơn; cập nhật PAID và ghi transaction events nguyên tử. Webhook trùng trả thành công mà không ghi hiệu ứng lặp. COD ghi transaction lúc Admin xác nhận thu tiền; không ghi lại khi đơn PAID chuyển DELIVERED. Không hủy/hoàn tồn đơn đã PAID trong phạm vi này; đơn payOS giao thất bại chỉ có thể giao lại. Không có đường SHIPPING → CANCELLED trực tiếp hoặc mở lại DELIVERED/CANCELLED.
 
 ### 9.4. Đơn quá hạn
 
@@ -877,7 +835,7 @@ Ngay khi admin xác nhận, lấy thời gian thực của DB **sau khi lấy kh
 
 ### 9.6. Nhập hàng và kiểm kê
 
-Khóa product rồi variant, đọc reserved mới nhất, tính on_hand mới; từ chối nếu nhỏ hơn reserved. Cập nhật on_hand + ledger + audit/idempotency cùng transaction. Với số thực tế bằng on_hand hiện tại, trả thành công không thay đổi, không ghi movement delta 0. Không cho Admin đặt reserved trực tiếp.
+Khóa Product rồi SKU rồi Inventory, đọc reserved mới nhất, tính on_hand mới; từ chối nếu nhỏ hơn reserved. Cập nhật on_hand và idempotency cùng transaction. Với số thực tế bằng on_hand hiện tại, trả thành công không thay đổi. Không cho Admin đặt reserved trực tiếp và không lưu lịch sử tồn.
 
 ### 9.7. Tích hợp payOS
 
@@ -931,8 +889,8 @@ Bản đầu không phân vùng event, không thêm GIN cho mọi JSONB, không 
 4. Đọc/kiểm tra placeholder bằng stream/buffer giới hạn, gọi provider module Catalog trong backend với idempotency key ổn định; upload Supabase Storage; ghi metadata sau phản hồi thành công trước transaction nhập lô. Không gọi network khi giữ khóa DB hoặc lưu file gốc. Upload thất bại thì chưa nhập catalog. Giữ asset khi rollback để seed lại dùng cùng ID; không tự dọn trong bản đầu.
 5. Khóa tác vụ seed catalog để không chạy hai importer đồng thời. Trong một transaction, tạo/đối chiếu catalog_datasets; cùng version khác hash thì từ chối. Nhập categories theo `(seed_dataset_id, seed_category_id)`, parent_id NULL cho danh mục mới; giữ cây danh mục đã có. Product seed dùng options `{}` và cấu hình `{"options": {}}`. Nhập mappings qua ID nội bộ và nhãn brand metadata seed theo name_key. Không ép ID CSV vào identity và không gán provenance lên danh mục Admin trùng tên; xung đột phải báo để xử lý.
 6. Nhập Product mới theo source_item_id → retailrocket_item_id, lưu seed_product_id/seed_sku, danh mục seed và thống kê nguồn. Đối chiếu thêm cặp dataset/seed_product_id; nếu ID cũ trỏ item khác, source_item_id thuộc dataset khác hoặc Product đã có nhưng thiếu provenance cần thiết thì báo xung đột, không ghép tùy ý. category_id vận hành lúc tạo bằng seed_category_id nội bộ; về sau Admin được đổi category_id.
-7. Product mới có variant_option_keys `[]`, nhận một SKU options `{}`, mã vận hành sinh qua sequence, price = CSV.price, on_hand = CSV.stock, reserved = 0, first_reserved_at NULL; thêm ảnh chung seed variant_id NULL làm đại diện. Với tồn dương tạo INITIAL ledger; tồn 0 không tạo movement delta 0. Chỉ mở ACTIVE sau đủ kiểm tra, kể cả hết hàng; is_active false → INACTIVE.
-8. Với Product đã import, không tái dựng SKU mặc định theo options rỗng nếu Admin đã sửa biến thể; không ghi đè mô tả/tập mã/options, giá, tồn, category/cấu hình/cây, ảnh, trạng thái hoặc thêm INITIAL. Seed chỉ tạo Product chưa có và các bản ghi nguồn còn thiếu khi nhất quán; provenance bất biến sai thì dừng để sửa chủ động. Kiểm tra counts và tham chiếu của bộ seed rồi commit toàn lô. Lỗi giữa chừng rollback dataset/category/mapping/Product/SKU/ledger mới.
+7. Product mới có variant_option_keys `[]`, nhận một SKU options `{}`, mã vận hành sinh qua sequence, price = CSV.price, on_hand = CSV.stock, reserved = 0, first_reserved_at NULL; thêm ảnh chung seed variant_id NULL làm đại diện. Chỉ mở ACTIVE sau đủ kiểm tra, kể cả hết hàng; is_active false → INACTIVE.
+8. Với Product đã import, không tái dựng SKU mặc định theo options rỗng nếu Admin đã sửa biến thể; không ghi đè mô tả/tập mã/options, giá, tồn, category/cấu hình/cây, ảnh hoặc trạng thái. Seed chỉ tạo Product chưa có và các bản ghi nguồn còn thiếu khi nhất quán; provenance bất biến sai thì dừng để sửa chủ động. Kiểm tra counts và tham chiếu của bộ seed rồi commit toàn lô. Lỗi giữa chừng rollback dataset/category/mapping/Product/SKU mới.
 9. Không import hàng triệu event RetailRocket vào interaction_events LIVE. source_interactions/source_users không sinh event hoặc đơn. Dataset training ở khu vực nguồn riêng; replay dùng DB test hoặc data_origin REPLAY.
 
 `catalog_datasets.version`, ID RetailRocket và các unique constraint giúp seed không nhân đôi. Manifest/CSV là artifact bất biến; bảng catalog_datasets chỉ lưu thông tin đối chiếu, không có bảng ETL/job. Sản phẩm Admin mới không có RetailRocket ID vẫn bán được và nhận recommendation theo quy tắc. Đổi sang một bộ catalog mới trong DB đang có giao dịch cần migration đối chiếu riêng; không tự reset database hoặc cập nhật mapping nguồn của Product cũ.
@@ -965,7 +923,7 @@ products_demo không xuất categoryid của item, nên products.retailrocket_ca
 | 01  | Hàm chuẩn hóa, users/auth_sessions, địa giới và địa chỉ                                                                                                                                                                                                          |
 | 02  | catalog_datasets → categories có parent_id/option_config → brands metadata/mappings → products description/variant_option_keys → variants options/options_key/first_reserved_at → images variant_id; hàm canonical, sequence SKU và CHECK/UQ/FK nội bộ Catalog |
 | 03  | Visitor/session, cart, idempotency                                                                                                                                                                                                                               |
-| 04  | Sequence mã đơn, orders/items/history/notes và inventory_movements                                                                                                                                                                                               |
+| 04  | Sequence mã đơn, orders/items/history/notes                                                                                                                                                                                                                       |
 | 05  | Recommendation requests/items, events, audit                                                                                                                                                                                                                     |
 | 06  | Trigger bất biến, quyền runtime, chỉ mục bổ sung và seed                                                                                                                                                                                                         |
 | 07  | password_reset_tokens, email_outbox, worker gửi email và chính sách dọn dữ liệu                                                                                                                                                                                  |
@@ -991,7 +949,7 @@ Schema được mô tả trong `backend/prisma/schema.prisma`; chỉ đồng b�
 | DB-01 | Tạo options color/storage rồi tạo lại với thứ tự khóa/hoa thường/khoảng trắng khác; tạo hai SKU options rỗng cùng Product | UQ product/options_key từ chối tổ hợp trùng; không phụ thuộc thứ tự JSON hoặc kiểu ngành hàng                                    | TC-26               |
 | DB-02 | Hai request lấy mã SKU cùng lúc, một rollback                                                                             | Mã không trùng, khoảng trống hợp lệ                                                                                              | TC-26               |
 | DB-03 | Hai request cùng tranh sản phẩm cuối                                                                                      | Chỉ một đơn giữ được; không âm tồn                                                                                               | TC-16               |
-| DB-04 | Retry đặt đơn trước/sau quote hết hạn                                                                                     | Cùng đơn, không giữ hàng/lưu địa chỉ hai lần                                                                                     | TC-17               |
+| DB-04 | Retry đặt đơn sau timeout hoặc khi giỏ/giá đã đổi                                                                            | Cùng key/payload trả cùng đơn; thay payload bị từ chối                                                                             | TC-17               |
 | DB-05 | Idempotency key cũ với payload khác                                                                                       | Xung đột, không thay đổi dữ liệu                                                                                                 | TC-17               |
 | DB-06 | Lỗi ghi history/event giữa checkout                                                                                       | Rollback đơn, giỏ, tồn, địa chỉ và idempotency                                                                                   | TC-15               |
 | DB-07 | Đổi tên/giá/ảnh/địa chỉ/nhãn thuộc tính sau đặt                                                                           | Snapshot đơn gồm nhãn/giá trị options và asset reference được giữ; ảnh SKU fallback ảnh chung đúng                               | TC-18, TC-28        |
@@ -1002,10 +960,10 @@ Schema được mô tả trong `backend/prisma/schema.prisma`; chỉ đồng b�
 | DB-12 | Admin giao thành công rồi retry                                                                                           | Một transaction mỗi dòng; user là khách, actor history là Admin                                                                  | TC-23, TC-34        |
 | DB-13 | Đổi/xóa địa chỉ mặc định đồng thời                                                                                        | Còn địa chỉ thì có đúng một mặc định                                                                                             | TC-07               |
 | DB-14 | Logout rồi tài khoản khác dùng trình duyệt                                                                                | Không lộ giỏ hoặc đổi chủ event cũ                                                                                               | TC-13, TC-35        |
-| DB-15 | Kiểm kê dưới reserved hoặc tranh checkout                                                                                 | Bị từ chối, ledger/tổng không lệch                                                                                               | TC-29               |
+| DB-15 | Kiểm kê dưới reserved hoặc tranh checkout                                                                                 | Bị từ chối; on_hand/reserved không âm hoặc không nhất quán                                                                       | TC-29               |
 | DB-16 | Client giả event mua, đổi user/session/recommendation item                                                                | Bị từ chối; event ID lặp không tạo thêm dòng                                                                                     | TC-33, TC-34, TC-35 |
 | DB-17 | Seed hai lần sau khi Admin đổi tồn/giá                                                                                    | Không nhân SKU/INITIAL hoặc ghi đè thay đổi                                                                                      | TC-37               |
-| DB-18 | Chạy đối soát sau mọi nhánh đơn                                                                                           | reserved đúng tổng dòng PENDING/CONFIRMED; ledger khớp tổng                                                                      | TC-16–TC-25         |
+| DB-18 | Chạy đối soát sau mọi nhánh đơn                                                                                           | reserved đúng tổng dòng PENDING/CONFIRMED                                                                                        | TC-16–TC-25         |
 | DB-19 | Khóa/mở user và dùng lại access/refresh cũ                                                                                | Phiên cũ không sống lại, đơn đang xử lý giữ nguyên                                                                               | TC-31               |
 | DB-20 | Export event và đọc response Customer                                                                                     | Không lộ PII/token/ghi chú nội bộ; ID nguồn nhất quán                                                                            | TC-38, TC-40        |
 | DB-21 | Import vào DB đã có Product/Category ID; source ID dạng số thực nguyên                                                    | ID identity không bị ép theo CSV; chuẩn hóa nguồn không mất chính xác; đủ provenance                                             | TC-44               |
@@ -1029,7 +987,7 @@ Schema được mô tả trong `backend/prisma/schema.prisma`; chỉ đồng b�
 - Notebook EDA — `EDA_Exploratory_Data_Analysis.ipynb` (chưa có trong checkout; cần cung cấp để đối chiếu): số liệu nguồn và giới hạn merge category.
 - [PostgreSQL — Identity Columns](https://www.postgresql.org/docs/current/ddl-identity-columns.html): identity sinh ID qua sequence; vẫn khai báo PRIMARY KEY để bảo đảm duy nhất.
 - [PostgreSQL — Constraints](https://www.postgresql.org/docs/current/ddl-constraints.html): CHECK, UNIQUE, FK và phạm vi bảo đảm của từng loại.
-- [PostgreSQL — Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html): khóa dòng và khóa advisory.
+- [PostgreSQL — Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html): khóa dòng trong transaction.
 - [PostgreSQL — JSON Types](https://www.postgresql.org/docs/current/datatype-json.html): JSONB cho dữ liệu mở rộng có cấu trúc.
 - [payOS — API](https://payos.vn/docs/api/): tạo payment request và nhận dữ liệu webhook.
 - [payOS — Kiểm tra dữ liệu với signature](https://payos.vn/docs/tich-hop-webhook/kiem-tra-du-lieu-voi-signature/): xác minh chữ ký webhook.
@@ -1045,7 +1003,7 @@ Schema được mô tả trong `backend/prisma/schema.prisma`; chỉ đồng b�
 | 2.8 | 30/10/2026 | Chuẩn hóa NFC, trim và gộp khoảng trắng Unicode của tên Category trong migration mới |
 | 2.9 | 01/11/2026 | Bỏ Attributes riêng của Product; thông tin chung dùng mô tả, Category chỉ phân loại; từng Product tự cấu hình lựa chọn SKU. |
 | 3.0 | 01/11/2026 | Product chỉ ACTIVE/INACTIVE, mặc định ACTIVE; tạo đủ nội dung/SKU/ảnh/tồn trong một transaction; không có DRAFT. |
-| 3.1 | 01/11/2026 | Ghi nhận migration Product/SKU triển khai: tồn/ledger riêng, SKU không có trạng thái bán, tồn điều chỉnh có lý do và xóa SKU mềm. |
+| 3.1 | 01/11/2026 | Ghi nhận schema Product/SKU triển khai: tồn riêng, SKU không có trạng thái bán, tồn điều chỉnh có lý do và xóa SKU mềm. |
 | 3.4 | 01/11/2026 | Chuyển cấu hình SKU sang Product; Category chỉ phân loại, backfill cấu hình cũ. |
 | 3.5 | 01/11/2026 | Mở rộng metadata Catalog để lưu video MP4/WebM/MOV tối đa 50 MB. |
 

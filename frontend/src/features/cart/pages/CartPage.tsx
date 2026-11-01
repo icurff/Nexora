@@ -9,7 +9,7 @@ import {
   ShoppingBag,
   X,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth.js';
 import {
   useCart,
@@ -42,6 +42,7 @@ function unavailableMessage(item: CartItem) {
 }
 
 export function CartPage() {
+  const navigate = useNavigate();
   const { user, status } = useAuth();
   const cartQuery = useCart();
   const updateMutation = useUpdateCartItem();
@@ -248,7 +249,10 @@ export function CartPage() {
                       </Link>
                       <span>
                         {item.variant
-                          ? optionSummary(item.variant.options, item.variant.optionLabels) || item.variant.sku
+                          ? optionSummary(
+                              item.variant.options,
+                              item.variant.optionLabels,
+                            ) || item.variant.sku
                           : 'Sản phẩm không có phiên bản'}
                       </span>
                       {message ? (
@@ -296,9 +300,7 @@ export function CartPage() {
                           }}
                         />
                         <button
-                          disabled={
-                            pending || item.quantity >= item.available
-                          }
+                          disabled={pending || item.quantity >= item.available}
                           onClick={() =>
                             void changeQuantity(item, item.quantity + 1)
                           }
@@ -330,9 +332,13 @@ export function CartPage() {
               <button
                 className="button-primary full-button"
                 disabled={!activeSelection.length}
-                onClick={() => undefined}
+                onClick={() =>
+                  navigate('/checkout', {
+                    state: { selectedItemIds: activeSelection },
+                  })
+                }
               >
-                Thanh toán chưa khả dụng
+                Thanh toán
               </button>
               <Link className="continue-link" to="/products">
                 <ArrowLeft size={15} /> Tiếp tục mua sắm

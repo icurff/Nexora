@@ -16,7 +16,6 @@ import { useAuth } from '../../auth/hooks/useAuth.js';
 import {
   adjustAdminInventory,
   getAdminInventory,
-  getAdminInventoryHistory,
   getAdminInventoryItem,
   inventoryErrorMessage,
   type InventoryAdjustment,
@@ -344,21 +343,10 @@ function InventoryDetail({
   skuId: string;
   onBack: () => void;
 }) {
-  const [params, setParams] = useSearchParams();
-  const historyPage = Math.max(1, Number(params.get('historyPage') || 1));
   const client = useQueryClient();
   const detail = useQuery({
     queryKey: ['admin', 'inventory-item', skuId],
     queryFn: () => getAdminInventoryItem(skuId),
-    retry: false,
-  });
-  const history = useQuery({
-    queryKey: ['admin', 'inventory-history', skuId, historyPage],
-    queryFn: () =>
-      getAdminInventoryHistory(
-        skuId,
-        new URLSearchParams({ page: String(historyPage), pageSize: '20' }),
-      ),
     retry: false,
   });
   const { user } = useAuth();
@@ -387,15 +375,12 @@ function InventoryDetail({
         /* Ignore unavailable storage after success. */
       }
       setError('');
-      setSuccess('Đã cập nhật tồn kho và ghi lịch sử.');
+      setSuccess('Đã cập nhật tồn kho.');
       setQuantity('');
       setReason('');
       await Promise.all([
         client.invalidateQueries({
           queryKey: ['admin', 'inventory-item', skuId],
-        }),
-        client.invalidateQueries({
-          queryKey: ['admin', 'inventory-history', skuId],
         }),
         client.invalidateQueries({ queryKey: ['admin', 'inventory'] }),
       ]);
@@ -638,96 +623,6 @@ function InventoryDetail({
           </button>
         </form>
       )}
-      <section className="inventory-history">
-        <div className="inventory-section-heading">
-          <div>
-            <h2>Lịch sử tồn kho</h2>
-            <p>Chỉ xem, không thể sửa hoặc xóa bản ghi.</p>
-          </div>
-        </div>
-        {history.isPending ? (
-          <div className="inventory-state">
-            <LoaderCircle className="inventory-spin" /> Đang tải lịch sử…
-          </div>
-        ) : history.isError ? (
-          <div className="inventory-state inventory-state-error">
-            {inventoryErrorMessage(history.error)}{' '}
-            <button onClick={() => void history.refetch()}>Thử lại</button>
-          </div>
-        ) : !history.data?.items.length ? (
-          <div className="inventory-state">Chưa có lịch sử điều chỉnh kho.</div>
-        ) : (
-          <div className="inventory-table-wrap">
-            <table className="inventory-table history-table">
-              <thead>
-                <tr>
-                  <th>Thời gian</th>
-                  <th>Thao tác</th>
-                  <th>Tồn trước → sau</th>
-                  <th>Thay đổi</th>
-                  <th>Người thực hiện</th>
-                  <th>Lý do</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.data.items.map((item) => (
-                  <tr key={item.id}>
-                    <td>{formatTime(item.createdAt)}</td>
-                    <td>
-                      {item.type === 'RESTOCK'
-                        ? 'Nhập hàng'
-                        : item.type === 'STOCKTAKE'
-                          ? 'Kiểm kê'
-                          : item.type === 'ADJUSTMENT'
-                            ? 'Điều chỉnh'
-                            : 'Lịch sử cũ'}
-                    </td>
-                    <td>
-                      {item.quantityBefore.toLocaleString('vi-VN')} →{' '}
-                      {item.quantityAfter.toLocaleString('vi-VN')}
-                    </td>
-                    <td className={item.delta < 0 ? 'inventory-out' : ''}>
-                      {item.delta > 0 ? '+' : ''}
-                      {item.delta.toLocaleString('vi-VN')}
-                    </td>
-                    <td>{item.actor}</td>
-                    <td className="inventory-reason-cell">{item.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {history.data && history.data.totalPages > 1 ? (
-          <div className="inventory-pagination">
-            <span>
-              Trang {history.data.page} / {history.data.totalPages}
-            </span>
-            <div>
-              <button
-                disabled={historyPage <= 1}
-                onClick={() => {
-                  const next = new URLSearchParams(params);
-                  next.set('historyPage', String(historyPage - 1));
-                  setParams(next);
-                }}
-              >
-                Trước
-              </button>
-              <button
-                disabled={historyPage >= history.data!.totalPages}
-                onClick={() => {
-                  const next = new URLSearchParams(params);
-                  next.set('historyPage', String(historyPage + 1));
-                  setParams(next);
-                }}
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </section>
     </>
   );
 }

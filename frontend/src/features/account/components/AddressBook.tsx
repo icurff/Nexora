@@ -527,16 +527,20 @@ export function AddressBook() {
   );
 }
 
-export function CheckoutAddressPicker() {
+export function CheckoutAddressPicker({
+  value,
+  onChange,
+}: { value?: string; onChange?: (id: string) => void } = {}) {
   const query = useAddresses();
   const addresses = query.data ?? [];
   const [selected, setSelected] = useState('');
   const selectedId =
-    selected && addresses.some(({ id }) => id === selected)
+    value ??
+    (selected && addresses.some(({ id }) => id === selected)
       ? selected
       : (addresses.find(({ isDefault }) => isDefault)?.id ??
         addresses[0]?.id ??
-        '');
+        ''));
 
   return (
     <section className="checkout-panel">
@@ -575,7 +579,10 @@ export function CheckoutAddressPicker() {
             name="checkout-address"
             value={address.id}
             checked={selectedId === address.id}
-            onChange={() => setSelected(address.id)}
+            onChange={() => {
+              setSelected(address.id);
+              onChange?.(address.id);
+            }}
           />
           <span className="address-radio" />
           <span className="address-copy">

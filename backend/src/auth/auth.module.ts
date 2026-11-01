@@ -26,6 +26,6 @@ import { UserAddressController } from './user-address.controller.js';
     AuthGuard,
     RolesGuard,
   ],
-  exports: [AuthService, AuthGuard, RolesGuard],
+  exports: [AuthService, AuthGuard, RolesGuard, UserAddressService],
 })
 export class AuthModule {}

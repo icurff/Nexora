@@ -30,25 +30,6 @@ export type InventoryPage = {
   total: number;
   totalPages: number;
 };
-export type InventoryLedgerEntry = {
-  id: string;
-  type: 'RESTOCK' | 'ADJUSTMENT' | 'STOCKTAKE' | 'LEGACY';
-  quantityBefore: number;
-  quantityAfter: number;
-  delta: number;
-  reservedBefore: number | null;
-  reservedAfter: number | null;
-  actor: string;
-  reason: string;
-  createdAt: string;
-};
-export type InventoryHistoryPage = {
-  items: InventoryLedgerEntry[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-};
 export type InventoryAdjustment = {
   idempotencyKey: string;
   type: 'RESTOCK' | 'ADJUSTMENT' | 'STOCKTAKE';
@@ -98,17 +79,6 @@ export function getAdminInventoryItem(id: string) {
         await apiClient.get<InventoryRow>(`/admin/inventory/${id}`, {
           headers: headers(token),
         })
-      ).data,
-  );
-}
-export function getAdminInventoryHistory(id: string, params: URLSearchParams) {
-  return request(
-    async (token) =>
-      (
-        await apiClient.get<InventoryHistoryPage>(
-          `/admin/inventory/${id}/history?${params}`,
-          { headers: headers(token) },
-        )
       ).data,
   );
 }

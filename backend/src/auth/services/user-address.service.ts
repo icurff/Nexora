@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -38,6 +39,25 @@ export class UserAddressService {
 
   async list(actor: AuthenticatedActor) {
     return (await this.addresses.list(actor.userId)).map(view);
+  }
+
+  async checkoutSnapshot(
+    userId: string,
+    addressId: string,
+    expectedUpdatedAt: string,
+    tx: TransactionClient,
+  ) {
+    const address = await this.addresses.find(userId, addressId, tx);
+    if (!address) throw new NotFoundException({ code: 'ADDRESS_NOT_FOUND' });
+    if (address.updatedAt.toISOString() !== expectedUpdatedAt)
+      throw new ConflictException({ code: 'ADDRESS_CHANGED' });
+    return {
+      recipientName: address.recipientName,
+      recipientPhone: address.recipientPhone,
+      provinceName: address.provinceName,
+      wardName: address.wardName,
+      addressLine: address.addressLine,
+    };
   }
 
   async create(actor: AuthenticatedActor, body: UserAddressDto) {

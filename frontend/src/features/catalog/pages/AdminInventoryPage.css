@@ -43,10 +43,9 @@
 }
 .inventory-filters {
   display: grid;
-  grid-template-columns: minmax(190px, 1.45fr) minmax(150px, 1.1fr) minmax(
-      130px,
-      0.8fr
-    ) minmax(135px, 0.85fr) auto;
+  grid-template-columns:
+    minmax(190px, 1.45fr) minmax(150px, 1.1fr) minmax(130px, 0.8fr)
+    minmax(135px, 0.85fr) auto;
   align-items: end;
   gap: 11px;
   margin-bottom: 16px;
@@ -310,8 +309,7 @@
   font-size: 25px;
   letter-spacing: -0.04em;
 }
-.inventory-adjust-form,
-.inventory-history {
+.inventory-adjust-form {
   margin-top: 14px;
   padding: 19px;
   background: #fff;
@@ -452,8 +450,7 @@
   .inventory-metrics strong {
     font-size: 21px;
   }
-  .inventory-adjust-form,
-  .inventory-history {
+  .inventory-adjust-form {
     padding: 14px;
   }
   .inventory-form-grid {

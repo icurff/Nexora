@@ -1,8 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  Prisma,
-  type Prisma as PrismaTypes,
-} from '../../generated/prisma/client.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import {
   PrismaService,
   type TransactionClient,
@@ -110,20 +107,5 @@ export class InventoryRepository {
   async lockInventory(variantId: bigint, tx: TransactionClient) {
     await tx.$queryRaw`SELECT variant_id FROM inventory WHERE variant_id = ${variantId} FOR UPDATE`;
     return tx.inventory.findUnique({ where: { variantId } });
-  }
-
-  async history(variantId: bigint, skip: number, take: number) {
-    const where = { variantId } satisfies PrismaTypes.InventoryLedgerWhereInput;
-    const [items, total] = await Promise.all([
-      this.prisma.inventoryLedger.findMany({
-        where,
-        skip,
-        take,
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        include: { actor: { select: { fullName: true } } },
-      }),
-      this.prisma.inventoryLedger.count({ where }),
-    ]);
-    return { items, total };
   }
 }

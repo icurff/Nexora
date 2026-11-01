@@ -1,17 +1,33 @@
 import { useState } from 'react';
-import { ArrowRight, ChevronRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, ChevronRight, ShoppingBag } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import {
-  demoOrders,
-  demoProducts,
-  formatVnd,
-} from '../../catalog/demo-data.js';
+import { formatVnd } from '../../catalog/services/public-catalog-api.js';
+import { useAuth } from '../../auth/hooks/useAuth.js';
+import { getOrders } from '../services/order-api.js';
+
+const labels: Record<string, string> = {
+  PENDING: 'Chờ xác nhận',
+  CONFIRMED: 'Đã xác nhận',
+  CANCELLED: 'Đã hủy',
+};
+function date(value: string) {
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).format(new Date(value));
+}
 
 export function OrdersPage() {
-  const [filter, setFilter] = useState('Tất cả');
-  const orders = demoOrders.filter(
-    (order) => filter === 'Tất cả' || order.status === filter,
-  );
+  const { user } = useAuth();
+  const [filter, setFilter] = useState('ALL');
+  const query = useQuery({
+    queryKey: ['orders', user?.id, filter],
+    queryFn: () => getOrders(filter === 'ALL' ? undefined : filter),
+    enabled: Boolean(user?.role === 'CUSTOMER'),
+    retry: false,
+  });
   return (
     <div className="page-container page-section">
       <div className="breadcrumbs">
@@ -23,22 +39,48 @@ export function OrdersPage() {
         <div>
           <span className="section-eyebrow">TÀI KHOẢN CỦA BẠN</span>
           <h1>Đơn hàng của tôi</h1>
-          <p>Theo dõi các đơn hàng gần đây của bạn.</p>
+          <p>Theo dõi các đơn hàng bạn đã đặt.</p>
         </div>
       </div>
       <div className="order-tabs">
-        {['Tất cả', 'Đang giao', 'Đã giao', 'Đã hủy'].map((item) => (
+        {[
+          ['ALL', 'Tất cả'],
+          ['PENDING', 'Chờ xác nhận'],
+          ['CONFIRMED', 'Đã xác nhận'],
+          ['CANCELLED', 'Đã hủy'],
+        ].map(([value, label]) => (
           <button
-            key={item}
-            className={filter === item ? 'active' : ''}
-            onClick={() => setFilter(item)}
+            key={value}
+            className={filter === value ? 'active' : ''}
+            onClick={() => setFilter(value)}
           >
-            {item}
+            {label}
           </button>
         ))}
       </div>
+      {query.isPending ? <p role="status">Đang tải đơn hàng…</p> : null}
+      {query.isError ? (
+        <div className="empty-state" role="alert">
+          <p>Chưa tải được đơn hàng.</p>
+          <button
+            className="button-secondary"
+            onClick={() => void query.refetch()}
+          >
+            Thử lại
+          </button>
+        </div>
+      ) : null}
+      {query.data?.items.length === 0 ? (
+        <div className="empty-state">
+          <ShoppingBag />
+          <h2>Chưa có đơn hàng</h2>
+          <Link className="button-primary" to="/products">
+            Tiếp tục mua sắm
+          </Link>
+        </div>
+      ) : null}
       <div className="orders-list">
-        {orders.map((order) => (
+        {query.data?.items.map((order) => (
           <article className="order-card" key={order.id}>
             <div className="order-card-head">
               <div>
@@ -46,30 +88,29 @@ export function OrdersPage() {
                 <strong>{order.id}</strong>
               </div>
               <span
-                className={`order-status ${order.status === 'Đang giao' ? 'in-progress' : 'complete'}`}
+                className={`order-status ${order.status === 'PENDING' ? 'in-progress' : 'complete'}`}
               >
                 <i />
-                {order.status}
+                {labels[order.status] ?? order.status}
               </span>
             </div>
             <div className="order-card-content">
-              <div className="order-thumbs">
-                {order.items.map((name) => {
-                  const product =
-                    demoProducts.find((item) => item.name === name) ??
-                    demoProducts[0];
-                  return <img key={name} src={product.image} alt={name} />;
-                })}
-              </div>
               <div className="order-summary-text">
-                <span>{order.items.join(', ')}</span>
+                <strong>
+                  {order.items.map((item) => item.productName).join(', ')}
+                </strong>
                 <small>
-                  {order.date} · {order.items.length} sản phẩm
+                  {date(order.createdAt)} ·{' '}
+                  {order.items.reduce(
+                    (count, item) => count + item.quantity,
+                    0,
+                  )}{' '}
+                  sản phẩm
                 </small>
               </div>
               <div className="order-total">
                 <span>Tổng cộng</span>
-                <strong>{formatVnd(order.total)}</strong>
+                <strong>{formatVnd(order.totalAmount)}</strong>
               </div>
               <Link className="button-secondary" to={`/orders/${order.id}`}>
                 Chi tiết <ArrowRight size={15} />

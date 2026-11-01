@@ -49,21 +49,6 @@ function setup(onHand = 8, reserved = 2) {
         }),
       ),
     },
-    inventoryLedger: {
-      create: vi.fn(
-        (args: {
-          data: {
-            variantId: bigint;
-            quantityBefore: number;
-            quantityAfter: number;
-            reservedBefore: number;
-            reservedAfter: number;
-            movementType: string;
-            actorUserId: bigint;
-          };
-        }) => Promise.resolve(args.data.quantityAfter),
-      ),
-    },
   };
   const locks: string[] = [];
   const repository = {
@@ -119,7 +104,7 @@ function input(
 }
 
 describe('InventoryService.adjust', () => {
-  it('updates only the selected SKU and writes its ledger in Product → SKU → Inventory lock order', async () => {
+  it('updates only the selected SKU in Product → SKU → Inventory lock order', async () => {
     const { service, tx, locks } = setup();
     const result = await service.adjust('9', input(), actor);
     expect(locks).toEqual(['product', 'variant', 'inventory']);
@@ -127,19 +112,6 @@ describe('InventoryService.adjust', () => {
       expect.objectContaining({
         where: { variantId: 9n },
         data: { onHand: 13, version: { increment: 1n } },
-      }),
-    );
-    expect(tx.inventoryLedger.create).toHaveBeenCalledTimes(1);
-    const ledgerCall = tx.inventoryLedger.create.mock.calls[0];
-    expect(ledgerCall?.[0].data).toEqual(
-      expect.objectContaining({
-        variantId: 9n,
-        quantityBefore: 8,
-        quantityAfter: 13,
-        reservedBefore: 2,
-        reservedAfter: 2,
-        movementType: 'RESTOCK',
-        actorUserId: 42n,
       }),
     );
     expect(result).toMatchObject({
@@ -153,13 +125,12 @@ describe('InventoryService.adjust', () => {
     });
   });
 
-  it('rejects a change below reserved stock without writing inventory or a ledger row', async () => {
+  it('rejects a change below reserved stock without updating inventory', async () => {
     const { service, tx } = setup(8, 6);
     await expect(
       service.adjust('9', input({ type: 'ADJUSTMENT', quantity: -3 }), actor),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.inventory.update).not.toHaveBeenCalled();
-    expect(tx.inventoryLedger.create).not.toHaveBeenCalled();
   });
 
   it('requires a reason before opening a transaction', async () => {
@@ -184,7 +155,6 @@ describe('InventoryService.adjust', () => {
       response: { code: 'INVENTORY_VERSION_CONFLICT' },
     });
     expect(tx.inventory.update).not.toHaveBeenCalled();
-    expect(tx.inventoryLedger.create).not.toHaveBeenCalled();
   });
 
   it('returns the stored result for a retry even when PostgreSQL JSONB key order differs', async () => {
