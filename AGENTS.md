@@ -34,8 +34,8 @@ Last reviewed: 2026-11-01. Verify and update this table as the code evolves.
 
 | Component      | Status                                                                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `frontend`     | React/Vite/TypeScript; Auth, Admin Category and Product/SKU management use backend APIs; public catalog/cart/checkout/orders still use local fixture data; `/admin` requires an authenticated Admin and checks backend authorization |
-| `backend`      | One NestJS modular monolith; AuthModule and CatalogModule Category/Product/SKU APIs plus Supabase Storage upload adapter, session-backed guards, Gmail SMTP reset email; direct Storage upload smoke-tested, Admin/DB end-to-end and email jobs/workers remain unverified/deferred |
+| `frontend`     | React/Vite/TypeScript; Auth, Admin Category, Product/SKU and per-SKU inventory management use backend APIs; public catalog/cart/checkout/orders still use local fixture data; `/admin` requires an authenticated Admin and checks backend authorization |
+| `backend`      | One NestJS modular monolith; AuthModule and CatalogModule Category/Product/SKU/inventory APIs plus Supabase Storage upload adapter, session-backed guards, Gmail SMTP reset email; inventory PostgreSQL concurrency and browser end-to-end remain unverified |
 | Database       | Prisma ORM/schema with PostgreSQL 17 in local Docker Compose; sync local schema explicitly with `npm run db:push`; no Prisma Migrate workflow |
 | Docker         | Compose runs frontend/backend/PostgreSQL with a named local database volume; Supabase Storage remains external; no healthcheck                   |
 | Other modules  | Order, Payment, Tracking and rule-based Recommendation are planned inside backend; browser upload remains server-authorized; Notification currently only sends password reset email directly, without email jobs/workers |
@@ -55,8 +55,9 @@ such as color and size; Category only classifies Products. SKU options distingui
 prices and stock. The Product plan has only ACTIVE and INACTIVE. Admin creation
 must atomically persist a complete ACTIVE Product with valid content, SKU(s),
 initial inventory set to zero and links to image assets whose upload succeeded.
-Admin currently does not manage or view SKU stock. Do not add an
-image READY state, a DRAFT state, or a save-draft workflow.
+Admin manages stock through Catalog's per-SKU inventory page/API. Every color/size
+combination has its own inventory row. Do not add an image READY state, a DRAFT
+state, or a save-draft workflow.
 
 ## Documentation map
 

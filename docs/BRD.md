@@ -43,7 +43,7 @@ Tại thời điểm cập nhật, repository có frontend React/Vite và backen
 | Mã    | Mục tiêu                                | Bằng chứng thành công                                                                   |
 | ----- | --------------------------------------- | --------------------------------------------------------------------------------------- |
 | BO-01 | Hoàn thành hành trình mua hàng đa ngành | Khách đăng nhập, chọn sản phẩm/SKU, thêm giỏ, thanh toán COD hoặc payOS và theo dõi đơn |
-| BO-02 | Cho phép admin vận hành cửa hàng        | Admin quản lý catalog và tài khoản Customer; tồn kho/đơn hàng triển khai ở giai đoạn sau |
+| BO-02 | Cho phép admin vận hành cửa hàng        | Admin quản lý catalog, tài khoản Customer và tồn theo từng SKU; đơn hàng triển khai sau |
 | BO-03 | Đảm bảo tính đúng đắn của đơn và tồn    | Không vượt tồn; không tạo đơn, giữ hàng hoặc hoàn tồn lặp do gửi lại thao tác           |
 | BO-04 | Chuẩn bị dữ liệu hành vi cho AI         | Có event gắn khách/phiên, sản phẩm, SKU và ID RetailRocket khi có                       |
 | BO-05 | Trình diễn độc lập trên local           | Có hướng dẫn chạy, dữ liệu mẫu, tài khoản demo và luồng nghiệm thu một người            |
@@ -58,7 +58,7 @@ Không đặt mục tiêu doanh số, lợi nhuận, tỷ lệ chuyển đổi h
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Khách chưa đăng nhập | Duyệt, tìm sản phẩm, chọn SKU, đăng ký/đăng nhập; phải đăng nhập để thêm giỏ                                      |
 | Customer             | Đặt hàng, quản lý hồ sơ/địa chỉ, theo dõi và hủy đơn đúng điều kiện                                               |
-| Admin                | Quản lý sản phẩm đa ngành, mô tả và lựa chọn SKU, danh mục cha–con, Customer; tồn, đơn và dashboard triển khai sau |
+| Admin                | Quản lý sản phẩm đa ngành, mô tả và lựa chọn SKU, danh mục cha–con, Customer và tồn từng SKU; đơn/dashboard triển khai sau |
 | Người phát triển web | Xây dựng và kiểm thử frontend, backend, dữ liệu và tracking                                                       |
 | Phía AI              | Sử dụng dữ liệu tương tác và ánh xạ item; tích hợp model ở giai đoạn sau                                          |
 | Người đánh giá đồ án | Đối chiếu tài liệu với chức năng, dữ liệu và kịch bản demo                                                        |
@@ -81,7 +81,7 @@ Tác vụ tự hủy đơn hết hạn là hành vi của hệ thống, không p
 - Sổ địa chỉ với tỉnh/thành và đơn vị cấp xã từ bộ dữ liệu local.
 - Đơn COD hoặc payOS, phí ship 30.000đ/đơn, giữ hàng, hủy đơn chưa thanh toán, hết hạn, giao thất bại và giao lại.
 - Tạo liên kết thanh toán payOS và cập nhật tự động sau khi backend xác minh webhook hợp lệ; không dùng đường dẫn quay lại trình duyệt làm bằng chứng thanh toán.
-- Quản trị catalog, upload nhiều ảnh/video và Customer. Quản trị tồn kho, đơn và dashboard là giai đoạn sau.
+- Quản trị catalog, upload nhiều ảnh/video, Customer và tồn kho từng SKU. Quản trị đơn và dashboard là giai đoạn sau.
 - Gửi email khôi phục mật khẩu và thông báo giao dịch/đơn hàng; không gửi SMS.
 - Tracking hành vi và gợi ý tạm thời theo quy tắc.
 - Frontend/backend chạy local; database lưu metadata ảnh và URL CDN; module Catalog trong backend kiểm tra/upload Supabase Storage, hệ thống không lưu file gốc riêng; kiểm thử các nghiệp vụ quan trọng.
@@ -156,11 +156,11 @@ Giao lại sau thất bại không xuất kho lần thứ hai. Báo thất bại
 
 ### 6.4. Quản lý catalog và tồn
 
-Admin nhập đủ tên, mô tả, danh mục, SKU và ít nhất một ảnh đại diện rồi tạo Product ACTIVE ngay trong một lần lưu. Product chỉ có ACTIVE và INACTIVE; không có luồng lưu nháp. INACTIVE dùng để ngừng bán sản phẩm đã tạo và có thể mở bán lại khi đủ điều kiện. Product, SKU được khởi tạo với tồn bằng 0 và liên kết media được ghi nguyên tử; lỗi bất kỳ không để lại Product tạo dở. Quản trị tồn kho chưa thuộc phạm vi hiện tại. Nhiều ảnh/video được upload qua Catalog lên Supabase Storage rồi tự thêm vào danh sách Product; gỡ liên kết không xóa asset cũ đang phục vụ lịch sử đơn. Đổi giá và ngừng bán ảnh hưởng giao dịch mới, không thay đổi thông tin đã chụp trong đơn.
+Admin nhập đủ tên, mô tả, danh mục, SKU và ít nhất một ảnh đại diện rồi tạo Product ACTIVE ngay trong một lần lưu. Product chỉ có ACTIVE và INACTIVE; không có luồng lưu nháp. INACTIVE dùng để ngừng bán sản phẩm đã tạo và có thể mở bán lại khi đủ điều kiện. Product, SKU được khởi tạo với tồn bằng 0 và liên kết media được ghi nguyên tử; lỗi bất kỳ không để lại Product tạo dở. Admin quản lý tồn ở trang Tồn kho, theo từng SKU và tổ hợp options, có nhập, điều chỉnh, kiểm kê và lịch sử. Nhiều ảnh/video được upload qua Catalog lên Supabase Storage rồi tự thêm vào danh sách Product; gỡ liên kết không xóa asset cũ đang phục vụ lịch sử đơn. Đổi giá và ngừng bán ảnh hưởng giao dịch mới, không thay đổi thông tin đã chụp trong đơn.
 
 Thông số chung như chất liệu/hệ điều hành được ghi trong phần mô tả Product; các lựa chọn phân biệt mặt hàng có giá/tồn riêng nằm trên SKU. Không ép mọi sản phẩm có màu và size. Sản phẩm không có biến thể có một SKU mặc định. Mỗi Product tự định nghĩa các mã lựa chọn SKU cần dùng; các Product cùng danh mục có thể có lựa chọn khác nhau. Cấu hình của Product cố định sau khi tạo; cây danh mục không được có chu trình.
 
-Nhập hàng/điều chỉnh kiểm kê có lý do và lịch sử. Nếu lượng hàng thực tế thấp hơn số đang giữ, admin phải xử lý các đơn liên quan trước khi hoàn tất điều chỉnh làm số có thể bán âm.
+Nhập hàng/điều chỉnh kiểm kê có lý do và lịch sử theo từng SKU. Nếu lượng hàng thực tế thấp hơn số đang giữ, Admin phải xử lý các đơn liên quan trước khi hoàn tất điều chỉnh làm số có thể bán âm. Không xóa SKU khi còn hàng thực tế hoặc đang giữ.
 
 <a id="rules"></a>
 

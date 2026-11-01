@@ -132,8 +132,12 @@ export class ProductService {
       const v = await tx.productVariant.findUnique({ where: { id: variantId }, include: { inventory: true } });
       if (!v || v.deletedAt) throw new NotFoundException({ code: 'SKU_NOT_FOUND' });
       await tx.$queryRaw`SELECT id FROM products WHERE id = ${v.productId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM product_variants WHERE id = ${variantId} FOR UPDATE`;
+      const current = await tx.productVariant.findUnique({ where: { id: variantId }, include: { inventory: true } });
+      if (!current || current.deletedAt) throw new NotFoundException({ code: 'SKU_NOT_FOUND' });
       const stock = await this.repository.lockInventory(variantId, tx);
       if (stock?.reserved) throw new ConflictException({ code: 'SKU_HAS_RESERVED_STOCK' });
+      if (stock?.onHand) throw new ConflictException({ code: 'SKU_HAS_ON_HAND_STOCK' });
       const [count, product] = await Promise.all([tx.productVariant.count({ where: { productId: v.productId, deletedAt: null } }), tx.product.findUnique({ where: { id: v.productId } })]);
       if (product?.status === 'ACTIVE' && count <= 1) throw new ConflictException({ code: 'PRODUCT_NEEDS_SKU' });
       await tx.productImage.updateMany({ where: { variantId }, data: { variantId: null } });

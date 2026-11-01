@@ -39,6 +39,7 @@ import { StoreLayout } from './layouts/StoreLayout';
 import { AdminManagementPage } from './pages/AdminPages';
 import { AdminCategoriesPage } from './features/catalog/pages/AdminCategoriesPage.js';
 import { AdminProductsPage } from './features/catalog/pages/AdminProductsPage.js';
+import { AdminInventoryPage } from './features/catalog/pages/AdminInventoryPage.js';
 import './App.css';
 import './Store.css';
 import './Brand.css';
@@ -114,12 +115,16 @@ export default function App() {
             <Route path="/account" element={<AccountPage />} />
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin/products" element={<AdminProductsPage />} />
               <Route
-                path="/admin/products"
+                path="/admin/products/:id"
                 element={<AdminProductsPage />}
               />
-              <Route path="/admin/products/:id" element={<AdminProductsPage />} />
-              <Route path="/admin/products/:id/edit" element={<AdminProductsPage />} />
+              <Route
+                path="/admin/products/:id/edit"
+                element={<AdminProductsPage />}
+              />
+              <Route path="/admin/inventory" element={<AdminInventoryPage />} />
               <Route
                 path="/admin/categories"
                 element={<AdminCategoriesPage />}
