@@ -16,7 +16,6 @@ import { AuthGuard } from '../../shared/guards/auth.guard.js';
 import { RolesGuard } from '../../shared/guards/roles.guard.js';
 import {
   InventoryAdjustmentDto,
-  InventoryHistoryQueryDto,
   InventoryListQueryDto,
 } from './inventory.dto.js';
 import { InventoryService } from './inventory.service.js';
@@ -35,14 +34,6 @@ export class InventoryController {
   @Get(':skuId')
   get(@Param('skuId') skuId: string) {
     return this.inventory.get(skuId);
-  }
-
-  @Get(':skuId/history')
-  history(
-    @Param('skuId') skuId: string,
-    @Query() query: InventoryHistoryQueryDto,
-  ) {
-    return this.inventory.history(skuId, query.page || 1, query.pageSize || 20);
   }
 
   @Post(':skuId/adjustments')

@@ -10,10 +10,11 @@ import {
 
 const addressQueryKey = ['account', 'addresses'] as const;
 
-export function useAddresses() {
+export function useAddresses(enabled = true) {
   return useQuery({
     queryKey: addressQueryKey,
     queryFn: getAddresses,
+    enabled,
   });
 }
 

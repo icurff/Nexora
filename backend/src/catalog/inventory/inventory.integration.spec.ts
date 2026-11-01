@@ -69,9 +69,6 @@ describe.skipIf(!runDatabaseTests)(
 
     afterAll(async () => {
       if (variantIds.length) {
-        await prisma.inventoryLedger.deleteMany({
-          where: { variantId: { in: variantIds } },
-        });
         await prisma.inventory.deleteMany({
           where: { variantId: { in: variantIds } },
         });
@@ -148,11 +145,6 @@ describe.skipIf(!runDatabaseTests)(
           })
         ).onHand,
       ).toBe(15);
-      expect(
-        await prisma.inventoryLedger.count({
-          where: { variantId: blackL, reason: 'Retry nguyên tử' },
-        }),
-      ).toBe(1);
 
       const lowKeys = [crypto.randomUUID(), crypto.randomUUID()];
       idempotencyKeys.push(...lowKeys);

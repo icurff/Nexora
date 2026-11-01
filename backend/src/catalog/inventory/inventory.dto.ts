@@ -25,11 +25,6 @@ export class InventoryListQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize = 20;
 }
 
-export class InventoryHistoryQueryDto {
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize = 20;
-}
-
 export class InventoryAdjustmentDto {
   @IsUUID() idempotencyKey!: string;
   @IsIn(['RESTOCK', 'ADJUSTMENT', 'STOCKTAKE']) type!:

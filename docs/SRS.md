@@ -108,7 +108,7 @@ Tài khoản bị khóa bị từ chối các thao tác yêu cầu xác thực, 
 
 Hiện tại repository gồm frontend React/Vite và backend NestJS monolith với AuthModule, Prisma ORM và PostgreSQL local qua Compose. `schema.prisma` là source of truth; cập nhật schema bằng `npm run db:push` chỉ trên DB local, không dùng Prisma Migrate hoặc Supabase PostgreSQL. Supabase Storage giữ file ảnh/video. Supabase Auth không thay AuthModule hiện có. Auth đã có đăng ký/login/refresh/logout/session/đổi mật khẩu/khôi phục mật khẩu và guard Customer/Admin; UI quên/đặt mật khẩu đã gọi API thật. Trang `/admin` kiểm tra role Admin ở client và endpoint ADMIN-only ở backend. Các module nghiệp vụ khác bên dưới là yêu cầu chưa triển khai. Không có gateway hoặc broker. Model Python/FastAPI là tích hợp AI tương lai, chưa có mã nguồn/container/database. Xem [Architecture](Folder-ARCHITECTURE.md).
 
-Transaction nghiệp vụ có thể bao gồm nhiều module trong database chung. Checkout và lifecycle cập nhật đơn, giỏ, tồn, ledger và business event nguyên tử, rollback toàn bộ khi lỗi. Lời gọi provider ngoài transaction; ghi job email bền vững cùng nghiệp vụ rồi gửi sau commit. Không dùng Saga hoặc HTTP/Kafka giữa module.
+Transaction nghiệp vụ có thể bao gồm nhiều module trong database chung. Checkout và lifecycle cập nhật đơn, giỏ, tồn và business event nguyên tử, rollback toàn bộ khi lỗi. Lời gọi provider ngoài transaction; ghi job email bền vững cùng nghiệp vụ rồi gửi sau commit. Không dùng Saga hoặc HTTP/Kafka giữa module.
 
 ### 3.1. Tài khoản và địa chỉ
 
@@ -301,18 +301,18 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 ### UC-13 — Chuẩn bị checkout và địa chỉ
 
 - **Tác nhân:** Customer hoạt động. **Trước:** có dòng giỏ chọn mua.
-- **Dữ liệu:** các dòng chọn, địa chỉ đã lưu hoặc địa chỉ mới, ghi chú và tùy chọn lưu địa chỉ.
-- **Luồng:** tải tóm tắt SKU/giá → chọn/nhập địa chỉ → kiểm tra địa giới → hiển thị tiền hàng, ship 30.000đ và tổng COD.
+- **Dữ liệu:** các dòng chọn, địa chỉ đã lưu, ghi chú và phương thức COD.
+- **Luồng:** tải giá hiện tại → chọn địa chỉ đã lưu → hiển thị tiền hàng, ship 30.000đ và tổng COD.
 - **Ngoại lệ:** Guest được chuyển tới đăng nhập; sau đó trở lại để kiểm tra giỏ và tiếp tục checkout. Không có địa chỉ thì yêu cầu nhập; không tự sử dụng số điện thoại hồ sơ thay người nhận.
-- **Sau:** chưa tạo đơn/giữ hàng. Checkbox lưu địa chỉ mặc định tắt; nếu bật thì lưu cùng lần đặt thành công, không lặp địa chỉ khi retry. **Nghiệm thu:** TC-13, TC-14.
+- **Sau:** chưa tạo đơn/giữ hàng. **Nghiệm thu:** TC-13, TC-14.
 
 ### UC-14 — Xác nhận đặt COD hoặc payOS
 
-- **Tác nhân:** Customer. **Trước:** đã xem tóm tắt, chọn COD hoặc payOS và có địa chỉ hợp lệ.
+- **Tác nhân:** Customer. **Trước:** đã xem giá, chọn COD và có địa chỉ hợp lệ.
 - **Dữ liệu:** lựa chọn checkout, phương thức thanh toán, thông tin địa chỉ/ghi chú và định danh thao tác chống lặp; client không quyết định tổng tiền.
-- **Luồng:** Backend xác thực Customer → khóa idempotency/user/giỏ/Product/SKU → kiểm tra quote/giá/available/địa chỉ → cùng transaction lưu đơn PENDING, snapshot, expiresAt, lịch sử, reserved/ledger/event, địa chỉ nếu chọn, xóa dòng đã mua và lưu kết quả idempotency → commit, trả đơn. Nếu payOS thì tạo link sau commit cho chính đơn này.
-- **Ngoại lệ:** giá/giỏ đổi hoặc một dòng hết hàng: rollback toàn bộ, giữ giỏ để xác nhận lại. Lỗi trước commit không để lại đơn hoặc giữ hàng một phần. Cùng key/payload trả cùng đơn; khác payload bị từ chối. Timeout sau commit được xử lý bằng cùng key để lấy kết quả cũ. Lỗi payOS link giữ đơn UNPAID và cho thử lại trên chính đơn.
-- **Sau:** COD bắt đầu UNPAID; payOS chỉ chuyển PAID khi webhook được xác minh. **Nghiệm thu:** TC-15, TC-16, TC-17, TC-46.
+- **Luồng:** Backend xác thực Customer và phiên → kiểm tra rồi tạo bản ghi giữ chỗ idempotency theo unique `(user, key)` → khóa user/giỏ/Product/SKU → đọc lại giá/số lượng/tồn/địa chỉ và đối chiếu giá khách vừa xem → cùng transaction lưu đơn PENDING COD/UNPAID, snapshot, expiresAt, lịch sử, reserved/event, xóa dòng đã mua và cập nhật response idempotency → commit, trả đơn. Retry cùng key chờ unique constraint và đọc kết quả; GET tra cứu có thể chưa thấy transaction chưa commit, khi đó retry POST cùng key/payload.
+- **Ngoại lệ:** giá/giỏ đổi hoặc một dòng hết hàng: rollback toàn bộ, giữ giỏ để khách xác nhận lại. Lỗi trước commit không để lại đơn hoặc giữ hàng một phần. Cùng key/payload trả cùng đơn; khác payload bị từ chối. Timeout được tra bằng cùng key; retry giữ nguyên key và payload.
+- **Sau:** COD bắt đầu UNPAID; Customer có thể hủy PENDING, Admin xác nhận hoặc hủy PENDING/CONFIRMED trước giao. **Nghiệm thu:** TC-15, TC-16, TC-17.
 
 ### UC-14A — Xác nhận thanh toán payOS
 
@@ -406,7 +406,7 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 ### UC-26 — Nhập và điều chỉnh tồn
 
 - **Tác nhân:** Admin. **Dữ liệu:** SKU, loại thao tác nhập/điều chỉnh/kiểm kê, số lượng và lý do.
-- **Luồng:** mở trang Tồn kho hoặc liên kết từ SKU → xem tồn thực tế/đang giữ/có thể bán và lịch sử → nhập số lượng hoặc tồn thực tế mới → xác nhận → cập nhật tồn và ghi ledger nguyên tử.
+- **Luồng:** mở trang Tồn kho hoặc liên kết từ SKU → xem tồn thực tế/đang giữ/có thể bán → nhập số lượng hoặc tồn thực tế mới → xác nhận → cập nhật tồn nguyên tử.
 - **Ngoại lệ:** on hand mới < reserved, âm, không nguyên, vượt giới hạn hoặc lý do rỗng: từ chối. Kiểm kê dùng version đã đọc; nếu tồn vừa đổi thì yêu cầu tải lại và xác nhận lại. Retry cùng idempotency key/payload trả kết quả trước; key cùng payload khác bị từ chối.
 - **Sau:** mỗi SKU, kể cả từng tổ hợp màu/size, có tồn riêng; không cập nhật reserved. Xóa SKU chỉ khi tồn thực tế và reserved đều bằng 0. Kiểm kê không tạo hành vi mua/event addtocart. **Nghiệm thu:** TC-29.
 
@@ -500,7 +500,7 @@ Không có các chuyển trạng thái khác. DELIVERED/CANCELLED kết thúc. P
 
 - Mỗi SKU có onHand >= 0, reserved >= 0, reserved <= onHand; available được tính, không nhập trực tiếp.
 - reserved bằng tổng quantity các dòng đơn PENDING/CONFIRMED trong database chung. Đối soát bằng query nội bộ; không có giữ hàng checkout đã rollback hoặc reservation phân tán.
-- Backend giữ tất cả SKU và tạo đơn/snapshot/ledger/giỏ trong cùng transaction database chung; một dòng lỗi thì rollback toàn bộ.
+- Backend giữ tất cả SKU và tạo đơn/snapshot/giỏ trong cùng transaction database chung; một dòng lỗi thì rollback toàn bộ.
 - Hủy/xuất giao/nhập trả được ghi nhận theo đơn/dòng và không thể chạy hiệu ứng lần thứ hai.
 - Admin điều chỉnh onHand phải kiểm tra reserved tại lúc cập nhật, không chỉ giá trị lúc mở màn hình.
 - Đơn PENDING UNPAID hết hạn nhưng chưa được tác vụ xử lý vẫn chưa giải phóng available; cần xử lý hủy để cập nhật nhất quán. Mọi API xác nhận đơn UNPAID kiểm tra expiresAt; PENDING PAYOS đã PAID không hết hạn.
@@ -566,7 +566,7 @@ Client retry giữ event ID; thao tác mới thực sự tạo ID mới. Không 
 | Ảnh                                | Module Catalog sở hữu image_assets, Supabase Storage adapter và product_images trong database chung; đơn giữ snapshot asset/key/version/URL            |
 | Cart                               | Customer sở hữu giỏ, các dòng SKU/quantity và phiên bản thay đổi                                                                                       |
 | Order/OrderItem                    | Mã đơn hiển thị, chủ đơn, trạng thái/thanh toán, snapshot, hạn, paidAt                                                                                 |
-| Reservation/Inventory history      | reserved đối soát với dòng đơn PENDING/CONFIRMED; inventory_movements lưu RESERVE/RELEASE/SHIP/RETURN đúng một lần trong cùng transaction với đơn      |
+| Reservation                        | reserved đối soát với dòng đơn PENDING/CONFIRMED; đặt/hủy đơn cập nhật reserved cùng transaction với đơn                                             |
 | Order history/Admin audit          | Chuyển trạng thái và ghi chú nội bộ tách biệt; khóa/mở tài khoản, điều chỉnh tồn                                                                       |
 | Interaction/Recommendation         | Event và ngữ cảnh, liên kết phiên, request gợi ý/danh sách thứ tự/nguồn                                                                                |
 
@@ -687,8 +687,11 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | GET /cart                                                                        | Đọc giỏ                                                                                                          | Customer hoạt động                                      |
 | POST /cart/items                                                                 | Thêm/cộng SKU                                                                                                    | Customer hoạt động                                      |
 | PATCH, DELETE /cart/items/:id                                                    | Sửa quantity/xóa                                                                                                 | Customer hoạt động                                      |
-| POST /checkout/quote                                                             | Kiểm tra lựa chọn và lập tóm tắt hiện tại                                                                        | Customer hoạt động                                      |
-| POST /orders                                                                     | Tạo đơn COD/payOS nguyên tử, trả 201 với đơn; cùng key/payload trả kết quả đã lưu                                | Customer hoạt động                                      |
+| POST /orders                                                                     | Tạo đơn COD nguyên tử, trả 201 với đơn; cùng key/payload trả kết quả đã lưu                                     | Customer hoạt động                                      |
+| GET /orders, GET /orders/:id, GET /orders/by-checkout-key/:key                   | Danh sách/chi tiết đơn cá nhân và khôi phục kết quả checkout theo idempotency key                                | Customer; chỉ đơn của mình                              |
+| POST /orders/:id/cancel                                                         | Hủy đơn PENDING UNPAID nguyên tử; giải phóng reserved                                                           | Chủ đơn                                                 |
+| GET /admin/orders, GET /admin/orders/:id, POST /admin/orders/:id/confirm          | Xem đơn và xác nhận PENDING trước hạn                                                                           | Admin                                                   |
+| POST /admin/orders/:id/cancel                                                   | Hủy PENDING/CONFIRMED trước giao; lý do bắt buộc                                                                | Admin                                                   |
 | POST /orders/:id/payments/payos                                                  | Tạo lại hoặc lấy liên kết payOS cho chính đơn UNPAID                                                             | Chủ đơn; Customer hoạt động                             |
 | POST /payments/payos/webhook                                                     | Nhận kết quả payOS; xác minh chữ ký và xử lý idempotent                                                          | Public endpoint; chỉ chấp nhận payload có chữ ký hợp lệ |
 | GET /payments/payos/return, /cancel                                              | Chuyển khách về giao diện để tải trạng thái đơn                                                                  | Công khai; không cập nhật trạng thái thanh toán         |
@@ -728,11 +731,11 @@ Các route `/api/v1/admin/products` và `/api/v1/admin/variants` yêu cầu role
 
 `POST /admin/products` nhận tên, mô tả, categoryId, `optionConfig: { options: [{ code, label }] }` riêng cho Product, `onHand?` tồn ban đầu cấp Product khi không có SKU, danh sách SKU `{ options, priceVnd, onHand? }` có thể rỗng, `priceVnd` Product bắt buộc khi danh sách SKU rỗng, và media đã upload `{ imageAssetId, variantId?, altText?, sortOrder, isPrimary }`. Mỗi SKU giữ giá riêng; `onHand` mặc định 0 và phải là số nguyên từ 0 đến 2147483647. `onHand` cấp Product chỉ hợp lệ khi danh sách SKU rỗng. Phải có đúng một ảnh đại diện chung; video không thể là ảnh đại diện. Backend kiểm tra Category tồn tại, options đúng `Product.optionConfig`, tổ hợp không trùng và media asset tồn tại trong Catalog; sau đó tạo Product ACTIVE, SKU/tồn SKU (nếu có) hoặc tồn Product và liên kết media trong một transaction. Product không SKU vẫn mua được theo giá/tồn Product. `PATCH /admin/products/:id/inventory` đặt tồn hiện tại Product khi chưa có SKU; khi có SKU, tồn chỉ được quản lý qua API tồn SKU. Lỗi ở bất kỳ bước nào rollback toàn bộ.
 
-`PATCH /admin/variants/:id` chỉ nhận `priceVnd`; options và cấu hình Product cố định sau khi tạo. Mã SKU bất biến. Tồn quản lý riêng cho từng SKU/options. `DELETE /admin/variants/:id` soft delete SKU, không xóa inventory/ledger/tham chiếu; từ chối nếu on_hand/reserved còn dương. Product ACTIVE có thể mất SKU cuối cùng; khi đó Product quay về bán trực tiếp theo giá Product và tồn Product sau khi Admin thiết lập tồn. Nếu khai báo sai, xử lý tồn về 0, xóa mềm SKU và thêm SKU đúng; cấu hình options của Product không sửa sau khi tạo.
+`PATCH /admin/variants/:id` chỉ nhận `priceVnd`; options và cấu hình Product cố định sau khi tạo. Mã SKU bất biến. Tồn quản lý riêng cho từng SKU/options. `DELETE /admin/variants/:id` soft delete SKU, không xóa inventory/tham chiếu; từ chối nếu on_hand/reserved còn dương. Product ACTIVE có thể mất SKU cuối cùng; khi đó Product quay về bán trực tiếp theo giá Product và tồn Product sau khi Admin thiết lập tồn. Nếu khai báo sai, xử lý tồn về 0, xóa mềm SKU và thêm SKU đúng; cấu hình options của Product không sửa sau khi tạo.
 
 Các route `/api/v1/admin/inventory` chỉ dành cho Admin. Danh sách nhận `q`, `categoryId` (gồm danh mục con), `status`, `availability`, `productId`, `page`, `pageSize`; mặc định 20 dòng và ID giữ dạng chuỗi. Kết quả gồm thông tin SKU/tổ hợp options, `onHand`, `reserved`, `available = onHand - reserved`, version và thời gian cập nhật. Lịch sử trả trước/sau, delta, reserved trước/sau, loại thao tác, Admin, lý do và ISO timestamp; bản ghi cũ không có loại hiển thị là lịch sử cũ.
 
-`POST /admin/inventory/:skuId/adjustments` nhận `{ idempotencyKey, type, quantity, expectedVersion?, reason }`. `RESTOCK` cộng số lượng dương; `ADJUSTMENT` cộng/trừ delta khác 0; `STOCKTAKE` đặt on_hand và bắt buộc version đang đọc. Mỗi thao tác khóa Product → SKU → Inventory, kiểm tra `0 ≤ reserved ≤ onHand ≤ 2147483647`, tăng version và ghi ledger cùng transaction. Actor lấy từ phiên Admin. Key duy nhất theo Admin: payload lặp trả kết quả cũ, payload khác trả 409. Kiểm kê sai version trả 409. Không sửa reserved/available qua API.
+`POST /admin/inventory/:skuId/adjustments` nhận `{ idempotencyKey, type, quantity, expectedVersion?, reason }`. `RESTOCK` cộng số lượng dương; `ADJUSTMENT` cộng/trừ delta khác 0; `STOCKTAKE` đặt on_hand và bắt buộc version đang đọc. Mỗi thao tác khóa Product → SKU → Inventory, kiểm tra `0 ≤ reserved ≤ onHand ≤ 2147483647`, tăng version và lưu kết quả idempotency cùng transaction. Actor lấy từ phiên Admin. Key duy nhất theo Admin: payload lặp trả kết quả cũ, payload khác trả 409. Kiểm kê sai version trả 409. Không sửa reserved/available qua API; hệ thống không lưu lịch sử biến động tồn.
 
 Upload endpoint `/admin/images` yêu cầu cấu hình `SUPABASE_URL`, secret key và bucket public `catalog-images` (hoặc bucket cấu hình), cho phép MIME ảnh và video nêu trên. Storage đã được smoke-test upload trực tiếp thành công; luồng upload qua Admin API cùng ghi metadata database chưa được kiểm chứng end-to-end. Nếu Storage nhận object nhưng database ghi metadata lỗi, object có thể còn lại không có asset row; upload lại tạo path mới.
 
@@ -856,7 +859,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-26 | Tạo Product ACTIVE đủ nội dung/ảnh, SKU có hoặc không; mua và quản lý tồn trực tiếp khi không có SKU; tạo SKU, chuyển tồn sang SKU, sửa giá, xóa SKU cuối | Product không SKU mua được theo giá/tồn Product; Product có SKU dùng giá/tồn SKU; chuyển sang SKU chặn khi còn tồn Product; thiếu/sai dữ liệu bị từ chối; tồn 0 hợp lệ; không xóa SKU còn tồn/đang giữ; snapshot đơn giữ nguyên |
 | TC-27 | Tạo cây Category, tự trỏ/chu trình; đổi danh mục Product có SKU; thử quản lý Brand hoặc xóa Category đang dùng | Cây hợp lệ, lọc gồm danh mục con; chặn chu trình/thay đổi sai; cấu hình SKU của Product không bị Category áp đặt; không có CRUD Brand; giữ tham chiếu cũ |
 | TC-28 | Upload ảnh hợp lệ/sai định dạng/quá giới hạn/thiếu quyền; gắn SKU khác Product; dùng chung asset nhiều SKU; Supabase Storage lỗi và thay ảnh đã có đơn | Chỉ asset có metadata sau khi Storage trả thành công; chặn SKU sai Product; ưu tiên ảnh SKU rồi ảnh chung; gỡ một liên kết không xóa asset Supabase Storage; chỉ lưu metadata/URL, giải phóng buffer, giữ asset lịch sử |
-| TC-29 | Nhập, điều chỉnh +/- và kiểm kê từng tổ hợp SKU; thử thiếu lý do, âm/lẻ/tràn, thấp hơn reserved, version cũ, request lặp/key đổi payload, hai Admin thao tác đồng thời và xóa SKU còn tồn | Tồn/available và ledger đúng, reserved không đổi; không âm/ghi đè kiểm kê mới; retry không nhân biến động; khác payload bị từ chối; xóa SKU còn tồn/giữ bị chặn |
+| TC-29 | Nhập, điều chỉnh +/- và kiểm kê từng tổ hợp SKU; thử thiếu lý do, âm/lẻ/tràn, thấp hơn reserved, version cũ, request lặp/key đổi payload, hai Admin thao tác đồng thời và xóa SKU còn tồn | Tồn/available đúng, reserved không đổi; không âm/ghi đè kiểm kê mới; retry không nhân cập nhật; khác payload bị từ chối; xóa SKU còn tồn/giữ bị chặn |
 | TC-30 | Admin tìm/lọc đơn, xem lịch sử, thêm ghi chú                                                                                                               | Kết quả đúng; ghi chú nội bộ không trả cho Customer; không sửa nội dung đơn                                                                                                                              |
 | TC-31 | Khóa/mở Customer có phiên và đơn đang xử lý                                                                                                                | Khóa chặn token cũ, không hủy đơn; mở không hồi sinh phiên; không khóa Admin qua API Customer                                                                                                            |
 | TC-32 | Tập đơn mới/chờ/hủy/thất bại/đã giao ở hai mốc ngày                                                                                                        | Đơn theo createdAt/trạng thái, tiền theo paidAt; ship riêng; retry giao thất bại không nhân số đơn                                                                                                       |
@@ -878,7 +881,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-48 | Return/cancel URL mở trước/sau webhook; payOS đã trả rồi giao thất bại                                                                                     | Return URL không xác nhận PAID; API hiển thị trạng thái chuẩn; đơn paid chỉ được giao lại, không hủy/hoàn tồn                                                                                            |
 | TC-49 | Khôi phục mật khẩu với email có/không có tài khoản; token sai, hết hạn, đã dùng; thử lại nhiều lần                                                         | Phản hồi chung không dò được email; email hợp lệ có liên kết dùng một lần; đổi mật khẩu thu hồi mọi phiên; link lỗi không đổi mật khẩu                                                                   |
 | TC-50 | Gửi email tạo đơn/thay đổi trạng thái, nhà cung cấp lỗi/tạm ngừng, worker retry cùng event                                                                 | Đơn/payment không rollback; không tạo job trùng event key; dùng provider idempotency nếu hỗ trợ, ghi nhận hạn chế gửi lặp khi provider không hỗ trợ; retry/thất bại quan sát được, không lộ secret/token |
-| TC-51 | Backend dừng trước/sau commit checkout/lifecycle; request/webhook lặp và cạnh tranh SKU cuối                                                               | Trước commit rollback toàn bộ; sau commit cùng key trả kết quả cũ; tồn/ledger/event đúng một lần, không cần Saga hoặc broker để phục hồi                                                                 |
+| TC-51 | Backend dừng trước/sau commit checkout/lifecycle; request/webhook lặp và cạnh tranh SKU cuối                                                               | Trước commit rollback toàn bộ; sau commit cùng key trả kết quả cũ; tồn/event đúng một lần, không cần Saga hoặc broker để phục hồi                                                                       |
 | TC-52 | Tìm tên, lọc options/giá/còn hàng nhiều ngành và danh mục cha trong PostgreSQL                                                                             | Các điều kiện khớp cùng SKU, gồm danh mục con; kết quả search/stock/payment dùng database chung; không cần ES/Redis                                                                                      |
 | TC-53 | Upload Admin qua backend/Catalog/Supabase Storage; giả imageAssetId hoặc URL hoặc gọi route seed từ client                                                             | Metadata/liên kết trong database chung, kiểm tra asset metadata trong transaction; URL public HTTPS hợp lệ, chặn vượt quyền, không lộ secret hoặc giữ file gốc                                   |
 | TC-54 | Storage nhận upload nhưng phản hồi/ghi metadata bị gián đoạn; thay/gỡ ảnh | Upload tiếp theo tạo path mới; có thể tồn tại object mồ côi; upsert:false không ghi đè object; gỡ liên kết không xóa asset Storage |
@@ -1041,7 +1044,7 @@ Nếu yêu cầu mới thay đổi quyền, thời hạn, tồn, tiền, event h
 | 2.7 | 01/11/2026 | Bỏ Attributes riêng của Product; thông tin chung dùng mô tả, Category chỉ phân loại. |
 | 2.8 | 01/11/2026 | Bỏ DRAFT; tạo Product ACTIVE cùng nội dung/SKU/ảnh đầy đủ trong một lần lưu; bổ sung yêu cầu nguyên tử và kiểm chứng TC-26. |
 | 2.9 | 01/11/2026 | Cho phép mua Product không SKU theo giá/tồn Product; khi có SKU thì giá/tồn theo từng SKU. |
-| 2.9 | 01/11/2026 | Cập nhật quy tắc SKU: mã/options cố định; sửa giá/tồn có lý do, không có trạng thái SKU riêng; tồn 0 làm SKU ngừng bán, xóa mềm giữ lịch sử đơn/ledger. |
+| 2.9 | 01/11/2026 | Cập nhật quy tắc SKU: mã/options cố định; sửa giá/tồn có lý do, không có trạng thái SKU riêng; tồn 0 làm SKU ngừng bán, xóa mềm giữ tham chiếu đơn. |
 | 3.2 | 01/11/2026 | Bỏ Attributes riêng của Product; thông tin chung dùng mô tả. |
 | 3.4 | 01/11/2026 | Chuyển bộ lựa chọn SKU từ Category sang từng Product; mỗi sản phẩm có tổ hợp riêng. |
 | 3.5 | 01/11/2026 | Form Product chọn nhiều ảnh/video, tự upload và bỏ nhập ID asset thủ công. |

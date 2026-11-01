@@ -40,6 +40,7 @@ import { AdminManagementPage } from './pages/AdminPages';
 import { AdminCategoriesPage } from './features/catalog/pages/AdminCategoriesPage.js';
 import { AdminProductsPage } from './features/catalog/pages/AdminProductsPage.js';
 import { AdminInventoryPage } from './features/catalog/pages/AdminInventoryPage.js';
+import { AdminOrdersPage } from './features/admin/pages/AdminOrdersPage.js';
 import './App.css';
 import './Store.css';
 import './Brand.css';
@@ -133,10 +134,8 @@ export default function App() {
                 path="/admin/coupons"
                 element={<AdminManagementPage kind="coupons" />}
               />
-              <Route
-                path="/admin/orders"
-                element={<AdminManagementPage kind="orders" />}
-              />
+              <Route path="/admin/orders" element={<AdminOrdersPage />} />
+              <Route path="/admin/orders/:id" element={<AdminOrdersPage />} />
               <Route
                 path="/admin/reviews"
                 element={<AdminManagementPage kind="reviews" />}

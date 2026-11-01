@@ -15,7 +15,7 @@ Nexora dùng modular monolith: các nghiệp vụ nằm trong cùng tiến trìn
 | Thành phần  | Đã triển khai                                                                                               |
 | ----------- | ----------------------------------------------------------------------------------------------------------- |
 | Frontend    | React/Vite/TypeScript; Auth, Account address book và chọn địa chỉ checkout dùng API; danh sách/detail sản phẩm và giỏ Customer dùng API; checkout đặt hàng/orders chưa khả dụng, các trang catalog khác còn fixture |
-| Backend     | NestJS, AuthModule address/profile/session APIs, CatalogModule public/admin Product/SKU/inventory APIs và OrderModule cart APIs; upload ảnh/video lên Supabase Storage; giỏ chưa có idempotency/event/transaction |
+| Backend     | NestJS, AuthModule address/profile/session APIs, CatalogModule public/admin Product/SKU/inventory APIs và OrderModule cart/COD checkout/order APIs; upload ảnh/video lên Supabase Storage; checkout integration chưa kiểm chứng |
 | Auth        | Đăng ký Customer, login/refresh/logout/session, đổi/khôi phục mật khẩu, thu hồi phiên và CRUD sổ địa chỉ; địa chỉ lưu tên tỉnh/xã dạng text |
 | Persistence | Prisma ORM/repositories và `schema.prisma`; PostgreSQL 17 local trong Compose, đồng bộ schema thủ công bằng `npm run db:push` |
 | Docker      | Compose chạy frontend/backend/PostgreSQL local với named volume; Supabase Storage vẫn ở ngoài, không healthcheck |
@@ -95,13 +95,13 @@ AuthGuard xác minh access token và phiên/tài khoản còn hiệu lực trự
 
 ## 4. Ranh giới module
 
-AuthModule, DatabaseModule, CatalogModule và OrderModule đã có. OrderModule hiện chỉ xử lý cart; tạo các module Payment, Tracking hoặc Recommendation khi triển khai nghiệp vụ tương ứng, không tạo scaffold rỗng.
+AuthModule, DatabaseModule, CatalogModule và OrderModule đã có. OrderModule xử lý cart và COD checkout; tạo các module Payment, Tracking hoặc Recommendation khi triển khai nghiệp vụ tương ứng, không tạo scaffold rỗng.
 
 | Module dự kiến            | Trách nhiệm                                                          |
 | ------------------------- | -------------------------------------------------------------------- |
 | Auth                      | Tài khoản, phiên, hồ sơ, sổ địa chỉ nhận hàng dạng text, password reset                     |
-| Catalog                   | Danh mục, Product/SKU, ảnh/Supabase Storage; inventory/ledger để dành |
-| Order                     | Giỏ, quote, tạo đơn, snapshot, vòng đời đơn và idempotency           |
+| Catalog                   | Danh mục, Product/SKU, ảnh/Supabase Storage và tồn hiện tại; không lưu lịch sử biến động tồn |
+| Order                     | Giỏ, COD checkout trực tiếp, tạo đơn, snapshot, vòng đời đơn và idempotency |
 | Payment                   | payOS link/webhook và quy tắc COD; phối hợp Order trong cùng backend |
 | Notification              | Gửi email khôi phục mật khẩu trực tiếp qua Gmail SMTP; email job bền vững/worker retry thuộc task 015 chưa triển khai |
 | Tracking / Recommendation | Event website, export không PII và gợi ý theo quy tắc khi triển khai |
@@ -120,11 +120,11 @@ Các module chia sẻ Prisma.TransactionClient; FK/JOIN chung hợp lệ và đ�
 
 ## 6. Transaction, retry và tích hợp ngoài
 
-Các module tham gia một use case phải dùng cùng Prisma.TransactionClient; không mở transaction riêng hoặc tự commit trong provider lồng nhau. Quote do server ký có TTL mặc định 15 phút theo Database mục 9.2; quote không giữ hàng và không giữ khóa giỏ qua request/UI. POST /orders trả đơn sau commit; retry sau timeout dùng cùng key/payload, không cần checkoutId/operationId phân tán.
+Các module tham gia một use case phải dùng cùng Prisma.TransactionClient; không mở transaction riêng hoặc tự commit trong provider lồng nhau. Checkout không có quote riêng: backend đối chiếu giá/quantity hiển thị, tự tính tổng và kiểm tra tồn khi đặt.
 
-Checkout tương lai dùng một transaction ngắn: kiểm tra user/session/giỏ/quote; khóa products/SKU theo thứ tự ổn định; kiểm tra available; lưu đơn/snapshot; tăng reserved và ghi ledger/history/event; xóa đúng dòng giỏ; lưu kết quả idempotency rồi commit. Một dòng không hợp lệ khiến toàn bộ rollback. Gửi lại cùng key/payload trả cùng đơn; khác payload bị từ chối.
+Checkout dùng một transaction ngắn: kiểm tra user/session/giỏ/giá/địa chỉ; khóa Product/SKU/inventory theo thứ tự ổn định; kiểm tra available; lưu đơn/snapshot; tăng reserved và ghi history/event; xóa đúng dòng giỏ; lưu kết quả idempotency rồi commit. Một dòng không hợp lệ khiến toàn bộ rollback. Gửi lại cùng key/payload trả cùng đơn; khác payload bị từ chối.
 
-Lifecycle cập nhật đơn, tồn, ledger, audit, business event và idempotency trong cùng transaction. Giữ `available = on_hand - reserved`, không âm tồn, thêm giỏ không giữ hàng. Kiểm tra chuyển trạng thái theo SRS. Hủy, hết hạn, ship và nhận lại chỉ gây hiệu ứng một lần. Worker quét bù đơn hết hạn sau restart.
+Lifecycle cập nhật đơn, reserved, history, business event và idempotency trong cùng transaction. Giữ `available = on_hand - reserved`, không âm tồn, thêm giỏ không giữ hàng. Kiểm tra chuyển trạng thái theo SRS. Hủy và hết hạn chỉ gây hiệu ứng một lần. Worker quét bù đơn hết hạn sau restart.
 
 Không gọi network khi đang giữ khóa DB. Tạo payOS link cho đơn đã commit; lỗi link giữ đơn UNPAID, cho retry trên chính đơn. Webhook phải xác minh chữ ký/mã đơn/số tiền, sau đó khóa đơn và ghi PAID/event nguyên tử; webhook lặp không tạo hiệu ứng lặp. Browser return/cancel chỉ đọc trạng thái. Cạnh tranh payment/hủy dùng cùng khóa đơn và kiểm tra trạng thái mới nhất.
 

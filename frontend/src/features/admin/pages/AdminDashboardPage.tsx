@@ -285,7 +285,7 @@ export function AdminDashboardPage() {
             </span>
             <span>
               <strong>Xử lý đơn hàng</strong>
-              <small>3 đơn cần được kiểm tra</small>
+
             </span>
             <ArrowRight />
           </Link>

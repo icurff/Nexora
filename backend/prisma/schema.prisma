@@ -26,8 +26,10 @@ model User {
   passwordResetTokens PasswordResetToken[]
   uploadedImageAssets ImageAsset[]
   inventoryAdjustments InventoryAdjustmentRequest[]
+  orderRequests        OrderIdempotencyRequest[]
+  orders               Order[]
+  orderStatusChanges   OrderStatusHistory[]
   cart                Cart?
-  inventoryLedgerEntries InventoryLedger[]
   addresses           UserAddress[]
 
   @@map("users")
@@ -114,6 +116,7 @@ model Product {
   images      ProductImage[]
     inventory   ProductInventory?
     cartItems   CartItem[]
+  orderItems  OrderItem[]
 
   @@index([categoryId, status, createdAt(sort: Desc)], map: "products_category_status_created_idx")
   @@index([status, createdAt(sort: Desc)], map: "products_status_created_idx")
@@ -144,6 +147,7 @@ model ProductVariant {
   inventory Inventory?
   images    ProductImage[]
   cartItems CartItem[]
+  orderItems OrderItem[]
 
   @@index([productId, deletedAt], map: "product_variants_product_deleted_idx")
   @@map("product_variants")
@@ -156,27 +160,8 @@ model Inventory {
   version   BigInt         @default(0)
   updatedAt DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  entries   InventoryLedger[]
 
   @@map("inventory")
-}
-
-model InventoryLedger {
-  id             BigInt    @id @default(autoincrement())
-  variantId      BigInt    @map("variant_id")
-  actorUserId    BigInt?   @map("actor_user_id")
-  reason         String    @db.VarChar(500)
-  quantityBefore Int       @map("quantity_before")
-  quantityAfter  Int       @map("quantity_after")
-  movementType   String?   @map("movement_type") @db.VarChar(24)
-  reservedBefore Int?      @map("reserved_before")
-  reservedAfter  Int?      @map("reserved_after")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  inventory      Inventory @relation(fields: [variantId], references: [variantId], onDelete: Restrict, onUpdate: NoAction)
-  actor          User?     @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-
-  @@index([variantId, createdAt(sort: Desc)], map: "inventory_ledger_variant_created_idx")
-  @@map("inventory_ledger")
 }
 
 model InventoryAdjustmentRequest {
@@ -253,4 +238,96 @@ model CartItem {
     @@unique([cartId, productId], map: "cart_items_cart_product_key")
   @@index([variantId], map: "cart_items_variant_idx")
   @@map("cart_items")
+}
+
+model Order {
+  id              BigInt              @id @default(autoincrement())
+  userId          BigInt              @map("user_id")
+  status          String              @default("PENDING") @db.VarChar(16)
+  paymentMethod   String              @default("COD") @map("payment_method") @db.VarChar(16)
+  paymentStatus   String              @default("UNPAID") @map("payment_status") @db.VarChar(16)
+  subtotal        BigInt
+  shippingFee     BigInt              @map("shipping_fee")
+  totalAmount     BigInt              @map("total_amount")
+  recipientName   String              @map("recipient_name") @db.VarChar(100)
+  recipientPhone  String              @map("recipient_phone") @db.VarChar(16)
+  provinceName    String              @map("province_name") @db.VarChar(150)
+  wardName        String              @map("ward_name") @db.VarChar(150)
+  addressLine     String              @map("address_line") @db.VarChar(300)
+  customerNote    String?             @map("customer_note") @db.VarChar(1000)
+  expiresAt       DateTime            @map("expires_at") @db.Timestamptz(6)
+  version         BigInt              @default(1)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  confirmedAt     DateTime?           @map("confirmed_at") @db.Timestamptz(6)
+  cancelledAt     DateTime?           @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason    String?             @map("cancel_reason") @db.VarChar(500)
+  user            User                @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  items           OrderItem[]
+  history         OrderStatusHistory[]
+  events          OrderEvent[]
+
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)], map: "orders_user_created_idx")
+  @@index([status, expiresAt], map: "orders_status_expires_idx")
+  @@map("orders")
+}
+
+model OrderItem {
+  id              BigInt         @id @default(autoincrement())
+  orderId         BigInt         @map("order_id")
+  productId       BigInt         @map("product_id")
+  variantId       BigInt?        @map("variant_id")
+  productName     String         @map("product_name_snapshot") @db.VarChar(200)
+  sku             String?        @map("sku_snapshot") @db.VarChar(40)
+  options          Json           @default("{}") @map("options_snapshot")
+  imageUrl         String?        @map("image_url_snapshot") @db.VarChar(2048)
+  unitPrice        BigInt         @map("unit_price")
+  quantity         Int
+  order            Order          @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  product          Product        @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  variant          ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([orderId, id], map: "order_items_order_idx")
+  @@index([productId], map: "order_items_product_idx")
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id         BigInt   @id @default(autoincrement())
+  orderId    BigInt   @map("order_id")
+  actorId    BigInt?  @map("actor_id")
+  fromStatus String?  @map("from_status") @db.VarChar(16)
+  toStatus   String   @map("to_status") @db.VarChar(16)
+  reason     String?  @db.VarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([orderId, createdAt, id], map: "order_status_history_order_created_idx")
+  @@map("order_status_history")
+}
+
+model OrderEvent {
+  id        BigInt   @id @default(autoincrement())
+  eventId   String   @unique @map("event_id") @db.VarChar(150)
+  orderId   BigInt   @map("order_id")
+  eventType String   @map("event_type") @db.VarChar(32)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([orderId, eventType], map: "order_events_order_type_key")
+  @@map("order_events")
+}
+
+model OrderIdempotencyRequest {
+  id         BigInt   @id @default(autoincrement())
+  userId     BigInt   @map("user_id")
+  key        String   @db.VarChar(100)
+  payload    Json
+  response   Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([userId, key], map: "order_idempotency_requests_user_key_key")
+  @@map("order_idempotency_requests")
 }

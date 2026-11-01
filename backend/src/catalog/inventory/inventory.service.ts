@@ -188,35 +188,6 @@ export class InventoryService {
     return inventoryResponse(row);
   }
 
-  async history(variantIdValue: string, page: number, pageSize: number) {
-    const variantId = parseId(variantIdValue);
-    const row = await this.repository.variant(variantId);
-    if (!row?.inventory) throw new NotFoundException({ code: 'SKU_NOT_FOUND' });
-    const result = await this.repository.history(
-      variantId,
-      (page - 1) * pageSize,
-      pageSize,
-    );
-    return {
-      items: result.items.map((entry) => ({
-        id: entry.id.toString(),
-        type: entry.movementType ?? 'LEGACY',
-        quantityBefore: entry.quantityBefore,
-        quantityAfter: entry.quantityAfter,
-        delta: entry.quantityAfter - entry.quantityBefore,
-        reservedBefore: entry.reservedBefore,
-        reservedAfter: entry.reservedAfter,
-        actor: entry.actor?.fullName ?? 'Hệ thống',
-        reason: entry.reason,
-        createdAt: entry.createdAt.toISOString(),
-      })),
-      page,
-      pageSize,
-      total: result.total,
-      totalPages: Math.ceil(result.total / pageSize),
-    };
-  }
-
   async adjust(
     variantIdValue: string,
     input: InventoryAdjustmentDto,
@@ -283,18 +254,6 @@ export class InventoryService {
         const updated = await tx.inventory.update({
           where: { variantId },
           data: { onHand: next, version: { increment: 1n } },
-        });
-        await tx.inventoryLedger.create({
-          data: {
-            variantId,
-            actorUserId: BigInt(actor.userId),
-            reason: payload.reason,
-            quantityBefore: current.onHand,
-            quantityAfter: next,
-            movementType: input.type,
-            reservedBefore: current.reserved,
-            reservedAfter: current.reserved,
-          },
         });
         const response = {
           skuId: variant.id.toString(),

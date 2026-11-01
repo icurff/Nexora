@@ -109,9 +109,6 @@ export function AdminLayout() {
               >
                 <Icon size={18} />
                 <span>{label}</span>
-                {to === '/admin/orders' ? (
-                  <i className="admin-nav-count">3</i>
-                ) : null}
               </NavLink>
             ))}
           </nav>
