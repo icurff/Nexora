@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   Package,
+  Boxes,
   Settings2,
   ShoppingBag,
   Star,
@@ -24,6 +25,7 @@ import { BrandLogo } from '../components/BrandLogo';
 const links = [
   { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard, end: true },
   { to: '/admin/products', label: 'Sản phẩm', icon: Package },
+  { to: '/admin/inventory', label: 'Tồn kho', icon: Boxes },
   { to: '/admin/categories', label: 'Danh mục', icon: Tags },
   { to: '/admin/coupons', label: 'Mã giảm giá', icon: TicketPercent },
   { to: '/admin/orders', label: 'Đơn hàng', icon: ShoppingBag },

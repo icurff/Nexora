@@ -25,6 +25,8 @@ model User {
   sessions            AuthSession[]
   passwordResetTokens PasswordResetToken[]
   uploadedImageAssets ImageAsset[]
+  inventoryAdjustments InventoryAdjustmentRequest[]
+  inventoryLedgerEntries InventoryLedger[]
 
   @@map("users")
 }
@@ -117,6 +119,7 @@ model Inventory {
   variantId BigInt         @id @map("variant_id")
   onHand    Int            @default(0) @map("on_hand")
   reserved  Int            @default(0)
+  version   BigInt         @default(0)
   updatedAt DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   entries   InventoryLedger[]
@@ -131,11 +134,28 @@ model InventoryLedger {
   reason         String    @db.VarChar(500)
   quantityBefore Int       @map("quantity_before")
   quantityAfter  Int       @map("quantity_after")
+  movementType   String?   @map("movement_type") @db.VarChar(24)
+  reservedBefore Int?      @map("reserved_before")
+  reservedAfter  Int?      @map("reserved_after")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   inventory      Inventory @relation(fields: [variantId], references: [variantId], onDelete: Restrict, onUpdate: NoAction)
+  actor          User?     @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([variantId, createdAt(sort: Desc)], map: "inventory_ledger_variant_created_idx")
   @@map("inventory_ledger")
+}
+
+model InventoryAdjustmentRequest {
+  id          BigInt   @id @default(autoincrement())
+  actorUserId BigInt   @map("actor_user_id")
+  key         String   @db.VarChar(100)
+  payload     Json
+  response    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([actorUserId, key], map: "inventory_adjustment_requests_actor_key_key")
+  @@map("inventory_adjustment_requests")
 }
 
 model ImageAsset {

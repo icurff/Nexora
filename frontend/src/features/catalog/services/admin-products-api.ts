@@ -48,6 +48,7 @@ export function productErrorMessage(error: unknown) {
     SKU_OPTION_KEYS_MISMATCH: 'Các SKU phải dùng cùng bộ lựa chọn.', IMAGE_ASSET_NOT_FOUND: 'Không tìm thấy asset ảnh đã tải lên.',
     PRODUCT_NEEDS_PRIMARY_IMAGE: 'Chọn đúng một ảnh đại diện.', PRODUCT_NEEDS_SKU: 'Sản phẩm cần ít nhất một SKU.',
     SKU_HAS_RESERVED_STOCK: 'Không thể xóa SKU đang được đơn hàng giữ.',
+    SKU_HAS_ON_HAND_STOCK: 'Không thể xóa SKU còn hàng trong kho. Hãy xử lý tồn trước.',
     PRODUCT_NEEDS_IMAGE: 'Sản phẩm cần có ảnh đại diện.',
     PRODUCT_NOT_FOUND: 'Sản phẩm không còn tồn tại. Hãy tải lại trang.', SKU_NOT_FOUND: 'SKU không còn tồn tại. Hãy tải lại trang.',
     ACTIVE_PRODUCT_NEEDS_IMAGE: 'Sản phẩm ACTIVE phải còn ảnh.',

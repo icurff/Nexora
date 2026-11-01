@@ -8,10 +8,22 @@ import { ProductRepository } from './products/product.repository.js';
 import { ProductService } from './products/product.service.js';
 import { ImageUploadService } from './images/image-upload.service.js';
 import { SupabaseStorageAdapter } from './images/supabase-storage.adapter.js';
+import { InventoryController } from './inventory/inventory.controller.js';
+import { InventoryRepository } from './inventory/inventory.repository.js';
+import { InventoryService } from './inventory/inventory.service.js';
 
 @Module({
   imports: [AuthModule],
-  controllers: [CategoryController, ProductController],
-  providers: [CategoryService, CategoryRepository, ProductService, ProductRepository, ImageUploadService, SupabaseStorageAdapter],
+  controllers: [CategoryController, ProductController, InventoryController],
+  providers: [
+    CategoryService,
+    CategoryRepository,
+    ProductService,
+    ProductRepository,
+    ImageUploadService,
+    SupabaseStorageAdapter,
+    InventoryService,
+    InventoryRepository,
+  ],
 })
 export class CatalogModule {}

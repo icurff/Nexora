@@ -16,7 +16,7 @@ Thiết kế hiện hành dùng một database PostgreSQL cho backend modular mo
 
 Metadata/tables thuộc ứng dụng trong PostgreSQL local, bytes ảnh ở Supabase Storage. Cấu hình DATABASE_URL theo Architecture; Auth dùng users/auth_sessions của Nexora, tách khỏi Supabase Auth.
 
-Các phần schema tồn kho bên dưới mô tả nền tảng dữ liệu cho giai đoạn sau. Admin hiện không xem hoặc điều chỉnh tồn; Catalog tạo SKU với `on_hand = 0`. Giữ bảng inventory/ledger để không phải thiết kế lại khi triển khai đơn hàng và kho.
+Catalog đã có API/UI quản lý tồn cơ bản theo SKU; các phần reservation theo đơn hàng bên dưới mô tả tích hợp giai đoạn sau. SKU mới có `on_hand = 0`. `Inventory`, `InventoryLedger` là schema nguồn hiện tại; thao tác Admin và idempotency request được mô tả ở mục 4.4 và 7.
 
 | Nội dung       | Thiết kế hiện hành                                                                                                                    |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -337,13 +337,13 @@ Một dòng là một SKU cụ thể có giá và tồn riêng. `options` là ob
 | deleted_at             | timestamptz  | NULL            | Đánh dấu xóa mềm, giữ lịch sử SKU                               |
 | created_at, updated_at | timestamptz  | NN              | Thời gian                                                       |
 
-Tồn được lưu tại `inventory` theo từng SKU, không nằm trên ProductVariant. `on_hand` là hàng thực tế, `reserved` là lượng giữ; `available = on_hand - reserved` được tính khi đọc. `inventory_ledger` ghi Admin, lý do, số lượng trước/sau và thời điểm cho tồn ban đầu, điều chỉnh và xóa SKU. `reserved <= on_hand`; cập nhật tồn khóa dòng inventory và không sửa reserved trực tiếp.
+Tồn được lưu tại `inventory` theo từng SKU, không nằm trên ProductVariant. `on_hand` là hàng thực tế, `reserved` là lượng giữ; `available = on_hand - reserved` được tính khi đọc. Catalog hiện ghi từng thao tác Admin vào `inventory_ledger` với loại thao tác, on_hand/reserved trước-sau, actor, lý do và thời điểm. Bản ghi cũ giữ nguyên, trường mới nullable và hiển thị dạng lịch sử cũ. `reserved <= on_hand`; cập nhật tồn khóa dòng inventory và không sửa reserved trực tiếp. `inventory.version` tăng mỗi khi on_hand đổi để phát hiện kiểm kê dựa trên dữ liệu cũ.
 
 Ràng buộc DB:
 
 - CHECK `jsonb_typeof(options) = 'object'`, `price_vnd > 0`; ứng dụng kiểm tra options theo `Product.optionConfig`.
 - CHECK `inventory.on_hand >= 0 AND inventory.reserved >= 0 AND inventory.reserved <= inventory.on_hand`.
-- Xóa SKU dùng `deleted_at`; không xóa dòng inventory/ledger hoặc SKU được đơn tham chiếu. Tổ hợp options không trùng giữa các SKU chưa xóa; Catalog khóa Product trong thao tác thay đổi SKU để tuần tự hóa kiểm tra.
+- Xóa SKU dùng `deleted_at`; không xóa dòng inventory/ledger hoặc SKU được đơn tham chiếu. Catalog từ chối xóa khi on_hand hoặc reserved còn dương. Tổ hợp options không trùng giữa các SKU chưa xóa; Catalog khóa Product → SKU → Inventory trong thao tác kho/SKU để tuần tự hóa kiểm tra.
 - Index `(product_id, deleted_at)`; `available` không lưu thành cột riêng.
 
 Định nghĩa hàm SQL IMMUTABLE `canonical_variant_options(jsonb)` cho cột generated options_key: kiểm tra object và giới hạn trường/mã/giá trị; chuẩn hóa từng giá trị bằng normalize_label, sắp mã theo thứ tự byte ổn định rồi serialize danh sách cặp thành JSON text có escaping xác định. `{}` cho khóa `[]`. Không ghép bằng dấu phân cách tùy ý hoặc lấy thứ tự khóa client làm khóa; không dùng hash làm bằng chứng duy nhất chống trùng. Tổng khóa tối đa 1.500 byte để giới hạn kích thước index. Khác thứ tự khóa/hoa thường/khoảng trắng vẫn trùng tổ hợp; `Đen` khác `Black`, `256GB` khác `256 GB` nếu chưa có quy tắc đồng nhất chủ động. Backend lưu giá trị hiển thị đã trim/NFC/gộp khoảng trắng và xác nhận đúng tập mã Product; DB bảo vệ chống trùng qua UQ. Hàm generated chỉ xử lý cùng dòng, không đọc cấu hình Category.
@@ -354,7 +354,9 @@ Không lưu cột `available`; không tạo bảng Color/Size hoặc EAV tổng 
 
 CSV không có thông số/lựa chọn; adapter dùng variant_option_keys = `[]`, options = `{}`, lấy toàn bộ price/stock vào một SKU và reserved = 0. sku_code vẫn sinh NX-SKU qua sequence, còn NXR của CSV ở products.seed_sku. Không suy đoán thông số thật từ nhãn synthetic, không sao chép stock sang nhiều biến thể. SKU thêm sau có tồn riêng qua Catalog; UI chọn sẵn SKU duy nhất. Khi chuyển sang nhiều biến thể, tạm ngừng bán Product, ngừng bán SKU mặc định, cập nhật tập mã và nhập các SKU mới/tồn riêng qua nghiệp vụ kho rồi mở lại Product khi hợp lệ; không nhân tồn cũ. Tồn SKU mặc định cũ không tự chuyển sang SKU mới và các reservation cũ vẫn được xử lý theo SKU đã giữ.
 
-SKU code và options cố định sau khi tạo; nếu options khai báo sai thì xóa mềm SKU và thêm SKU đúng. Giá và tồn có thể điều chỉnh; mọi thay đổi tồn cần lý do và ghi ledger. Tồn 0 làm SKU không thể bán; không có trạng thái riêng cho SKU. Đây là điều chỉnh tồn cơ bản trong quản lý SKU, chưa phải màn kiểm kê kho riêng.
+SKU code và options cố định sau khi tạo; nếu options khai báo sai thì xử lý tồn về 0, xóa mềm SKU và thêm SKU đúng. Giá và tồn có thể điều chỉnh; mọi thay đổi tồn cần lý do và ghi ledger. Tồn 0 làm SKU không thể bán; không có trạng thái riêng cho SKU. Trang Admin Tồn kho hiện hỗ trợ nhập hàng, điều chỉnh +/- và kiểm kê riêng cho từng SKU, lịch sử chỉ đọc và bộ lọc/phân trang.
+
+Mỗi Admin gửi `idempotencyKey` cùng payload chuẩn hóa. `inventory_adjustment_requests` lưu actor, key, payload và response thành công trong cùng transaction với cập nhật Inventory/ledger; unique `(actor_user_id, key)` giúp retry cùng payload trả kết quả cũ và từ chối key dùng lại với payload khác. Khi kiểm kê, client gửi version đã đọc; mismatch bị từ chối để Admin tải lại. API không cho chỉnh `reserved` hoặc `available`.
 
 ### 4.5. `product_images` — liên kết ảnh tại Catalog
 
@@ -655,6 +657,8 @@ Index `(order_id, created_at, id)`. Chỉ thêm và đọc trong phạm vi Admin
 ## 7. Lịch sử tồn kho
 
 ### 7.1. `inventory_movements`
+
+Phần này mô tả mục tiêu inventory movements tích hợp vòng đời Order. Schema hiện tại được triển khai trong Prisma là `inventory` + `inventory_ledger`; không suy ra Order/reservation nghiệp vụ đã được triển khai từ thiết kế bảng này.
 
 Mỗi biến động của một SKU là một dòng. Ledger lưu cả hai đại lượng để có thể giải thích nguồn thay đổi tồn.
 
