@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
   ArrowRight,
@@ -20,9 +22,13 @@ import { PasswordField } from '../../auth/components/FormField';
 import { Notice } from '../../auth/components/Notice';
 import { errorMessage, fieldError } from '../../auth/services/auth-api';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { getMyProfile } from '../../auth/services/auth-api';
+import { useAuthStore } from '../../../context/auth-store';
+import { ApiError } from '../../../services/api-client';
 import {
   useChangePassword,
   useLogout,
+  useUpdateProfile,
 } from '../../auth/hooks/useAuthMutations';
 import { Button } from '../../../components/ui/button';
 import { demoOrders, formatVnd } from '../../catalog/demo-data.js';
@@ -33,8 +39,17 @@ type AccountSection = 'profile' | 'addresses' | 'orders' | 'security';
 
 export default function AccountPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
+  const setUnauthenticated = useAuthStore((state) => state.setUnauthenticated);
+  const profileQuery = useQuery({
+    queryKey: ['account', 'profile'],
+    queryFn: getMyProfile,
+    retry: false,
+  });
   const changePasswordMutation = useChangePassword();
   const logoutMutation = useLogout();
+  const profileMutation = useUpdateProfile();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [section, setSection] = useState<AccountSection>(() =>
@@ -42,8 +57,24 @@ export default function AccountPage() {
   );
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
-  const [saved, setSaved] = useState(false);
   const [logoutError, setLogoutError] = useState('');
+  const [profileSaved, setProfileSaved] = useState(false);
+  useEffect(() => {
+    if (profileQuery.data) setAuthenticated(profileQuery.data);
+    if (
+      profileQuery.error instanceof ApiError &&
+      profileQuery.error.status === 401
+    ) {
+      setUnauthenticated();
+      queryClient.removeQueries({ queryKey: ['cart'] });
+    }
+  }, [
+    profileQuery.data,
+    profileQuery.error,
+    queryClient,
+    setAuthenticated,
+    setUnauthenticated,
+  ]);
   const {
     register,
     handleSubmit,
@@ -76,6 +107,22 @@ export default function AccountPage() {
       navigate('/login?loggedOut=1', { replace: true });
     } catch {
       setLogoutError('Chưa thể kết nối để thu hồi phiên. Vui lòng thử lại.');
+    }
+  }
+
+  async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setProfileSaved(false);
+    try {
+      const updated = await profileMutation.mutateAsync({
+        fullName,
+        phone: phone.trim() || null,
+      });
+      setFullName(updated.fullName);
+      setPhone(updated.phone ?? '');
+      setProfileSaved(true);
+    } catch {
+      // The API error is shown beside the profile form.
     }
   }
 
@@ -166,24 +213,25 @@ export default function AccountPage() {
                     <h2>Thông tin cá nhân</h2>
                     <p>Cập nhật thông tin liên hệ của bạn.</p>
                   </div>
-                  <button className="subtle-icon" aria-label="Chỉnh sửa">
-                    <Pencil size={16} />
-                  </button>
+                  {user.role === 'CUSTOMER' ? (
+                    <span className="subtle-icon" aria-hidden="true">
+                      <Pencil size={16} />
+                    </span>
+                  ) : null}
                 </div>
-                <form
-                  className="profile-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    setSaved(true);
-                  }}
-                >
+                <form className="profile-form" onSubmit={saveProfile}>
                   <label>
                     Họ và tên
                     <input
                       value={fullName}
+                      required
+                      minLength={1}
+                      maxLength={100}
+                      disabled={
+                        user.role !== 'CUSTOMER' || profileMutation.isPending
+                      }
                       onChange={(event) => {
                         setFullName(event.target.value);
-                        setSaved(false);
                       }}
                     />
                   </label>
@@ -196,9 +244,12 @@ export default function AccountPage() {
                     Số điện thoại
                     <input
                       value={phone}
+                      maxLength={30}
+                      disabled={
+                        user.role !== 'CUSTOMER' || profileMutation.isPending
+                      }
                       onChange={(event) => {
                         setPhone(event.target.value);
-                        setSaved(false);
                       }}
                       placeholder="Nhập số điện thoại"
                     />
@@ -208,34 +259,56 @@ export default function AccountPage() {
                     <input
                       value={new Date(user.createdAt).toLocaleDateString(
                         'vi-VN',
+                        { timeZone: 'Asia/Ho_Chi_Minh' },
                       )}
                       disabled
                     />
                   </label>
                   <div className="profile-form-footer">
-                    <span>
-                      {saved ? (
+                    <span aria-live="polite">
+                      {profileSaved ? (
                         <>
-                          <Check size={14} /> Đã lưu trên giao diện xem trước
+                          <Check size={14} /> Đã lưu thay đổi.
                         </>
+                      ) : user.role === 'CUSTOMER' ? (
+                        'Email đăng nhập chỉ có thể xem.'
                       ) : (
-                        'Thông tin chỉ được lưu trong phiên xem trước.'
+                        'Hồ sơ quản trị viên.'
                       )}
                     </span>
-                    <button className="button-primary" type="submit">
-                      Lưu thay đổi <ArrowRight size={15} />
-                    </button>
+                    {user.role === 'CUSTOMER' ? (
+                      <button
+                        className="button-primary"
+                        type="submit"
+                        disabled={
+                          profileMutation.isPending ||
+                          fullName.trim().length === 0
+                        }
+                      >
+                        {profileMutation.isPending
+                          ? 'Đang lưu...'
+                          : 'Lưu thay đổi'}{' '}
+                        <ArrowRight size={15} />
+                      </button>
+                    ) : null}
                   </div>
+                  {profileMutation.error ? (
+                    <Notice>
+                      {errorMessage(
+                        profileMutation.error,
+                        'Không thể lưu hồ sơ. Vui lòng thử lại.',
+                      )}
+                    </Notice>
+                  ) : null}
                 </form>
                 <div className="email-security-banner">
                   <span>
                     <BadgeCheck />
                   </span>
                   <div>
-                    <strong>Email của bạn đã được xác nhận</strong>
-                    <small>Tài khoản được bảo vệ bằng email đăng nhập.</small>
+                    <strong>Email đăng nhập</strong>
+                    <small>Email này được dùng để đăng nhập tài khoản.</small>
                   </div>
-                  <Link to="/verify-email">Chi tiết</Link>
                 </div>
               </div>
             ) : null}

@@ -30,7 +30,7 @@ const links = [
   { to: '/admin/coupons', label: 'Mã giảm giá', icon: TicketPercent },
   { to: '/admin/orders', label: 'Đơn hàng', icon: ShoppingBag },
   { to: '/admin/reviews', label: 'Đánh giá', icon: Star },
-  { to: '/admin/users', label: 'Người dùng', icon: Users },
+  { to: '/admin/users', label: 'Khách hàng', icon: Users },
   { to: '/admin/notifications', label: 'Thông báo', icon: Bell },
   { to: '/admin/settings', label: 'Cấu hình cửa hàng', icon: Settings2 },
 ];

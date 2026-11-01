@@ -154,7 +154,7 @@ Thiết kế gồm **29 bảng nghiệp vụ** và image_assets bổ sung cho up
 | lock_reason            | varchar(500) | NULL         | Lý do khóa hiện tại                          |
 | created_at, updated_at | timestamptz  | NN           | Thời gian tạo/sửa                            |
 
-Ràng buộc: email không rỗng và đúng dạng chuẩn hóa; LOCKED phải có `locked_at` và lý do; ACTIVE có cả hai NULL. API khóa chỉ áp dụng CUSTOMER. Không xóa user qua giao diện; khóa/mở phải có audit. Mở khóa xóa thông tin khóa hiện tại nhưng audit giữ lịch sử.
+Ràng buộc: email không rỗng và đúng dạng chuẩn hóa; LOCKED phải có `locked_at` và lý do; ACTIVE có cả hai NULL. API khóa chỉ áp dụng CUSTOMER. Không xóa user qua giao diện. Lưu trạng thái và lý do khóa hiện tại; không lưu lịch sử thao tác khóa/mở. Mở khóa xóa thông tin khóa hiện tại.
 
 ### 3.2. `auth_sessions`
 

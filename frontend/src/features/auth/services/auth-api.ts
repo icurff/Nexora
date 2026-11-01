@@ -57,6 +57,45 @@ export async function getSession(token: string) {
   return response.data;
 }
 
+export async function getProfile(token: string) {
+  const response = await apiClient.get<AuthUser>('/me', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}
+
+export async function getMyProfile() {
+  let token = storedAccessToken();
+  if (!token) {
+    const refreshed = await refreshSession();
+    token = refreshed?.accessToken ?? null;
+    storeAccessToken(token);
+  }
+  if (!token) throw new ApiError(401, { code: 'UNAUTHENTICATED' });
+  try {
+    return await getProfile(token);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+    const refreshed = await refreshSession();
+    if (!refreshed) {
+      storeAccessToken(null);
+      throw error;
+    }
+    storeAccessToken(refreshed.accessToken);
+    return getProfile(refreshed.accessToken);
+  }
+}
+
+export async function updateProfile(
+  input: { fullName?: string; phone?: string | null },
+  token: string,
+) {
+  const response = await apiClient.patch<AuthUser>('/me', input, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}
+
 export function refreshSession(): Promise<SessionResponse | null> {
   if (!refreshRequest) {
     refreshRequest = apiClient
