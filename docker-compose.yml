@@ -1,6 +1,18 @@
 name: nexora
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nexora}
+      POSTGRES_USER: ${POSTGRES_USER:-nexora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   backend:
     image: nexora-backend:dev
     build:
@@ -10,15 +22,19 @@ services:
     environment:
       PORT: 3000
       DATABASE_URL: ${DATABASE_URL:-}
-      DATABASE_SSL_CA: ${DATABASE_SSL_CA:-}
-      AUTH_ACCESS_SECRET: ${AUTH_ACCESS_SECRET:-}
-      AUTH_REFRESH_SECRET: ${AUTH_REFRESH_SECRET:-}
+      AUTH_ACCESS_SECRET: ${AUTH_ACCESS_SECRET:-nexora}
+      AUTH_REFRESH_SECRET: ${AUTH_REFRESH_SECRET:-nexora}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
+      SUPABASE_STORAGE_BUCKET: ${SUPABASE_STORAGE_BUCKET:-catalog-images}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     ports:
       - '${BACKEND_PORT:-3000}:3000'
+    depends_on:
+      - postgres
 
   frontend:
     image: nexora-frontend:dev
@@ -39,3 +55,6 @@ services:
       - ./frontend/vite.config.ts:/app/vite.config.ts:ro
     depends_on:
       - backend
+
+volumes:
+  postgres_data:

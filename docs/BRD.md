@@ -4,9 +4,9 @@
 
 | Thông tin           | Giá trị                                                                                                                             |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.3                                                                                                                                 |
+| Phiên bản           | 2.5 |
 | Ngày lập            | 09/10/2026                                                                                                                          |
-| Cập nhật            | 27/10/2026                                                                                                                          |
+| Cập nhật            | 01/11/2026 |
 | Trạng thái          | Bản dự thảo để rà soát trước triển khai                                                                                             |
 | Phạm vi             | Ecommerce đa ngành chạy local, catalog synthetic từ RetailRocket, chuẩn bị tích hợp recommendation                                  |
 | Cơ sở               | Yêu cầu web đã thống nhất và phần tiền xử lý trong tài liệu Build cùng hai notebook; catalog đa ngành, metadata demo và placeholder |
@@ -34,7 +34,7 @@ Nexora là đồ án ecommerce có định hướng tích hợp hệ thống g�
 
 Tiến độ AI chưa sẵn sàng, vì vậy giai đoạn hiện tại phải tạo được một cửa hàng hoạt động độc lập. Website cần hoàn chỉnh luồng mua hàng COD, thanh toán trực tuyến qua payOS và vận hành của admin, đồng thời thu thập hành vi nhất quán để tránh phải thiết kế lại khi tích hợp AI.
 
-Tại thời điểm cập nhật, repository có frontend React/Vite và backend NestJS modular monolith, Docker Compose cho hai ứng dụng và database PostgreSQL trên Supabase; ảnh dùng Supabase Storage, không PostgreSQL container/init hoặc healthcheck. Auth đã có đăng ký, đăng nhập/refresh/logout/session, đổi mật khẩu và phân quyền Customer/Admin. Các nghiệp vụ khác bên dưới là yêu cầu cần triển khai trong backend. [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status) ghi nhận mã task/hiện trạng và điều kiện bàn giao; có code không đồng nghĩa đã nghiệm thu tích hợp. Catalog sẽ sở hữu upload/metadata ảnh; model Python/FastAPI là tích hợp AI tương lai.
+Tại thời điểm cập nhật, repository có frontend React/Vite và backend NestJS modular monolith; Docker Compose chạy hai ứng dụng cùng PostgreSQL local, còn ảnh/video dùng Supabase Storage. Auth đã có đăng ký, đăng nhập/refresh/logout/session, đổi mật khẩu và phân quyền Customer/Admin. Các nghiệp vụ khác bên dưới là yêu cầu cần triển khai trong backend. [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status) ghi nhận mã task/hiện trạng và điều kiện bàn giao; có code không đồng nghĩa đã nghiệm thu tích hợp. Catalog sở hữu upload/metadata media; model Python/FastAPI là tích hợp AI tương lai.
 
 <a id="objectives"></a>
 
@@ -43,7 +43,7 @@ Tại thời điểm cập nhật, repository có frontend React/Vite và backen
 | Mã    | Mục tiêu                                | Bằng chứng thành công                                                                   |
 | ----- | --------------------------------------- | --------------------------------------------------------------------------------------- |
 | BO-01 | Hoàn thành hành trình mua hàng đa ngành | Khách đăng nhập, chọn sản phẩm/SKU, thêm giỏ, thanh toán COD hoặc payOS và theo dõi đơn |
-| BO-02 | Cho phép admin vận hành cửa hàng        | Admin quản lý catalog, tồn kho, đơn và tài khoản Customer                               |
+| BO-02 | Cho phép admin vận hành cửa hàng        | Admin quản lý catalog và tài khoản Customer; tồn kho/đơn hàng triển khai ở giai đoạn sau |
 | BO-03 | Đảm bảo tính đúng đắn của đơn và tồn    | Không vượt tồn; không tạo đơn, giữ hàng hoặc hoàn tồn lặp do gửi lại thao tác           |
 | BO-04 | Chuẩn bị dữ liệu hành vi cho AI         | Có event gắn khách/phiên, sản phẩm, SKU và ID RetailRocket khi có                       |
 | BO-05 | Trình diễn độc lập trên local           | Có hướng dẫn chạy, dữ liệu mẫu, tài khoản demo và luồng nghiệm thu một người            |
@@ -58,7 +58,7 @@ Không đặt mục tiêu doanh số, lợi nhuận, tỷ lệ chuyển đổi h
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Khách chưa đăng nhập | Duyệt, tìm sản phẩm, chọn SKU, đăng ký/đăng nhập; phải đăng nhập để thêm giỏ                                      |
 | Customer             | Đặt hàng, quản lý hồ sơ/địa chỉ, theo dõi và hủy đơn đúng điều kiện                                               |
-| Admin                | Quản lý sản phẩm đa ngành, thông số và lựa chọn SKU, danh mục cha–con, tồn, trạng thái đơn, Customer và dashboard |
+| Admin                | Quản lý sản phẩm đa ngành, mô tả và lựa chọn SKU, danh mục cha–con, Customer; tồn, đơn và dashboard triển khai sau |
 | Người phát triển web | Xây dựng và kiểm thử frontend, backend, dữ liệu và tracking                                                       |
 | Phía AI              | Sử dụng dữ liệu tương tác và ánh xạ item; tích hợp model ở giai đoạn sau                                          |
 | Người đánh giá đồ án | Đối chiếu tài liệu với chức năng, dữ liệu và kịch bản demo                                                        |
@@ -75,13 +75,13 @@ Tác vụ tự hủy đơn hết hạn là hành vi của hệ thống, không p
 - Tài khoản tự quản lý bởi backend; Customer/Admin; đăng ký, đăng nhập, đăng xuất và đổi mật khẩu.
 - Khôi phục mật khẩu qua email và email thông báo xác nhận đơn hàng, thanh toán và thay đổi trạng thái đơn.
 - Catalog ban đầu 500 sản phẩm trên 23 danh mục hiển thị, chọn từ RetailRocket theo quota root category; tên, brand, giá, tồn và mô tả synthetic, ảnh placeholder theo danh mục.
-- Danh mục có quan hệ cha–con do Admin quản lý; cấu hình thông số và lựa chọn SKU ngay trong danh mục. Không có chức năng quản lý thương hiệu; nhãn brand nếu có chỉ là metadata demo gắn với sản phẩm.
-- Product có thông số chung; SKU có lựa chọn tùy ngành hàng như màu/cỡ/dung lượng. Tìm kiếm, lọc theo lựa chọn SKU, chi tiết sản phẩm, ảnh chung/ảnh SKU và trạng thái hết hàng.
+- Danh mục cha–con do Admin quản lý để phân loại; cấu hình lựa chọn SKU riêng trong từng Product. Không có chức năng quản lý thương hiệu; nhãn brand nếu có chỉ là metadata demo gắn với sản phẩm.
+- Product ghi thông tin chung trong mô tả; SKU có lựa chọn tùy ngành hàng như màu/cỡ/dung lượng. Tìm kiếm, lọc theo lựa chọn SKU, chi tiết sản phẩm, ảnh chung/ảnh SKU và trạng thái hết hàng.
 - Giỏ hàng gắn với tài khoản Customer; yêu cầu đăng nhập để thêm, xem hoặc cập nhật giỏ và checkout theo dòng được chọn.
 - Sổ địa chỉ với tỉnh/thành và đơn vị cấp xã từ bộ dữ liệu local.
 - Đơn COD hoặc payOS, phí ship 30.000đ/đơn, giữ hàng, hủy đơn chưa thanh toán, hết hạn, giao thất bại và giao lại.
 - Tạo liên kết thanh toán payOS và cập nhật tự động sau khi backend xác minh webhook hợp lệ; không dùng đường dẫn quay lại trình duyệt làm bằng chứng thanh toán.
-- Quản trị catalog, upload ảnh, tồn kho, đơn, Customer và dashboard.
+- Quản trị catalog, upload nhiều ảnh/video và Customer. Quản trị tồn kho, đơn và dashboard là giai đoạn sau.
 - Gửi email khôi phục mật khẩu và thông báo giao dịch/đơn hàng; không gửi SMS.
 - Tracking hành vi và gợi ý tạm thời theo quy tắc.
 - Frontend/backend chạy local; database lưu metadata ảnh và URL CDN; module Catalog trong backend kiểm tra/upload Supabase Storage, hệ thống không lưu file gốc riêng; kiểm thử các nghiệp vụ quan trọng.
@@ -97,7 +97,7 @@ Tác vụ tự hủy đơn hết hạn là hành vi của hệ thống, không p
 - Yêu cầu hủy của Customer sau xác nhận, sửa đơn trực tiếp, đổi/trả sau giao thành công.
 - Quản lý hàng trả về bị hỏng, nhiều kho, nhà cung cấp hoặc quy trình mua hàng nhập kho.
 - Giới hạn số đơn chờ xác nhận của một tài khoản.
-- Module quản trị thuộc tính riêng, bảng màu/size/nhóm size dùng chung và mô hình EAV tổng quát. Chưa lọc khoảng số theo thông số Product hoặc tự chuyển đổi đơn vị thuộc tính.
+- Module quản trị thuộc tính riêng, bảng màu/size/nhóm size dùng chung và mô hình EAV tổng quát. Không có trường Attributes riêng cho Product; thông số chung nằm trong mô tả. Chưa lọc khoảng số hoặc tự chuyển đổi đơn vị lựa chọn SKU.
 - Huấn luyện, benchmark GNN, dịch vụ AI thật hoặc giả lập AI; triển khai public và kiểm thử tải nhiều người.
 - Graph UI realtime, WebSocket/SSE và cập nhật gợi ý từ model là định hướng tích hợp sau, chưa phải điều kiện nghiệm thu bản web này.
 
@@ -156,9 +156,9 @@ Giao lại sau thất bại không xuất kho lần thứ hai. Báo thất bại
 
 ### 6.4. Quản lý catalog và tồn
 
-Admin tạo nháp, bổ sung nội dung/ảnh/SKU rồi mở bán. Ảnh được upload qua Catalog lên Supabase Storage, sau đó Catalog gắn asset đã sẵn sàng vào Product/SKU. Thay hoặc gỡ liên kết ảnh không xóa asset cũ đang phục vụ lịch sử đơn; bản đầu chưa cung cấp xóa vật lý asset. Mở bán không bắt buộc có tồn dương, nhưng phải có ít nhất một SKU hợp lệ. Đổi giá và ngừng bán ảnh hưởng giao dịch mới, không thay đổi thông tin đã chụp trong đơn.
+Admin nhập đủ tên, mô tả, danh mục, SKU và ít nhất một ảnh đại diện rồi tạo Product ACTIVE ngay trong một lần lưu. Product chỉ có ACTIVE và INACTIVE; không có luồng lưu nháp. INACTIVE dùng để ngừng bán sản phẩm đã tạo và có thể mở bán lại khi đủ điều kiện. Product, SKU được khởi tạo với tồn bằng 0 và liên kết media được ghi nguyên tử; lỗi bất kỳ không để lại Product tạo dở. Quản trị tồn kho chưa thuộc phạm vi hiện tại. Nhiều ảnh/video được upload qua Catalog lên Supabase Storage rồi tự thêm vào danh sách Product; gỡ liên kết không xóa asset cũ đang phục vụ lịch sử đơn. Đổi giá và ngừng bán ảnh hưởng giao dịch mới, không thay đổi thông tin đã chụp trong đơn.
 
-Thông số chung như chất liệu/hệ điều hành mô tả Product; các lựa chọn phân biệt mặt hàng có giá/tồn riêng nằm trên SKU. Không ép mọi sản phẩm có màu và size. Sản phẩm không có biến thể có một SKU mặc định. Danh mục quy định các mã thuộc tính được phép, không kế thừa cấu hình từ cha trong bản đầu. Đổi cấu hình/danh mục phải giữ dữ liệu đang bán hợp lệ; cây danh mục không được có chu trình.
+Thông số chung như chất liệu/hệ điều hành được ghi trong phần mô tả Product; các lựa chọn phân biệt mặt hàng có giá/tồn riêng nằm trên SKU. Không ép mọi sản phẩm có màu và size. Sản phẩm không có biến thể có một SKU mặc định. Mỗi Product tự định nghĩa các mã lựa chọn SKU cần dùng; các Product cùng danh mục có thể có lựa chọn khác nhau. Cấu hình của Product cố định sau khi tạo; cây danh mục không được có chu trình.
 
 Nhập hàng/điều chỉnh kiểm kê có lý do và lịch sử. Nếu lượng hàng thực tế thấp hơn số đang giữ, admin phải xử lý các đơn liên quan trước khi hoàn tất điều chỉnh làm số có thể bán âm.
 
@@ -186,13 +186,13 @@ Nhập hàng/điều chỉnh kiểm kê có lý do và lịch sử. Nếu lượ
 | BR-15  | DELIVERED và CANCELLED kết thúc đơn; không đổi trả, mở lại hoặc mua lại tự động                                                                                                                                                                              |
 | BR-16  | COD chỉ PAID khi Admin xác nhận đã thu lúc giao; payOS chỉ PAID khi webhook hợp lệ được xác minh; ghi nhận thanh toán không lặp khi webhook gửi lại                                                                                                          |
 | BR-17  | Hồ sơ/sổ địa chỉ và thông tin người nhận trong đơn độc lập; địa chỉ mới chỉ lưu vào sổ nếu khách chọn                                                                                                                                                        |
-| BR-18  | Hết hàng vẫn hiển thị trong catalog; nháp/ngừng bán không xuất hiện trong danh sách công khai                                                                                                                                                                |
+| BR-18  | Hết hàng vẫn hiển thị trong catalog; ngừng bán không xuất hiện trong danh sách công khai                                                                                                                                                                |
 | BR-19  | Khóa Customer chặn thao tác tài khoản, không tự hủy các đơn đã có                                                                                                                                                                                            |
 | BR-20  | Tên danh mục, tên sản phẩm, nhãn brand dạng metadata, giá, tồn, mô tả và ảnh placeholder là dữ liệu demo; Admin chỉ quản lý danh mục, không quản lý brand; không suy ra ngữ nghĩa thật của item/category RetailRocket hoặc dùng làm bằng chứng chất lượng AI |
 | BR-21  | Doanh thu ghi theo thời điểm xác nhận thu COD hoặc xác minh payOS thành công; tiền hàng và phí ship hiển thị riêng                                                                                                                                           |
 | BR-22  | Lọc các lựa chọn/giá/còn hàng phải khớp trong cùng một SKU; cùng mã dùng OR, giữa các mã dùng AND. Lọc danh mục gồm danh mục đó và các danh mục con                                                                                                          |
 | BR-23  | Catalog seed giữ đúng 500 source_item_id duy nhất và quota 23 root từ artifact đã đóng băng; seed lại không chọn lại item hoặc ghi đè thay đổi Admin                                                                                                         |
-| BR-24  | Catalog seed không có thông số/lựa chọn nguồn: Product có attributes rỗng và một SKU options rỗng; không tự bịa thuộc tính thật hoặc nhân tồn stock của CSV sang nhiều SKU                                                                                   |
+| BR-24  | Catalog seed không có lựa chọn SKU nguồn: Product có một SKU options rỗng; không tự bịa thuộc tính thật hoặc nhân tồn stock của CSV sang nhiều SKU                                                                                   |
 | BR-25  | Thống kê interactions/users của RetailRocket là dữ liệu lịch sử nguồn, không cộng vào hành vi LIVE hoặc dashboard kinh doanh của website                                                                                                                     |
 
 ### Bảng biến động tồn
@@ -228,7 +228,7 @@ Mỗi root được quota ban đầu min(5, số item của root). Phần còn l
 
 23 tên danh mục như Electronics, Fashion, Gaming được gán để minh họa theo thứ tự root, không phải giải mã danh mục RetailRocket. Metadata dùng random seed 42; ảnh là placeholder theo danh mục. Website ghi rõ dữ liệu minh họa; ảnh seed được upload qua Catalog lên Supabase Storage và đọc qua CDN, cần kết nối mạng khi chưa có cache. H&M không còn là đầu vào bắt buộc. Placeholder hợp lệ được chấp nhận cho catalog demo này; URL có giá trị nhưng chưa tải được ảnh không đủ điều kiện nghiệm thu.
 
-ID Product trong database, product_id của CSV và source_item_id của RetailRocket phải phân biệt. SKU NXR của CSV được lưu như mã nguồn; SKU vận hành vẫn do hệ thống sinh. Một Product seed có attributes rỗng và một SKU options rỗng, giá và tổng tồn lấy đúng CSV. 23 danh mục seed ban đầu là danh mục gốc, chưa có cấu hình thuộc tính; Admin có thể tạo cây và cấu hình sau. Chuyển sang nhiều biến thể phải ngừng bán SKU mặc định và quản lý tồn từng SKU riêng. Sản phẩm mới chưa có ID RetailRocket vẫn được bán và dùng gợi ý theo quy tắc.
+ID Product trong database, product_id của CSV và source_item_id của RetailRocket phải phân biệt. SKU NXR của CSV được lưu như mã nguồn; SKU vận hành vẫn do hệ thống sinh. Một Product seed có một SKU options rỗng, giá và tổng tồn lấy đúng CSV. 23 danh mục seed ban đầu là danh mục gốc, chưa có cấu hình lựa chọn SKU; Admin có thể tạo cây và cấu hình sau. Chuyển sang nhiều biến thể phải ngừng bán SKU mặc định và quản lý tồn từng SKU riêng. Sản phẩm mới chưa có ID RetailRocket vẫn được bán và dùng gợi ý theo quy tắc.
 
 ### 8.3. Hành vi website và hướng tích hợp AI
 
@@ -251,7 +251,7 @@ Gợi ý dự kiến triển khai sau bằng Python/FastAPI, trước hết dùn
 | A-05 | Cần ba CSV đã xuất, manifest có version/checksum, ảnh placeholder đã upload CDN và snapshot địa giới                                                                                                                   | Output lưu trong notebook chưa thay thế artifact thực để seed/nghiệm thu                                                                                              |
 | A-06 | RetailRocket là nguồn training của phía AI                                                                                                                                                                             | Metadata synthetic chỉ phục vụ trình diễn; không diễn giải sai nguồn học                                                                                              |
 | A-07 | Thời gian xử lý nền phụ thuộc backend hoạt động                                                                                                                                                                        | Có xử lý bù khi khởi động lại và chặn xác nhận đơn đã tới hạn                                                                                                         |
-| A-08 | React/Vite, một backend NestJS chia module, một database Supabase PostgreSQL, Docker Compose chỉ frontend/backend không healthcheck; Supabase Storage thuộc module Catalog; model Python/FastAPI là tích hợp tương lai | Transaction chung bảo vệ đơn/tồn/payment; lỗi model/gợi ý không chặn mua                                                                                              |
+| A-08 | React/Vite, một backend NestJS chia module, PostgreSQL local qua Docker Compose; Supabase Storage thuộc module Catalog; model Python/FastAPI là tích hợp tương lai | Transaction chung bảo vệ đơn/tồn/payment; lỗi model/gợi ý không chặn mua |
 | A-09 | CI thực hiện ở giai đoạn local; CD lên AWS là lộ trình sau khi demo ổn định                                                                                                                                            | Chưa cần triển khai backend lên AWS để nghiệm thu local; module ảnh Catalog cần tài khoản/credential Supabase Storage được cấu hình, triển khai AWS có pipeline riêng |
 
 Đầu vào còn thiếu trong checkout hiện tại: docs/data và docs/task đang trống; chưa có notebook/CSV/manifest, snapshot địa giới hoặc bộ placeholder để đối chiếu và chạy seed catalog. Các số liệu/quota ghi trong tài liệu là mốc thiết kế trước đây; cần cung cấp artifact thật trước nghiệm thu, không phải bằng chứng seed đã chạy.

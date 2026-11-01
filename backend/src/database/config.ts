@@ -37,20 +37,8 @@ export function createDatabaseOptions(
       'Invalid database configuration: DATABASE_URL requires a PostgreSQL host, user, password and database',
     );
   }
-  // node-postgres URL TLS options override the explicit SSL object, including CA
-  // and verification settings. Keep TLS configuration in one trusted location.
-  if (
-    [...parsed.searchParams.keys()].some((key) =>
-      key.toLowerCase().startsWith('ssl'),
-    )
-  ) {
-    throw new Error(
-      'Configure TLS with DATABASE_SSL_CA; remove SSL query parameters from DATABASE_URL',
-    );
+  if ([...parsed.searchParams.keys()].some((key) => key.toLowerCase().startsWith('ssl'))) {
+    throw new Error('Local PostgreSQL does not use SSL URL parameters');
   }
-  const ca = environment.DATABASE_SSL_CA?.trim().replace(/\\n/g, '\n');
-  return {
-    connectionString,
-    ssl: { rejectUnauthorized: true, ...(ca ? { ca } : {}) },
-  };
+  return { connectionString, ssl: false };
 }

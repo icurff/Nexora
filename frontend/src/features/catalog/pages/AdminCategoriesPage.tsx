@@ -10,16 +10,14 @@ import {
   RefreshCw,
   Search,
   Tag,
-  X,
 } from 'lucide-react';
-import { useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   categoryErrorMessage,
   createAdminCategory,
   getAdminCategories,
   type Category,
-  type CategoryAttribute,
   type CategoryInput,
   updateAdminCategory,
 } from '../services/admin-categories-api.js';
@@ -29,19 +27,12 @@ type CategoryForm = {
   name: string;
   slug: string;
   parentId: string;
-  isActive: boolean;
-  attributeConfig: {
-    attributes: CategoryAttribute[];
-    options: Array<{ code: string; label: string }>;
-  };
 };
 
 const blankForm: CategoryForm = {
   name: '',
   slug: '',
   parentId: '',
-  isActive: true,
-  attributeConfig: { attributes: [], options: [] },
 };
 
 function toSlug(name: string) {
@@ -54,10 +45,6 @@ function toSlug(name: string) {
     .replace(/^-|-$/g, '')
     .slice(0, 150)
     .replace(/-+$/g, '');
-}
-
-function newAttribute(): CategoryAttribute {
-  return { code: '', label: '', type: 'string', unit: '' };
 }
 
 function flatten(
@@ -92,11 +79,10 @@ function CategoryTree({
       .map((item) => {
         const children = items.some((child) => child.parentId === item.id);
         const isOpen = expanded.has(item.id);
-        const inactiveByParent = item.isActive && !item.effectiveActive;
         return (
           <li className="category-tree-node" key={item.id}>
             <div
-              className={`category-tree-row${selectedId === item.id ? ' selected' : ''}${!item.effectiveActive ? ' inactive' : ''}`}
+              className={`category-tree-row${selectedId === item.id ? ' selected' : ''}`}
               style={{ '--category-depth': depth } as CSSProperties}
             >
               {children ? (
@@ -123,8 +109,6 @@ function CategoryTree({
                   <Folder size={16} />
                 )}
                 <span className="category-tree-name">{item.name}</span>
-                {inactiveByParent ? <small>Cha đã ngừng dùng</small> : null}
-                {!item.isActive ? <small>Đã ngừng dùng</small> : null}
               </button>
             </div>
             {children && isOpen ? (
@@ -146,9 +130,6 @@ export function AdminCategoriesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<
-    'all' | 'active' | 'inactive'
-  >('all');
   const [slugEdited, setSlugEdited] = useState(false);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
     () => new Set(),
@@ -164,33 +145,17 @@ export function AdminCategoriesPage() {
     defaultValues: blankForm,
     mode: 'onBlur',
   });
-  const attributes = useFieldArray({
-    control: form.control,
-    name: 'attributeConfig.attributes',
-  });
-  const options = useFieldArray({
-    control: form.control,
-    name: 'attributeConfig.options',
-  });
   const parentId = useWatch({ control: form.control, name: 'parentId' });
-  const isActive = useWatch({ control: form.control, name: 'isActive' });
   const slugValue = useWatch({ control: form.control, name: 'slug' });
   const dirty = form.formState.isDirty;
 
   const visibleCategories = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('vi');
-    const matches = categories.filter((item) => {
-      const statusMatches =
-        statusFilter === 'all' ||
-        (statusFilter === 'active'
-          ? item.effectiveActive
-          : !item.effectiveActive);
-      return (
-        statusMatches &&
-        (!query ||
-          `${item.name} ${item.slug}`.toLocaleLowerCase('vi').includes(query))
-      );
-    });
+    const matches = categories.filter(
+      (item) =>
+        !query ||
+        `${item.name} ${item.slug}`.toLocaleLowerCase('vi').includes(query),
+    );
     const visible = new Set(matches.map((item) => item.id));
     const byId = new Map(categories.map((item) => [item.id, item]));
     for (const item of matches) {
@@ -201,7 +166,7 @@ export function AdminCategoriesPage() {
       }
     }
     return categories.filter((item) => visible.has(item.id));
-  }, [categories, search, statusFilter]);
+  }, [categories, search]);
 
   const expanded = useMemo(() => {
     const ids = new Set<string>();
@@ -237,11 +202,7 @@ export function AdminCategoriesPage() {
         ({ category }) =>
           category.id !== selectedId && !descendants.has(category.id),
       )
-      .map(({ category, depth }) => ({
-        ...category,
-        depth,
-        allowed: category.effectiveActive,
-      }));
+      .map(({ category, depth }) => ({ ...category, depth }));
   }, [categories, selectedId]);
 
   const mutation = useMutation({
@@ -269,8 +230,6 @@ export function AdminCategoriesPage() {
         name: saved.name,
         slug: saved.slug,
         parentId: saved.parentId ?? '',
-        isActive: saved.isActive,
-        attributeConfig: saved.attributeConfig,
       });
     },
     onError: (error) => {
@@ -297,8 +256,6 @@ export function AdminCategoriesPage() {
             name: next.name,
             slug: next.slug,
             parentId: next.parentId ?? '',
-            isActive: next.isActive,
-            attributeConfig: next.attributeConfig,
           }
         : blankForm,
     );
@@ -320,8 +277,6 @@ export function AdminCategoriesPage() {
       name: values.name,
       slug: values.slug || undefined,
       parentId: values.parentId || null,
-      isActive: values.isActive,
-      attributeConfig: values.attributeConfig,
     };
     mutation.mutate({ id: creating ? null : selectedId, input });
   }
@@ -333,7 +288,7 @@ export function AdminCategoriesPage() {
           <span>TỔ CHỨC CỬA HÀNG</span>
           <h1>Danh mục</h1>
           <p>
-            Tổ chức cây danh mục và cấu hình trường sản phẩm theo từng nhóm.
+            Tổ chức cây danh mục; lựa chọn SKU được cấu hình riêng cho từng sản phẩm.
           </p>
         </div>
         <button
@@ -372,23 +327,6 @@ export function AdminCategoriesPage() {
               placeholder="Tìm danh mục..."
             />
           </label>
-          <div className="category-filter" aria-label="Lọc trạng thái danh mục">
-            {(['all', 'active', 'inactive'] as const).map((filter) => (
-              <button
-                key={filter}
-                className={statusFilter === filter ? 'active' : ''}
-                type="button"
-                onClick={() => setStatusFilter(filter)}
-              >
-                {filter === 'all'
-                  ? 'Tất cả'
-                  : filter === 'active'
-                    ? 'Đang sử dụng'
-                    : 'Ngừng sử dụng'}
-              </button>
-            ))}
-          </div>
-
           {categoriesQuery.isPending ? (
             <div className="category-state">
               <LoaderCircle className="animate-spin" /> Đang tải danh mục...
@@ -454,15 +392,6 @@ export function AdminCategoriesPage() {
                   : (selected?.name ?? 'Chọn một danh mục')}
               </h2>
             </div>
-            {selected ? (
-              <small
-                className={`category-badge ${selected.effectiveActive ? 'active' : 'inactive'}`}
-              >
-                {selected.effectiveActive
-                  ? 'Đang sử dụng'
-                  : 'Ngừng nhận gán mới'}
-              </small>
-            ) : null}
           </div>
 
           {!creating && !selected ? (
@@ -557,203 +486,14 @@ export function AdminCategoriesPage() {
                     <option
                       key={option.id}
                       value={option.id}
-                      disabled={!option.allowed}
                     >
                       {'— '.repeat(option.depth)}
                       {option.name}
-                      {!option.effectiveActive ? ' (đang ngừng dùng)' : ''}
                     </option>
                   ))}
                 </select>
                 <small>Danh mục con không tự kế thừa cấu hình của cha.</small>
               </label>
-
-              <label className="category-active-toggle">
-                <input
-                  type="checkbox"
-                  checked={isActive}
-                  onChange={(event) =>
-                    form.setValue('isActive', event.target.checked, {
-                      shouldDirty: true,
-                    })
-                  }
-                />
-                <span>
-                  <strong>Cho phép gán sản phẩm mới</strong>
-                  <small>
-                    Tắt danh mục không tự ngừng bán sản phẩm đã gắn.
-                  </small>
-                </span>
-              </label>
-              {selected?.isActive && !selected.effectiveActive ? (
-                <div className="category-inline-warning">
-                  <AlertCircle size={16} />
-                  Danh mục cha đã ngừng sử dụng nên không thể nhận gán mới.
-                </div>
-              ) : null}
-
-              <section className="category-config-section category-config-section--common">
-                <div className="category-config-heading">
-                  <div>
-                    <div className="category-config-title">
-                      <h3>Thuộc tính chung của sản phẩm</h3>
-                      <span className="category-config-badge">
-                        Chung cho mọi SKU
-                      </span>
-                    </div>
-                    <p>
-                      Thông tin mô tả sản phẩm; một giá trị dùng chung cho tất
-                      cả SKU. Ví dụ: chất liệu, hệ điều hành, kích thước màn
-                      hình.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="category-small-button"
-                    disabled={attributes.fields.length >= 30}
-                    onClick={() => attributes.append(newAttribute())}
-                  >
-                    <Plus size={14} /> Thêm thông số
-                  </button>
-                </div>
-                {attributes.fields.length === 0 ? (
-                  <div className="category-config-empty">
-                    Chưa cấu hình thông số chung cho nhóm này.
-                  </div>
-                ) : (
-                  attributes.fields.map((field, index) => (
-                    <div className="category-config-row" key={field.id}>
-                      <label>
-                        <span>Mã thuộc tính</span>
-                        <input
-                          placeholder="screen_size"
-                          {...form.register(
-                            `attributeConfig.attributes.${index}.code`,
-                            {
-                              required: 'Nhập mã thuộc tính.',
-                              pattern: {
-                                value: /^[a-z][a-z0-9_]{0,31}$/,
-                                message:
-                                  'Dùng a-z, 0-9, dấu gạch dưới; bắt đầu bằng chữ.',
-                              },
-                            },
-                          )}
-                        />
-                      </label>
-                      <label>
-                        <span>Nhãn</span>
-                        <input
-                          placeholder="Kích thước màn hình"
-                          {...form.register(
-                            `attributeConfig.attributes.${index}.label`,
-                            { required: 'Nhập nhãn.' },
-                          )}
-                        />
-                      </label>
-                      <label>
-                        <span>Kiểu dữ liệu</span>
-                        <select
-                          {...form.register(
-                            `attributeConfig.attributes.${index}.type`,
-                          )}
-                        >
-                          <option value="string">Văn bản</option>
-                          <option value="number">Số</option>
-                          <option value="boolean">Có/Không</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>Đơn vị</span>
-                        <input
-                          placeholder="inch"
-                          {...form.register(
-                            `attributeConfig.attributes.${index}.unit`,
-                          )}
-                        />
-                      </label>
-                      <button
-                        className="category-remove-button"
-                        type="button"
-                        aria-label="Xóa thông số"
-                        onClick={() => attributes.remove(index)}
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </section>
-
-              <section className="category-config-section category-config-section--variants">
-                <div className="category-config-heading">
-                  <div>
-                    <div className="category-config-title">
-                      <h3>Thuộc tính tạo biến thể (SKU)</h3>
-                      <span className="category-config-badge category-config-badge--variant">
-                        Tạo SKU riêng
-                      </span>
-                    </div>
-                    <p>
-                      Mỗi SKU có giá trị riêng cho các thuộc tính này. Ví dụ:
-                      màu sắc hoặc dung lượng; khai báo giá trị cụ thể khi tạo
-                      SKU.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="category-small-button"
-                    disabled={options.fields.length >= 5}
-                    onClick={() => options.append({ code: '', label: '' })}
-                  >
-                    <Plus size={14} /> Thêm lựa chọn
-                  </button>
-                </div>
-                {options.fields.length === 0 ? (
-                  <div className="category-config-empty">
-                    Chưa cấu hình lựa chọn biến thể.
-                  </div>
-                ) : (
-                  options.fields.map((field, index) => (
-                    <div className="category-option-row" key={field.id}>
-                      <label>
-                        <span>Mã thuộc tính biến thể</span>
-                        <input
-                          placeholder="color"
-                          {...form.register(
-                            `attributeConfig.options.${index}.code`,
-                            {
-                              required: 'Nhập mã lựa chọn.',
-                              pattern: {
-                                value: /^[a-z][a-z0-9_]{0,31}$/,
-                                message:
-                                  'Dùng a-z, 0-9, dấu gạch dưới; bắt đầu bằng chữ.',
-                              },
-                            },
-                          )}
-                        />
-                      </label>
-                      <label>
-                        <span>Nhãn hiển thị</span>
-                        <input
-                          placeholder="Màu sắc"
-                          {...form.register(
-                            `attributeConfig.options.${index}.label`,
-                            { required: 'Nhập nhãn.' },
-                          )}
-                        />
-                      </label>
-                      <button
-                        className="category-remove-button"
-                        type="button"
-                        aria-label="Xóa lựa chọn"
-                        onClick={() => options.remove(index)}
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </section>
 
               {submitError ? (
                 <div className="category-form-error" role="alert">

@@ -5,28 +5,11 @@ import {
   storedAccessToken,
 } from '../../auth/services/auth-api';
 
-export type CategoryAttribute = {
-  code: string;
-  label: string;
-  type: 'string' | 'number' | 'boolean';
-  unit?: string;
-};
-
-export type CategoryOption = { code: string; label: string };
-
-export type CategoryConfig = {
-  attributes: CategoryAttribute[];
-  options: CategoryOption[];
-};
-
 export type Category = {
   id: string;
   name: string;
   slug: string;
   parentId: string | null;
-  isActive: boolean;
-  effectiveActive: boolean;
-  attributeConfig: CategoryConfig;
   createdAt: string;
   updatedAt: string;
 };
@@ -35,8 +18,6 @@ export type CategoryInput = {
   name: string;
   slug?: string;
   parentId: string | null;
-  isActive: boolean;
-  attributeConfig: CategoryConfig;
 };
 
 async function requestWithAdminAuth<T>(
@@ -108,8 +89,6 @@ export function categoryErrorMessage(error: unknown) {
     return 'Không thể kết nối máy chủ. Vui lòng thử lại.';
   if (error.code === 'CATEGORY_ALREADY_EXISTS')
     return 'Tên hoặc slug này đã được sử dụng.';
-  if (error.code === 'CATEGORY_PARENT_INACTIVE')
-    return 'Không thể chọn danh mục cha đang ngừng sử dụng.';
   if (error.code === 'CATEGORY_CYCLE')
     return 'Không thể chuyển danh mục vào chính nó hoặc danh mục con.';
   if (error.code === 'CATEGORY_PARENT_NOT_FOUND')

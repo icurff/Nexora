@@ -6,7 +6,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-COPY src/database/config.ts ./src/database/config.ts
 RUN npm ci
 COPY . .
 RUN npm run build
@@ -17,7 +16,6 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 COPY --chown=node:node prisma ./prisma
 COPY --chown=node:node prisma.config.ts ./
-COPY --chown=node:node src/database/config.ts ./src/database/config.ts
 RUN npm ci --omit=dev
 COPY --from=build --chown=node:node /app/dist ./dist
 USER node

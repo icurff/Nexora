@@ -2,28 +2,30 @@
 
 | Thông tin           | Giá trị                                                                                     |
 | ------------------- | ------------------------------------------------------------------------------------------- |
-| Phiên bản           | 3.0                                                                                         |
-| Cập nhật            | 30/10/2026                                                                                  |
-| Kiến trúc           | Một frontend React/Vite, một backend NestJS, một database PostgreSQL trên Supabase          |
+| Phiên bản           | 3.2                                                                                         |
+| Cập nhật            | 01/11/2026                                                                                  |
+| Kiến trúc           | Một frontend React/Vite, một backend NestJS, PostgreSQL local; Supabase Storage cho media |
 | Tài liệu liên quan  | [BRD](BRD.md), [SRS](SRS.md), [Thiết kế database](DATABASE_DESIGN.md)                       |
 | Kế hoạch triển khai | [Implementation tasks](IMPLEMENTATION_TASKS.md) — mã task, hiện trạng và điều kiện bàn giao |
 
 ## 1. Quyết định kiến trúc và hiện trạng
 
-Nexora dùng modular monolith: các nghiệp vụ nằm trong cùng tiến trình NestJS và dùng chung database. Frontend gọi trực tiếp backend qua `/api/v1`; không có API gateway, gọi HTTP giữa các module, Saga hoặc Kafka. Cấu hình được tổ chức theo hai ứng dụng và các tài nguyên Supabase bên ngoài.
+Nexora dùng modular monolith: các nghiệp vụ nằm trong cùng tiến trình NestJS và dùng chung database. Frontend gọi trực tiếp backend qua `/api/v1`; không có API gateway, gọi HTTP giữa các module, Saga hoặc Kafka. Cấu hình được tổ chức theo hai ứng dụng, PostgreSQL local và Supabase Storage bên ngoài.
 
 | Thành phần  | Đã triển khai                                                                                               |
 | ----------- | ----------------------------------------------------------------------------------------------------------- |
-| Frontend    | React/Vite/TypeScript; Auth và Admin Category gọi API backend; catalog công khai, Product/SKU, cart/checkout/orders vẫn dùng fixture/state cục bộ |
-| Backend     | NestJS, AuthModule, CatalogModule Category CRUD, guard Customer/Admin, API khôi phục mật khẩu; không healthcheck |
+| Frontend    | React/Vite/TypeScript; Auth, Admin Category, Product/SKU và upload nhiều ảnh/video gọi API backend; catalog công khai, cart/checkout/orders vẫn dùng fixture/state cục bộ |
+| Backend     | NestJS, AuthModule, CatalogModule Category/Product/SKU CRUD, upload ảnh/video lên Supabase Storage, guard Customer/Admin, API khôi phục mật khẩu; không healthcheck |
 | Auth        | Đăng ký Customer, login/refresh/logout/session, đổi/khôi phục mật khẩu và thu hồi phiên; JWT, refresh cookie HttpOnly |
-| Persistence | Prisma repositories/PostgreSQL; Auth baseline, migration token reset, migration Category và seed tài khoản demo |
-| Docker      | Chỉ frontend/backend; PostgreSQL và Storage dùng Supabase bên ngoài, không healthcheck                      |
+| Persistence | Prisma ORM/repositories và `schema.prisma`; PostgreSQL 17 local trong Compose, đồng bộ schema thủ công bằng `npm run db:push` |
+| Docker      | Compose chạy frontend/backend/PostgreSQL local với named volume; Supabase Storage vẫn ở ngoài, không healthcheck |
 | CI          | Kiểm tra và Docker build cho hai ứng dụng frontend/backend                                                  |
 
-Category CRUD đã triển khai trong CatalogModule và nối với trang Admin. Product/SKU, ảnh, giỏ/đơn hàng, thanh toán, email thông báo đơn, tracking, rule-based recommendation và tích hợp Supabase Storage chưa được triển khai. Khôi phục mật khẩu gửi trực tiếp qua Gmail SMTP; task 015 về email job/worker/retry chưa triển khai. Task chi tiết và hiện trạng nằm trong [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status); không tạo folder ứng dụng mới để làm những task này.
+Category CRUD, Product/SKU APIs và API upload media thuộc CatalogModule. Admin UI nối API cho danh sách, tạo/sửa sản phẩm và SKU, chọn nhiều ảnh/video, upload từng tệp tự động vào danh sách Product và gỡ liên kết. Quản trị tồn kho hiện chưa thuộc phạm vi; SKU mới được khởi tạo tồn bằng 0, còn bảng inventory/ledger trong Prisma schema được giữ cho giai đoạn sau. Schema sẽ được đồng bộ thủ công vào PostgreSQL local bằng `npm run db:push`; dự án không dùng migration workflow. Storage upload trực tiếp đã smoke-test thành công; luồng upload nhiều ảnh/video qua Admin API và ghi metadata chưa được kiểm chứng end-to-end. Catalog công khai, giỏ/đơn hàng, thanh toán, email thông báo đơn, tracking và rule-based recommendation chưa được triển khai. Khôi phục mật khẩu gửi trực tiếp qua Gmail SMTP; task 015 về email job/worker/retry chưa triển khai. Task chi tiết và hiện trạng nằm trong [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status); không tạo folder ứng dụng mới để làm những task này.
 
-Khoảng trống hiện tại: frontend lưu access token trong localStorage, khác mục tiêu bộ nhớ frontend ở NFR-02; Origin/CSRF, rate limit, request ID và chuẩn lỗi chung chưa hoàn chỉnh. Rate limit hiện chưa bật; dự kiến dùng Redis khi triển khai sau. HTTP/guard tests hiện thay Auth/DB adapter, chưa chứng minh hành vi PostgreSQL/provider/trình duyệt thực tế. Các cấu hình Compose/CI có sẵn chưa phải bằng chứng nghiệm thu startup/persistence hoặc pipeline từ xa.
+Mỗi Product tự cấu hình mã/nhãn lựa chọn SKU; Category chỉ phân loại. Cột `categories.option_config` cũ được giữ lại nhưng không còn dùng. Product dùng mô tả cho thông tin/thông số chung, không có Attributes riêng. Migration `5_product_sku_options` đã bổ sung cấu hình vào Product và backfill từ Category cũ.
+
+Khoảng trống hiện tại: frontend lưu access token trong localStorage, khác mục tiêu bộ nhớ frontend ở NFR-02; Origin/CSRF, rate limit, request ID và chuẩn lỗi chung chưa hoàn chỉnh. Bucket `catalog-images` cần public-read; browser không có quyền upload trực tiếp. HTTP/guard tests hiện thay Auth/DB adapter, chưa chứng minh hành vi PostgreSQL/Storage/trình duyệt thực tế. Các cấu hình Compose/CI có sẵn chưa phải bằng chứng nghiệm thu startup/persistence hoặc pipeline từ xa.
 
 ## 2. Cấu trúc repository
 
@@ -40,7 +42,7 @@ nexora/
 │   │   ├── app.module.ts
 │   │   ├── configure-app.ts    # Prefix/validation dùng chung bootstrap và test
 │   │   └── main.ts
-│   ├── prisma/                # schema.prisma và Prisma Migrate SQL
+│   ├── prisma/                # Prisma schema và seed
 │   ├── prisma.config.ts       # Cấu hình Prisma CLI 7
 │   ├── .env.example
 │   ├── package.json
@@ -81,7 +83,7 @@ Chỉ có hai thư mục ứng dụng. Các thư mục docs, docker và cấu h�
 flowchart LR
     Browser[Trình duyệt] --> Frontend[Frontend :5173]
     Frontend -->|/api proxy| Backend[Backend NestJS :3000]
-    Backend --> Postgres[(Supabase PostgreSQL)]
+    Backend --> Postgres[(PostgreSQL local / Docker)]
     Backend -. upload tương lai .-> Storage[Supabase Storage]
     Browser -. đọc ảnh public .-> Storage
     Backend -. tích hợp tương lai .-> Providers[payOS / Email]
@@ -98,7 +100,7 @@ Chỉ AuthModule và DatabaseModule hiện có. Tạo module nghiệp vụ khi t
 | Module dự kiến            | Trách nhiệm                                                          |
 | ------------------------- | -------------------------------------------------------------------- |
 | Auth                      | Tài khoản, phiên, hồ sơ, địa chỉ, password reset                     |
-| Catalog                   | Danh mục, Product/SKU, ảnh/Supabase Storage, tồn kho và ledger       |
+| Catalog                   | Danh mục, Product/SKU, ảnh/Supabase Storage; inventory/ledger để dành |
 | Order                     | Giỏ, quote, tạo đơn, snapshot, vòng đời đơn và idempotency           |
 | Payment                   | payOS link/webhook và quy tắc COD; phối hợp Order trong cùng backend |
 | Notification              | Gửi email khôi phục mật khẩu trực tiếp qua Gmail SMTP; email job bền vững/worker retry thuộc task 015 chưa triển khai |
@@ -106,21 +108,15 @@ Chỉ AuthModule và DatabaseModule hiện có. Tạo module nghiệp vụ khi t
 
 Controller xử lý HTTP và DTO; service chứa nghiệp vụ; UserRepository/SessionRepository dùng Prisma Client để truy cập dữ liệu Auth. SQL khóa hàng tham số hóa nằm trong repository; service không chứa SQL. Provider ngoài có adapter riêng. Module giao tiếp bằng lời gọi provider trong tiến trình. Khi một use case cần nhiều module, truyền cùng Prisma.TransactionClient để tất cả ghi chung một transaction. Không import vòng hoặc tạo database/ứng dụng riêng cho từng module.
 
-## 5. Supabase PostgreSQL và dữ liệu hiện có
+## 5. PostgreSQL local và Prisma ORM
 
-Backend kết nối trực tiếp PostgreSQL trên Supabase bằng Prisma Client/adapter-pg, không dùng Supabase Data API cho nghiệp vụ. AuthModule/users/auth_sessions và JWT hiện có vẫn thuộc Nexora; không chuyển sang Supabase Auth hoặc sửa bảng auth.users/storage.objects của provider.
+Backend dùng Prisma Client/adapter-pg với PostgreSQL 17 trong Docker Compose. `backend/prisma/schema.prisma` là source of truth cho các bảng ứng dụng; không dùng Supabase PostgreSQL hoặc Supabase Data API cho dữ liệu nghiệp vụ. Supabase chỉ dùng cho object Storage. AuthModule/users/auth_sessions và JWT vẫn thuộc Nexora, không chuyển sang Supabase Auth.
 
-Cấu hình DATABASE_URL là PostgreSQL connection URI, không phải SUPABASE_URL HTTPS hoặc API key. Lấy host/port thực từ Dashboard > Connect; direct connection dùng cho backend/migration, Session pooler khi mạng chỉ hỗ trợ IPv4. Không đoán hostname hoặc dùng Transaction pooler cho runner migration hiện tại. Provision role ứng dụng có quyền schema/tables/sequences cần thiết; không chạy application bằng tài khoản administrator. Role chạy migration phải sở hữu/quản lý các bảng ứng dụng; quyền runtime tối thiểu cần được kiểm chứng ở task 002.
+Compose tạo service PostgreSQL `postgres`, port host mặc định 5432 và named volume `postgres_data`. URL trong root `.env`/Compose phải trỏ host `postgres`; URL trong `backend/.env` để chạy npm trên host phải trỏ `localhost`. Database local không bật SSL. Không in connection URL hoặc secrets trong log.
 
-Kết nối luôn bật SSL và rejectUnauthorized:true. DATABASE_SSL_CA nhận PEM root certificate nếu chain chưa nằm trong CA mặc định của Node; hỗ trợ literal \n trong env. Bỏ các query parameter sslmode/sslcert/sslkey/sslrootcert khỏi DATABASE_URL vì chúng có thể ghi đè SSL object của pg. URL-encode ký tự đặc biệt trong mật khẩu. Database config không log connection string hoặc secret.
+Khi schema thay đổi hoặc database local mới được khởi tạo, chạy thủ công `npm run db:push` trong thư mục backend. Lệnh này chỉ được trỏ tới PostgreSQL local rỗng/không có dữ liệu cần giữ; không chạy khi app khởi động, không trỏ tới Supabase hoặc database dùng chung. Prisma Migrate và các file migration không thuộc dự án. Không chạy lệnh xóa volume để xử lý lỗi.
 
-Compose chỉ mô tả hai ứng dụng. File .env ở root và backend/.env dùng DATABASE_URL, DATABASE_SSL_CA tùy chọn cùng cấu hình Auth/port/cookie. Chỉ giữ các biến được code hiện tại sử dụng; chưa khai báo API key hoặc biến Storage. Backend và migration cùng đọc DATABASE_URL, không đọc DIRECT_URL. Connection URL cần được người dùng điền từ Dashboard > Connect, không dùng hostname giả.
-
-Dọn cấu hình repository không xóa tài khoản, phiên hoặc dữ liệu thật. Migration Category đã được áp dụng lên project Supabase cấu hình trong `backend/.env` theo yêu cầu triển khai task 025. Các migration tiếp theo tiếp tục dùng Prisma Migrate và giữ dữ liệu hiện có.
-
-Prisma schema nằm ở backend/prisma/schema.prisma, migration SQL có version ở backend/prisma/migrations. Baseline 0_auth giữ nguyên DDL, CHECK, FK, index và lịch sử auth_schema_migrations của Auth cũ. Prisma Migrate ghi lịch sử mới trong _prisma_migrations. Database mới chạy migration:run; database đã áp dụng Auth cũ cần migration:baseline một lần trước migration:run. Baseline kiểm tra schema diff trước khi đánh dấu đã áp dụng; không tạo lại bảng hoặc đổi dữ liệu. Không dùng db push/migrate reset hoặc tự reseed database làm việc. Các module chia sẻ Prisma.TransactionClient; FK/JOIN chung hợp lệ và đơn giữ snapshot bất biến.
-
-Dữ liệu nghiệp vụ chỉ đi qua backend. Tắt Data API nếu không dùng; nếu giữ bật, phải cấu hình grants/RLS để anon/authenticated không đọc/ghi bảng tài khoản/phiên và dữ liệu riêng. Nexora JWT không tự trở thành Supabase JWT. Kết nối TLS và đọc mapping Auth qua Prisma đã được kiểm tra trên project Supabase hiện tại; baseline Prisma, quyền runtime tối thiểu và Storage vẫn cần kiểm chứng riêng.
+Các module chia sẻ Prisma.TransactionClient; FK/JOIN chung hợp lệ và đơn giữ snapshot bất biến. Dữ liệu nghiệp vụ chỉ đi qua backend; không sử dụng Supabase Auth hoặc sửa bảng provider.
 
 ## 6. Transaction, retry và tích hợp ngoài
 
@@ -138,46 +134,48 @@ Task 016 gửi email reset mật khẩu trực tiếp qua Gmail SMTP sau khi com
 
 ## 7. Ảnh với Supabase Storage
 
-Đây là thiết kế cho module Catalog chưa triển khai. Backend nhận upload từ Admin đã qua AuthGuard/RolesGuard; adapter Supabase Storage dùng SUPABASE_URL, SUPABASE_SECRET_KEY và SUPABASE_STORAGE_BUCKET. Secret key hoặc service_role legacy chỉ ở backend, không VITE_* hoặc response/log. Chưa thêm SDK/client upload cho đến khi thực hiện task 021–023.
+Upload API/adapter thuộc Catalog đã có trong backend. Admin gửi multipart qua `/api/v1/admin/images` sau AuthGuard/RolesGuard; adapter dùng `SUPABASE_URL`, `SUPABASE_SECRET_KEY` và `SUPABASE_STORAGE_BUCKET`. Secret key hoặc service_role legacy chỉ ở backend, không VITE_* hoặc response/log. Supabase docs hiện yêu cầu key mới `sb_secret_*` gửi bằng `apikey` header; legacy JWT key dùng thêm `Authorization`.
 
-Bucket catalog-images là bucket public dành riêng ảnh catalog; browser tải URL public trực tiếp qua HTTPS/CDN. Public read không cho phép ghi công khai: không mở policy upload/update/delete cho anon hoặc browser. Backend xác thực quyền Admin trước khi dùng server key. Không lưu PII/tài liệu riêng trong bucket này. Cấu hình bucket public, MIME JPEG/PNG/WebP và giới hạn 5 MiB phải được thiết lập trên project khi triển khai; chưa được tạo bởi code hiện tại.
+Bucket `catalog-images` là bucket public dành media catalog; browser tải URL public trực tiếp qua HTTPS/CDN. Public read không cho phép ghi công khai: không mở policy upload/update/delete cho anon hoặc browser. Backend xác thực quyền Admin trước khi dùng server key. Không lưu PII/tài liệu riêng trong bucket này. Bucket cần cho phép JPEG/PNG/WebP tối đa 5 MiB và MP4/WebM/MOV tối đa 50 MB; code không tự sửa giới hạn bucket hoặc policy.
 
-Catalog kiểm tra bytes/MIME/kích thước ảnh bằng buffer/stream có giới hạn, ghi image_assets PENDING với bucket/object_path sinh trước upload. Upload dùng path riêng bất biến và upsert:false; thay ảnh tạo path mới, không ghi đè object đang có trong snapshot. Timeout giữ PENDING; đối soát object/path và SHA-256 bytes trước khi READY/retry. URL được dựng không tự chứng minh object tồn tại; xác minh metadata/nội dung cần thiết trước commit READY.
+Catalog chỉ nhận MIME JPEG/PNG/WebP và MP4/WebM/QuickTime với giới hạn lần lượt 5 MiB và 50 MB, upload vào path riêng bất biến với `upsert:false`, rồi ghi metadata khi Storage trả thành công. Không xác minh chữ ký bytes, đọc lại object, tính SHA-256 hoặc dùng trạng thái READY. Nếu upload thành công nhưng lưu metadata lỗi, object có thể mồ côi; lần upload sau tạo path mới.
 
-image_assets và product_images ở PostgreSQL Supabase; bytes ở Storage, không trên server/volume ứng dụng hoặc bảng nghiệp vụ. READY chỉ được gắn vào Product/SKU; ưu tiên ảnh SKU trước ảnh chung. Đơn giữ snapshot bucket/object_path/content_hash/public URL. Gỡ liên kết không xóa object; dọn vật lý chỉ khi kiểm tra mọi tham chiếu và chặn liên kết mới đồng thời. Không trực tiếp sửa bảng storage.objects để thao tác file.
+image_assets và product_images ở PostgreSQL local; bytes ở Supabase Storage, không trên server/volume ứng dụng hoặc bảng nghiệp vụ. Product/SKU liên kết asset đã có metadata sau upload thành công; ưu tiên ảnh SKU trước ảnh chung. Đơn giữ snapshot bucket/object_path/public URL. Gỡ liên kết không xóa object; dọn vật lý chỉ khi kiểm tra mọi tham chiếu và chặn liên kết mới đồng thời. Không trực tiếp sửa bảng storage.objects để thao tác file.
 
-Mọi upload/provider request nằm ngoài transaction giữ khóa nghiệp vụ. Storage API và transaction PostgreSQL là hai thao tác riêng dù cùng nhà cung cấp; chỉ commit metadata khi upload/đối soát đã được xác nhận. Backup DB không bao gồm bytes Storage: cần backup/restore và đối chiếu object riêng.
+Mọi upload/provider request nằm ngoài transaction giữ khóa nghiệp vụ. Storage API và ghi metadata PostgreSQL là hai thao tác riêng; metadata chỉ được lưu sau phản hồi upload thành công. Backup DB không bao gồm bytes Storage: cần backup/restore riêng.
 
 ## 8. Chạy local và kiểm tra
 
-### Chuẩn bị Supabase
+### PostgreSQL local
 
-Trong project Supabase, chuẩn bị connection URI và role/quyền cho schema ứng dụng. Bổ sung DATABASE_URL vào .env ở root (Compose) hoặc backend/.env (npm host); giữ signing secrets đang dùng. Nếu cần CA riêng, tải server root certificate từ Dashboard Database settings và đặt PEM trong DATABASE_SSL_CA. Không gửi mật khẩu hoặc secret key qua chat/log. File .env.example chỉ chứa placeholder, không phải thông tin project đã chạy.
+PostgreSQL 17 chạy trong Compose với named volume để giữ dữ liệu qua lần restart. Root `.env` cấu hình container; Compose dùng hostname `postgres`. Chạy backend bằng npm trên host thì `backend/.env` dùng hostname `localhost`. Không cần Supabase Database, SSL CA hay migration files. Giữ signing secrets riêng; không gửi mật khẩu hoặc secret key qua chat/log.
 
 Auth dùng PostgreSQL và signing secrets riêng của Nexora; không dùng Supabase Auth. Khôi phục mật khẩu cần `GMAIL_USER`, `GMAIL_APP_PASSWORD` và `FRONTEND_URL` (host gốc của frontend); backend tự thêm `/reset-password?token=...` vào liên kết email. Gmail App Password yêu cầu bật Xác minh 2 bước; lưu thông tin này chỉ trong backend `.env` hoặc secret của môi trường chạy. Cấu hình Compose ở root `.env`, chạy backend host ở `backend/.env`. AUTH_ACCESS_SECRET và AUTH_REFRESH_SECRET vẫn bắt buộc. Biến Supabase Storage chưa cần tới khi triển khai Catalog Storage. Xem [Implementation tasks](IMPLEMENTATION_TASKS.md#current-status).
 
-### Docker Compose — hai ứng dụng
+### Docker Compose — frontend, backend và PostgreSQL
 
 ```powershell
 docker compose config --quiet
+docker compose up -d postgres
+cd backend
+npm run db:push
+cd ..
 docker compose up -d --build
-docker compose exec backend npm run migration:run
 docker compose logs -f backend
 ```
 
-Frontend mặc định http://localhost:5173, backend http://localhost:3000; API dùng /api/v1. Backend phải kết nối được Supabase PostgreSQL để khởi động. Không có healthcheck hoặc service_healthy; frontend có thể khởi động trước khi backend nhận request. Migration chạy tường minh sau khi đã xác nhận project/DB đích; không tự seed hay chuyển dữ liệu local.
+`db:push` đồng bộ Prisma schema vào database local và phải chạy thủ công sau khi xác nhận URL trỏ tới local PostgreSQL không có dữ liệu cần giữ. Lệnh không tự chạy khi app khởi động và không được dùng với Supabase/DB dùng chung. Frontend mặc định http://localhost:5173, backend http://localhost:3000; API dùng /api/v1. Không có healthcheck hoặc service_healthy; Compose `depends_on` chỉ sắp thứ tự khởi động.
 
 Backend runtime dùng built JS, thay code cần docker compose up -d --build backend; frontend source có mount để Vite reload. Cấu hình mới dùng network mặc định của Compose. Không sử dụng thao tác xóa dữ liệu như một phần của cập nhật cấu hình.
 
 ### Chạy npm trên host
 
-Dùng Node 24/npm 11. Sao chép backend/.env.example thành backend/.env khi chưa có, điền DATABASE_URL/Supabase CA và hai signing secret. Backend dùng Node loadEnvFile từ thư mục chạy; root .env chỉ được Compose nạp, không tự nạp cho npm trong backend.
+Dùng Node 24/npm 11. Sao chép backend/.env.example thành backend/.env khi chưa có; đặt DATABASE_URL trỏ tới PostgreSQL local trên `localhost` và cấu hình hai signing secret. Backend dùng Node loadEnvFile từ thư mục chạy; root .env chỉ được Compose nạp, không tự nạp cho npm trong backend.
 
 ```powershell
 cd backend
 npm ci
-npm run build
-npm run migration:run
+npm run db:push
 npm run start:dev
 ```
 
@@ -189,27 +187,17 @@ npm ci
 npm run dev
 ```
 
-Không cần Docker để chạy npm vì database/storage ở Supabase. Seed demo chỉ khi đã chủ động cấu hình ít nhất một cặp DEMO_CUSTOMER_EMAIL/PASSWORD hoặc DEMO_ADMIN_EMAIL/PASSWORD: npm run seed:demo sau build/migration. Mỗi loại tài khoản có thể seed độc lập; seed không ghi đè email đã tồn tại. Không tự seed project đang làm việc để test.
+PostgreSQL cần chạy trước khi dùng npm trên host. Seed demo chỉ khi đã chủ động cấu hình ít nhất một cặp DEMO_CUSTOMER_EMAIL/PASSWORD hoặc DEMO_ADMIN_EMAIL/PASSWORD: npm run seed:demo. Mỗi loại tài khoản có thể seed độc lập; seed không ghi đè email đã tồn tại. Không tự seed database đang làm việc để test.
 
 ### Validation
 
-Prisma Client được sinh khi npm ci/npm run build, hoặc chạy npm run prisma:generate sau khi sửa schema. Source sinh ở src/generated/prisma được bỏ qua bởi Git/ESLint và biên dịch vào dist. Docker build cần copy prisma/schema.prisma và prisma.config.ts trước npm ci. Prisma CLI có trong dependencies để các lệnh migration vẫn dùng được trong runtime image.
+Prisma Client được sinh khi npm ci/npm run build, hoặc chạy npm run prisma:generate sau khi sửa schema. Source sinh ở src/generated/prisma được bỏ qua bởi Git/ESLint và biên dịch vào dist. Docker build cần copy prisma/schema.prisma và prisma.config.ts trước npm ci. Prisma CLI vẫn dùng cho `db:push` và seed; Prisma Migrate không được dùng.
 
-Database đã có schema Auth cũ nhưng chưa có lịch sử Prisma cần chạy sau build, trước migration:run. Lệnh đối chiếu với `prisma/schema.auth-baseline.prisma` để chỉ xác nhận baseline cũ; migration reset mới sẽ được deploy ở bước sau:
-
-```powershell
-npm run migration:baseline
-npm run migration:status
-```
-
-Trong Docker, thêm docker compose exec backend trước lệnh npm. Nếu baseline báo khác schema, đối chiếu schema và migration SQL; không reset hay ép đánh dấu đã áp dụng. Database mới không chạy migration:baseline. Các script npm gọi Prisma CLI chuẩn. prisma.config.ts dùng DATABASE_URL, bật sslmode=require/sslaccept=strict cho Prisma schema engine và cung cấp CA qua file tạm từ DATABASE_SSL_CA, rồi xóa file khi CLI kết thúc. Không có CLI runner riêng; có thể gọi npx prisma migrate với cùng cấu hình. Seed dùng Prisma createMany/skipDuplicates trong một transaction và giữ tài khoản đã có.
-
-Backend: typecheck, lint, test, build. HTTP/config tests dùng URL giả và thay DB/Auth adapter; không chứng minh kết nối SSL/migration/permissions ở project thật. Frontend: typecheck/lint/build, chưa có test script. test:e2e vẫn thiếu config. Task 071 cần DB test Supabase/project test riêng và bằng chứng provider thật; không tạo dữ liệu test trong project làm việc.
+Backend/frontend: typecheck và lint. Các kiểm tra tĩnh không chứng minh tích hợp DB hoặc Storage thật; upload nhiều media qua Admin API vẫn cần kiểm tra riêng. Không chạy build/test suite/database test trừ khi task yêu cầu.
 
 ### Nguồn kỹ thuật
 
-- [Supabase PostgreSQL connections](https://supabase.com/docs/guides/database/connecting-to-postgres): lựa chọn direct/session connection và SSL.
-- [node-postgres SSL](https://node-postgres.com/features/ssl): URL SSL query parameters có thể ghi đè SSL object.
+- [PostgreSQL Docker image](https://hub.docker.com/_/postgres): image PostgreSQL được dùng trong Compose.
 - [Supabase Storage buckets](https://supabase.com/docs/guides/storage/buckets/fundamentals): public read và quyền ghi.
 - [Supabase standard uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads): path mới/upsert và retry.
 - [Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys): secret key chỉ dùng ở backend.
@@ -231,3 +219,5 @@ Kafka, Redis và Elasticsearch không phải phụ thuộc hoặc yêu cầu c�
 | 2.7       | 29/10/2026 | Task 017 thêm UI reset mật khẩu; `/admin` kiểm tra quyền qua endpoint Admin-only                          |
 | 2.8       | 29/10/2026 | Tổ chức màn UI theo feature; storefront và dữ liệu Admin dùng fixture cục bộ, chưa tích hợp API nghiệp vụ |
 | 2.9       | 29/10/2026 | Chuyển gửi email đặt lại mật khẩu từ Resend sang Gmail SMTP qua Nodemailer                         |
+| 3.1 | 01/11/2026 | Bỏ Attributes riêng của Product; giữ thông tin chung trong mô tả. |
+| 3.4 | 01/11/2026 | Chuyển cấu hình SKU từ Category sang từng Product. |
