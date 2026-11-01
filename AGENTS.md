@@ -30,23 +30,33 @@ Codex settings and agent roles are in `.codex/config.toml` and `.codex/agents/`.
 
 ## Current implementation
 
-Last reviewed: 2026-10-29. Verify and update this table as the code evolves.
+Last reviewed: 2026-11-01. Verify and update this table as the code evolves.
 
 | Component      | Status                                                                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `frontend`     | React/Vite/TypeScript; Auth and Admin Category use backend APIs; public catalog/Product/SKU/cart/checkout/orders still use local fixture data; `/admin` requires an authenticated Admin and checks backend authorization |
-| `backend`      | One NestJS modular monolith; AuthModule and CatalogModule Category CRUD, session-backed guards, Gmail SMTP reset email; email jobs/workers remain deferred |
-| Database       | Supabase PostgreSQL via Prisma repositories and verified TLS; Auth baseline, password-reset and Category migrations applied to the configured project |
-| Docker         | Compose runs frontend/backend only; external Supabase database/storage; no healthcheck or local database volume/init script                 |
-| Other modules  | Product/SKU Catalog, Order, Payment, Tracking and rule-based Recommendation are planned inside backend; Notification currently only sends password reset email directly, without email jobs/workers |
+| `frontend`     | React/Vite/TypeScript; Auth, Admin Category and Product/SKU management use backend APIs; public catalog/cart/checkout/orders still use local fixture data; `/admin` requires an authenticated Admin and checks backend authorization |
+| `backend`      | One NestJS modular monolith; AuthModule and CatalogModule Category/Product/SKU APIs plus Supabase Storage upload adapter, session-backed guards, Gmail SMTP reset email; direct Storage upload smoke-tested, Admin/DB end-to-end and email jobs/workers remain unverified/deferred |
+| Database       | Prisma ORM/schema with PostgreSQL 17 in local Docker Compose; sync local schema explicitly with `npm run db:push`; no Prisma Migrate workflow |
+| Docker         | Compose runs frontend/backend/PostgreSQL with a named local database volume; Supabase Storage remains external; no healthcheck                   |
+| Other modules  | Order, Payment, Tracking and rule-based Recommendation are planned inside backend; browser upload remains server-authorized; Notification currently only sends password reset email directly, without email jobs/workers |
 | AI model       | Python/FastAPI integration is deferred; no application/container/database exists                                                            |
 | Infrastructure | No Gateway, Saga, Kafka, Redis or Elasticsearch dependency in the current architecture                                                      |
 | CI             | GitHub Actions verifies and Docker-builds backend/frontend on pushes and pull requests to main                                              |
 
 Image uploads, metadata and Supabase Storage integration belong to the Catalog module
 inside backend. Do not introduce an image application or independent business
-services. A future Python model integration requires explicit scope; do not add a
-NestJS recommendation application.
+services. Uploads use the configured public-read bucket; credentials stay server-only.
+A future Python model integration requires explicit scope; do not add a NestJS
+recommendation application.
+
+Product specifications belong in the product description; do not add a separate
+Product Attributes field. Each Product defines its own SKU option codes and labels,
+such as color and size; Category only classifies Products. SKU options distinguish
+prices and stock. The Product plan has only ACTIVE and INACTIVE. Admin creation
+must atomically persist a complete ACTIVE Product with valid content, SKU(s),
+initial inventory set to zero and links to image assets whose upload succeeded.
+Admin currently does not manage or view SKU stock. Do not add an
+image READY state, a DRAFT state, or a save-draft workflow.
 
 ## Documentation map
 
@@ -67,9 +77,10 @@ Keep code existence, partial work, deferred scope and verified integration separ
 
 `DATABASE_DESIGN.md` describes the shared PostgreSQL database target. Foreign
 keys, joins and transactions across backend modules are allowed in this database;
-module ownership guides code organization. Auth and Category have versioned
-migrations; Product/SKU and the other business schemas remain planned. Keep order
-snapshots immutable even when foreign keys exist.
+module ownership guides code organization. `backend/prisma/schema.prisma` is the
+schema source of truth; use Prisma ORM and synchronize only a local development
+database with `npm run db:push`. Do not add or run Prisma Migrate workflows.
+Keep order snapshots immutable even when foreign keys exist.
 
 ## Repository skills
 
@@ -79,8 +90,7 @@ Read only the skills relevant to the task:
 | ------------------------------------------------------- | ------------------------------------------------------------------------ |
 | NestJS APIs, business logic, and backend fixes          | [nexora-backend](.agents/skills/nexora-backend/SKILL.md)                 |
 | React screens and API integration                       | [nexora-frontend](.agents/skills/nexora-frontend/SKILL.md)               |
-| Docker, PostgreSQL, configuration, and migrations       | [nexora-docker-postgres](.agents/skills/nexora-docker-postgres/SKILL.md) |
-| Markdown documentation and architecture synchronization | [nexora-docs](.agents/skills/nexora-docs/SKILL.md)                       |
+| Docker, PostgreSQL, and configuration                   | [nexora-docker-postgres](.agents/skills/nexora-docker-postgres/SKILL.md) |
 
 Skills guide task execution; they do not authorize additional actions. Agents
 without automatic skill discovery can read the linked `SKILL.md` files directly.
@@ -121,8 +131,8 @@ implemented.
 - Backend code uses strict TypeScript and ESM/NodeNext. Preserve `.js` extensions
   on relative imports. Frontend code follows its own Vite configuration.
 - Keep controllers thin, business logic in providers/services, and persistence
-  behind feature repositories. Backend uses Prisma/PostgreSQL; extend versioned
-  Prisma migrations and do not run db push or migrate reset on working databases.
+  behind feature repositories. Backend uses Prisma ORM/PostgreSQL. The Prisma
+  schema is the source of truth; `db:push` is for the local development DB only.
 - Create modules and abstractions for current features. Do not generate empty
   files from the illustrative Architecture directory tree.
 - Use ESLint in every Node application and Prettier for formatting. Each app has
@@ -155,29 +165,28 @@ implemented.
 
 ## 4. Local environment, data, and configuration
 
-- Docker Compose runs only frontend/backend, on ports 5173/3000. PostgreSQL and
-  image objects live on hosted Supabase; do not provision local PostgreSQL or
-  Supabase containers. depends_on orders startup and does not prove readiness.
+- Docker Compose runs frontend/backend on ports 5173/3000 and local PostgreSQL
+  on 5432 with a named volume. Supabase Storage remains external. `depends_on`
+  orders startup and does not prove database readiness.
 - Preserve active `.env` values and Auth secrets; remove obsolete settings when
   the user requests cleanup. Add nonsecret examples to `.env.example` and
   document how the application loads configuration.
 - Keep secrets out of logs and reports. Use `docker compose config --quiet` for
   validation; full interpolated configuration can expose passwords.
-- Configure DATABASE_URL for Supabase PostgreSQL with verified SSL; use
-  DATABASE_SSL_CA for the project root certificate when needed. Do not disable
-  certificate verification. Root .env serves Compose; backend/.env serves npm host.
-- Configuration cleanup does not authorize deleting live accounts, sessions or
-  stored files. Do not run migrations/seeds against a real Supabase project
-  until the target and requested operation are clear.
-- Supabase Database and Storage do not imply Supabase Auth. Nexora keeps its
-  existing account/session/JWT logic. Do not alter provider auth/storage tables.
+- Configure DATABASE_URL for local PostgreSQL without SSL. Root `.env` serves
+  Compose (`postgres` hostname); `backend/.env` serves npm on the host (`localhost`).
+- Never point `db:push` at Supabase or another remote/working database. The
+  project does not use Prisma Migrate; migration SQL and baseline files are removed.
+- Supabase Storage does not imply Supabase Auth. Nexora keeps its existing
+  account/session/JWT logic. Do not alter provider auth/storage tables.
 - Catalog images use public Storage reads with backend-authorized Admin writes.
   SUPABASE_SECRET_KEY stays server-only; public read must not imply public write.
   Use immutable object paths and upsert:false to preserve order snapshots.
-  Storage integration is planned, not implemented by adding environment variables.
+  Catalog upload API/adapter is implemented; the Supabase URL, secret and public
+  bucket still require deployment configuration and live verification.
 - Do not use `down -v`, volume pruning, or database drop/truncate as troubleshooting
-  shortcuts unless deletion of that data was requested. Prefer migrations and
-  isolated test databases; do not run destructive tests on working databases.
+  shortcuts unless deletion of that data was requested. `db:push` is only for a
+  local development database; do not point it at a database with needed data.
 - Do not modify research artifacts/datasets or reseed data just to make tests pass.
   `docs/data` and `docs/task` are ignored and may be absent in another clone.
   Report specific missing inputs when needed; do not invent their contents.

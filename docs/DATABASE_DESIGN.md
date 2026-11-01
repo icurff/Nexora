@@ -2,23 +2,25 @@
 
 | Thông tin           | Giá trị                                                                                                                     |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.6                                                                                                                         |
-| Ngày                | 30/10/2026                                                                                                                  |
-| Trạng thái          | Thiết kế cho monolith một database; Auth, password_reset_tokens và categories có versioned migrations                      |
-| Hệ quản trị         | PostgreSQL do Supabase quản lý; bytes ảnh ở Supabase Storage                                                                |
+| Phiên bản           | 3.2 |
+| Ngày                | 01/11/2026 |
+| Trạng thái          | Prisma schema cho monolith một database; Auth, Category, Product/SKU, inventory và media hiện có trong schema             |
+| Hệ quản trị         | PostgreSQL local trong Docker; bytes ảnh/video ở Supabase Storage                                                          |
 | Tài liệu liên quan  | [BRD](BRD.md), [SRS](SRS.md), [Architecture — thiết kế triển khai hiện tại](Folder-ARCHITECTURE.md)                         |
 | Phạm vi             | Ecommerce đa ngành COD/payOS, catalog synthetic/placeholder theo notebook, một kho, tracking và recommendation theo quy tắc |
 | Kế hoạch triển khai | [Implementation tasks](IMPLEMENTATION_TASKS.md) — mã task, hiện trạng và điều kiện bàn giao                                 |
 
 ## Mục lục
 
-Thiết kế hiện hành dùng một database PostgreSQL cho backend modular monolith theo [Architecture](Folder-ARCHITECTURE.md). Các FK/JOIN và transaction xuyên module trong tài liệu này được áp dụng trong database chung. Auth, password_reset_tokens và categories đã có migration; Product/SKU và các bảng nghiệp vụ còn lại vẫn là thiết kế chưa triển khai.
+Thiết kế hiện hành dùng một database PostgreSQL cho backend modular monolith theo [Architecture](Folder-ARCHITECTURE.md). Các FK/JOIN và transaction xuyên module trong tài liệu này được áp dụng trong database chung. `backend/prisma/schema.prisma` là source of truth; đồng bộ schema vào PostgreSQL local bằng `npm run db:push`. Prisma Migrate và các file migration đã được gỡ khỏi repo.
 
-Metadata/tables thuộc ứng dụng trong PostgreSQL của project, bytes ảnh ở Storage. Cấu hình DATABASE_URL/SSL theo Architecture; Auth dùng users/auth_sessions của Nexora, tách khỏi auth.users của Supabase. Task 002 kiểm chứng migration/role/grants/RLS; kết nối Supabase thật chưa được xác minh.
+Metadata/tables thuộc ứng dụng trong PostgreSQL local, bytes ảnh ở Supabase Storage. Cấu hình DATABASE_URL theo Architecture; Auth dùng users/auth_sessions của Nexora, tách khỏi Supabase Auth.
+
+Các phần schema tồn kho bên dưới mô tả nền tảng dữ liệu cho giai đoạn sau. Admin hiện không xem hoặc điều chỉnh tồn; Catalog tạo SKU với `on_hand = 0`. Giữ bảng inventory/ledger để không phải thiết kế lại khi triển khai đơn hàng và kho.
 
 | Nội dung       | Thiết kế hiện hành                                                                                                                    |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Database       | PostgreSQL trên Supabase, một database chung; DATABASE_URL/SSL phía backend, không PostgreSQL container local                         |
+| Database       | PostgreSQL local trong Docker, một database chung; DATABASE_URL trỏ tới `postgres` trong Compose hoặc `localhost` trên host       |
 | Module         | Auth, Catalog, Order, Payment, Notification, Tracking/Recommendation trong cùng backend; AuthModule và Catalog Category đã có         |
 | FK/JOIN        | Cho phép giữa các bảng trong database chung; đơn vẫn lưu snapshot bất biến                                                            |
 | Reservation    | Giữ hàng theo dòng đơn PENDING/CONFIRMED và tổng reserved trên SKU; không cần bảng reservation phân tán                               |
@@ -26,7 +28,7 @@ Metadata/tables thuộc ứng dụng trong PostgreSQL của project, bytes ảnh
 | Transaction    | Một transaction cho đơn/tồn/giỏ/history/event/idempotency; gọi provider ngoài khi không giữ khóa DB                                   |
 | Email/tracking | email_outbox/job và business event ghi cùng transaction; worker gửi sau commit, không cần Kafka/inbox giữa module                     |
 | Ảnh            | Module Catalog sở hữu image_assets/product_images trong database chung, credential phía backend; Order giữ snapshot                   |
-| Migration      | Prisma Migrate dùng _prisma_migrations; baseline giữ Auth và lịch sử auth_schema_migrations cũ; thêm bảng qua migration có version |
+| Schema         | Prisma ORM/Client; `schema.prisma` là source of truth; đồng bộ thủ công local bằng `db:push`, không chạy Prisma Migrate         |
 
 1. [Các quyết định nền tảng](#decisions)
 2. [Danh sách bảng và quan hệ](#tables)
@@ -46,13 +48,13 @@ Metadata/tables thuộc ứng dụng trong PostgreSQL của project, bytes ảnh
 
 ## 1. Các quyết định nền tảng
 
-Đây là thiết kế vật lý cho một database dùng chung bởi backend monolith. Transaction/FK giữa các module được áp dụng trực tiếp khi triển khai; vẫn giữ snapshot và ranh giới nghiệp vụ. Các migration mới bổ sung trên schema Auth hiện có, không tự tạo toàn bộ bảng bằng db push hoặc migrate reset.
+Đây là thiết kế vật lý cho một database dùng chung bởi backend monolith. Transaction/FK giữa các module được áp dụng trực tiếp khi triển khai; vẫn giữ snapshot và ranh giới nghiệp vụ. Prisma schema mô tả schema; `db:push` chỉ đồng bộ DB local, không dùng với Supabase hoặc DB có dữ liệu cần giữ.
 
 | Nội dung         | Thiết kế                                                                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Khóa chính       | `bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY`; ID tự tăng                                                                                         |
 | Mã SKU           | Hệ thống sinh, ví dụ `NX-SKU-000001`; duy nhất, bất biến, không dùng lại                                                                              |
-| Catalog đa ngành | `categories.parent_id` cho cây danh mục; `products.attributes` cho thông số; `product_variants.options` cho lựa chọn SKU                              |
+| Catalog đa ngành | `categories.parent_id` cho cây danh mục; `products.description` cho mô tả/thông số chung; `product_variants.options` cho lựa chọn SKU                              |
 | Snapshot đơn     | Cột riêng trong `orders` và `order_items`; riêng lựa chọn SKU dùng `options_snapshot` JSONB có mã, nhãn và giá trị tại lúc đặt                        |
 | Hàng đang giữ    | Suy ra từ dòng đơn PENDING/CONFIRMED, đồng thời duy trì tổng `reserved` trên SKU                                                                      |
 | Bảng reservation | Không tạo `inventory_reservations`                                                                                                                    |
@@ -64,7 +66,7 @@ Metadata/tables thuộc ứng dụng trong PostgreSQL của project, bytes ảnh
 | Dữ liệu AI       | Giữ ID RetailRocket riêng và event website; chưa có bảng model, embedding hoặc training job                                                           |
 | Catalog seed     | 500 Product, 23 danh mục, 1.664 mapping nguồn; provenance/version riêng, một SKU mặc định mỗi Product khi seed lần đầu                                |
 | Mã nguồn CSV     | product_id/category_id/sku của CSV được lưu riêng, không thay khóa chính identity hoặc sku_code vận hành                                              |
-| JSONB            | Thông số Product, cấu hình thuộc tính Category, lựa chọn SKU/snapshot; phần mở rộng event, ngữ cảnh recommendation, kết quả chống lặp và audit đã lọc |
+| JSONB            | Cấu hình lựa chọn SKU riêng tại Product, lựa chọn SKU/snapshot; phần mở rộng event, ngữ cảnh recommendation, kết quả chống lặp và audit đã lọc |
 
 Không bổ sung wishlist, voucher, review, hãng vận chuyển, nhiều kho hoặc đổi trả sau giao thành công. Email khôi phục mật khẩu và thông báo đơn hàng thuộc phạm vi.
 
@@ -118,7 +120,7 @@ Thiết kế gồm **29 bảng nghiệp vụ** và image_assets bổ sung cho up
 | User → AuthSession / Address / Order                              | 1–N        | Một khách có nhiều phiên, địa chỉ và đơn                                               |
 | User → PasswordResetToken                                         | 1–N        | Token khôi phục có hạn; chỉ lưu hash và chỉ dùng một lần                               |
 | LocationDataset → Province → Ward                                 | 1–N–N      | Một bản dữ liệu địa giới hoàn chỉnh                                                    |
-| Category / Brand → Product                                        | 1–N        | Category bắt buộc khi mở bán; Brand metadata seed tùy chọn, không có thao tác quản trị |
+| Category / Brand → Product                                        | 1–N        | Category bắt buộc khi tạo Product; Brand metadata seed tùy chọn, không có thao tác quản trị |
 | CatalogDataset → Category / Product / RetailrocketCategoryMapping | 1–N        | Nguồn seed bất biến; không đồng nhất ID artifact với ID database                       |
 | Category → RetailrocketCategoryMapping                            | 1–N        | Một danh mục seed gắn một root; nhiều category nguồn thuộc root đó                     |
 | Category → Product qua seed_category_id                           | 1–N        | Danh mục nguồn ban đầu; tách category_id vận hành có thể sửa                           |
@@ -260,41 +262,20 @@ Ba artifact đầu vào và quy trình latest category/quota được đặc t�
 | name_key                      | text         | NN, UQ, database-maintained | normalize_label(name); trigger tính lại khi tạo/đổi tên để Prisma ghi được |
 | slug                          | varchar(150) | NN, UQ                    | Đường dẫn thân thiện                                         |
 | parent_id                     | bigint       | NULL, FK categories       | Danh mục cha trong catalog vận hành; NULL là danh mục gốc    |
-| attribute_config              | jsonb        | NN, `{}`                  | Cấu hình thông số và lựa chọn SKU được phép tại danh mục này |
-| is_active                     | boolean      | NN, true                  | Cho phép gán mới                                             |
+| option_config              | jsonb        | NN, `{}`                  | Cột legacy từ migration Category; giữ dữ liệu cũ, không dùng cho SKU mới |
+| is_active                     | boolean      | NN, true                  | Cột legacy; Catalog hiện không dùng trạng thái danh mục      |
 | seed_dataset_id               | bigint       | NULL, FK catalog_datasets | Bộ CSV đã tạo danh mục; NULL cho danh mục Admin              |
 | seed_category_id              | integer      | NULL                      | category_id trong categories_demo.csv, 1..23 ở snapshot đầu  |
 | retailrocket_root_category_id | varchar(50)  | NULL                      | root_categoryid trong CSV, chuỗi số chuẩn                    |
 | created_at, updated_at        | timestamptz  | NN                        | Thời gian                                                    |
 
-CHECK `parent_id IS NULL OR parent_id <> id`, `jsonb_typeof(attribute_config) = 'object'`; index `(parent_id, is_active)`. Tên chuẩn hóa vẫn duy nhất toàn catalog để giữ thiết kế đơn giản. Không tự làm cây phân cấp từ tên synthetic hoặc import toàn bộ cây RetailRocket vào cây danh mục vận hành. 23 danh mục seed ban đầu có parent_id NULL và attribute_config = `{}`.
+CHECK `parent_id IS NULL OR parent_id <> id`, `jsonb_typeof(option_config) = 'object'`; index `(parent_id, is_active)` được giữ từ schema cũ. `option_config` và `is_active` được giữ để tương thích dữ liệu cũ nhưng Category API và Product/SKU không dùng. Tên chuẩn hóa vẫn duy nhất toàn catalog để giữ thiết kế đơn giản. Không tự làm cây phân cấp từ tên synthetic hoặc import toàn bộ cây RetailRocket vào cây danh mục vận hành.
 
 Triển khai hiện tại dùng `BEFORE INSERT OR UPDATE OF name` trigger để chuẩn hóa `name` về NFC và duy trì `name_key` bằng hàm SQL `normalize_label`; cột là thường với unique constraint, không phải generated column vì Prisma không mô tả generated column PostgreSQL. Trigger giữ chuẩn hóa ở database ngay cả khi tên được ghi ngoài API Catalog. Source of truth là migration `2_catalog_categories`.
 
-Catalog kiểm tra cha tồn tại/đang dùng và không có chu trình; thao tác đổi cây dùng khóa transaction cấp cây trong database chung rồi kiểm tra tổ tiên. CHECK chống tự trỏ không đủ chống chu trình nhiều nút. Product gán một danh mục đang dùng; lọc gồm danh mục con. Không cho gán mới nếu danh mục/tổ tiên ngừng dùng; không tự ngừng bán Product cũ.
+Catalog kiểm tra cha tồn tại và không có chu trình; thao tác đổi cây dùng khóa transaction cấp cây trong database chung rồi kiểm tra tổ tiên. CHECK chống tự trỏ không đủ chống chu trình nhiều nút. Mọi danh mục đều có thể gán cho Product; lọc gồm danh mục con. Danh mục không có thao tác bật/tắt.
 
-`attribute_config` có hai nhóm `attributes` và `options`, mỗi nhóm là object theo mã thuộc tính ổn định. Ví dụ danh mục điện thoại:
-
-```json
-{
-  "attributes": {
-    "screen_size": {
-      "label": "Kích thước màn hình",
-      "type": "number",
-      "unit": "inch"
-    },
-    "os": { "label": "Hệ điều hành", "type": "string" }
-  },
-  "options": {
-    "color": { "label": "Màu sắc" },
-    "storage": { "label": "Dung lượng lưu trữ" }
-  }
-}
-```
-
-Cấu hình được sửa trong form Category, không tạo module/bảng quản trị thuộc tính riêng. Bản đầu không kế thừa cấu hình cha: danh mục gắn trực tiếp Product quyết định tập mã được phép. `{}` cho phép Product không khai báo thông số/lựa chọn; muốn thêm thuộc tính phải cấu hình mã trước. Mã theo `[a-z][a-z0-9_]{0,31}`, nhãn 1–100 ký tự; tối đa 30 thông số và 5 lựa chọn. Thông số hỗ trợ string/number/boolean, đơn vị tùy chọn; lựa chọn SKU chỉ dùng chuỗi. Backend kiểm tra cấu trúc, mã lặp trong JSON đầu vào, độ dài và kiểu, không coi JSONB hợp lệ cú pháp là đủ hợp lệ nghiệp vụ.
-
-Sửa cấu hình/đổi Category của Product phải kiểm tra lại Product và SKU đang bán trong transaction Catalog. Chặn thay đổi làm dữ liệu đang bán không hợp lệ; yêu cầu sửa dữ liệu/ngừng bán chủ động trước. Mã đã được dùng không được đổi ý nghĩa/kiểu/đơn vị tại chỗ; đổi ngữ nghĩa dùng mã mới và chuyển dữ liệu chủ động. Nhãn hiển thị có thể sửa, snapshot đơn vẫn giữ nhãn cũ. Không tự chuyển đổi đơn vị, xóa lựa chọn, sửa SKU đã dùng hoặc thay snapshot đơn. Seed lại không ghi đè cấu hình/cây do Admin sửa.
+`categories.option_config` là cột legacy còn giữ lại, không dùng để định nghĩa SKU. Mỗi Product mới khai báo bộ lựa chọn riêng trong `products.option_config`; mọi SKU của Product phải có đúng các mã lựa chọn đó.
 
 Ba cột nguồn cùng NULL hoặc cùng có giá trị; CHECK seed_category_id > 0 khi có. UQ `(seed_dataset_id, seed_category_id)` và `(seed_dataset_id, retailrocket_root_category_id)`. Thêm UQ `(id, seed_dataset_id)` và `(id, seed_dataset_id, retailrocket_root_category_id)` làm đích FK ghép. name/slug là nội dung vận hành được sửa; ba cột provenance bất biến. 23 tên tiếng Anh của notebook được nhập ban đầu; category_mapping không lặp tên vì có thể suy ra qua FK.
 
@@ -304,17 +285,19 @@ Cột gồm `name`, `name_key`, `slug`, `created_at`; không có ba cột nguồ
 
 ### 4.3. `products`
 
+Migration `3_product_management` triển khai các trường Admin; migration `5_product_sku_options` bổ sung `option_config` riêng trên Product và backfill giá trị cũ từ Category cho sản phẩm hiện có. Cột này lưu mã/nhãn lựa chọn riêng của sản phẩm; Category chỉ phân loại. Brand, slug, `variant_option_keys` và provenance/seed trong bảng dưới vẫn là thiết kế cho luồng import sau.
+
 | Cột                      | Kiểu          | Null/default              | Ý nghĩa                                                                                                                       |
 | ------------------------ | ------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| name                     | varchar(200)  | NN                        | Tên hiển thị; nháp cho phép chuỗi rỗng                                                                                        |
+| name | varchar(200) | NN | Tên hiển thị 1–200 ký tự, không rỗng |
+| option_config | jsonb | NN, `{"options": {}}` | Cấu hình riêng của Product, tối đa 5 mã lựa chọn; cố định sau khi tạo |
 | search_name              | text          | NN                        | Tên chuẩn hóa bỏ dấu/lowercase phục vụ tìm chuỗi con                                                                          |
 | slug                     | varchar(250)  | NN, UQ                    | Sinh có hậu tố ID khi trùng tên                                                                                               |
-| description              | varchar(5000) | NN, chuỗi rỗng            | Văn bản mô tả                                                                                                                 |
-| attributes               | jsonb         | NN, `{}`                  | Thông số chung, ví dụ `{"screen_size":6.7,"os":"Android"}`; không quyết định giá/tồn                                          |
+| description | varchar(5000) | NN | Văn bản mô tả 1–5.000 ký tự, chứa thông tin/thông số chung |
 | variant_option_keys      | jsonb         | NN, `[]`                  | Các mã lựa chọn của SKU đang bán, ví dụ `["color","storage"]`; `[]` cho sản phẩm không có biến thể                            |
-| category_id              | bigint        | NULL, FK categories       | Bắt buộc khi mở bán                                                                                                           |
+| category_id | bigint | NN, FK categories | Danh mục bắt buộc từ khi tạo Product |
 | brand_id                 | bigint        | NULL, FK brands           | Thương hiệu tùy chọn                                                                                                          |
-| status                   | varchar(16)   | NN, DRAFT                 | DRAFT / ACTIVE / INACTIVE                                                                                                     |
+| status | varchar(16) | NN, ACTIVE | ACTIVE / INACTIVE; Product mới qua Admin luôn ACTIVE |
 | retailrocket_item_id     | varchar(50)   | NULL, UQ                  | ID để nối model/dataset sau này                                                                                               |
 | retailrocket_category_id | varchar(50)   | NULL                      | Category nguồn của item tại snapshot, chỉ điền khi có artifact latest-category bổ sung; ba CSV hiện tại không xuất trường này |
 | seed_dataset_id          | bigint        | NULL, FK catalog_datasets | Bộ dữ liệu đã tạo Product; version tra qua FK, không lặp seed_manifest_version                                                |
@@ -325,9 +308,9 @@ Cột gồm `name`, `name_key`, `slug`, `created_at`; không có ba cột nguồ
 | source_users             | bigint        | NULL                      | users lịch sử là visitor khác nhau của item                                                                                   |
 | created_at, updated_at   | timestamptz   | NN                        | Thời gian                                                                                                                     |
 
-CHECK trạng thái hợp lệ, `jsonb_typeof(attributes) = 'object'`, `jsonb_typeof(variant_option_keys) = 'array'`; nếu ACTIVE thì tên/mô tả không rỗng và category_id có giá trị. Backend kiểm tra attributes theo cấu hình danh mục, không có object/array/null lồng trong giá trị; string 1–200 ký tự, number hữu hạn trong miền numeric của DB, boolean đúng kiểu, tối đa 30 trường và 16 KiB JSON UTF-8. variant_option_keys tối đa 5 mã khác nhau thuộc nhóm options của danh mục, không trùng mã đã dùng trong attributes của Product. Không lặp một thông số cố định ở Product thành lựa chọn SKU với giá trị mâu thuẫn. Các điều kiện cần đọc bảng khác như cấu hình/ảnh/SKU hợp lệ do transaction Catalog kiểm tra dưới khóa Product và Category liên quan.
+CHECK status IN ('ACTIVE', 'INACTIVE'), tên/mô tả không rỗng, `jsonb_typeof(variant_option_keys) = 'array'`; category_id NOT NULL. Tạo Product qua Admin luôn ACTIVE; SKU, tồn ban đầu/INITIAL ledger khi tồn dương và liên kết ảnh đã upload thành công được ghi cùng transaction. Không có Product DRAFT hoặc lưu Product tạo dở. Product ACTIVE bắt buộc có ảnh chung đại diện và ít nhất một SKU hợp lệ đang bán, kể cả tồn 0. Cấu hình SKU nằm trên Product, tối đa 5 mã lựa chọn; các SKU của Product phải có cùng tập mã. Các điều kiện cần đọc bảng khác như cấu hình/ảnh/SKU hợp lệ do transaction Catalog kiểm tra dưới khóa Product và Category liên quan.
 
-Mọi SKU đang bán của một Product có đúng tập khóa variant_option_keys; không trộn SKU `{}` với SKU có lựa chọn khi cùng đang bán. SKU cũ ngừng bán vẫn giữ cấu trúc lịch sử. Thay tập khóa chỉ được commit khi các SKU đang bán đồng thời hợp lệ; không sửa ý nghĩa SKU đã có reservation/đơn được chấp nhận.
+Mọi SKU chưa xóa của một Product có đúng tập khóa được cấu hình trên Product; không trộn SKU `{}` với SKU có lựa chọn. SKU không có trạng thái bán riêng: Product ACTIVE cùng tồn khả dụng dương là điều kiện bán. SKU được soft delete để giữ quan hệ ledger/đơn; không xóa SKU đang có reservation và Product ACTIVE phải còn ít nhất một SKU.
 
 `search_name` do cùng thao tác sửa tên cập nhật, có xử lý `đ → d`. Chỉ dùng tìm kiếm, không dùng làm khóa duy nhất. PostgreSQL tìm kiếm catalog 500 sản phẩm bằng LIKE đã escape ký tự `%`/`_` và điều kiện SKU tương đương; chưa cần Elasticsearch, cache hoặc extension tìm kiếm.
 
@@ -341,102 +324,72 @@ Index: `(status, created_at DESC, id DESC)`, `(category_id, status)`, `(brand_id
 
 ### 4.4. `product_variants`
 
+Migration hiện tại dùng các cột `id`, `product_id`, `sku`, `options`, `price_vnd`, `deleted_at`, `created_at`, `updated_at`; tồn và ledger là hai bảng riêng. Các cột seed/provenance trong thiết kế tổng thể vẫn dành cho import tương lai.
+
 Một dòng là một SKU cụ thể có giá và tồn riêng. `options` là object mã lựa chọn → giá trị hiển thị, ví dụ `{"color":"Đen","storage":"256GB"}`. Sản phẩm không có biến thể có đúng một SKU mặc định với `options = {}`; không thêm nhãn màu/size giả để lấp dữ liệu.
 
-| Cột                    | Kiểu          | Null/default     | Ý nghĩa                                                                                                          |
-| ---------------------- | ------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
-| product_id             | bigint        | NN, FK products  | Sản phẩm cha                                                                                                     |
-| sku_code               | varchar(64)   | NN, UQ           | Mã tự sinh, ví dụ NX-SKU-000001                                                                                  |
-| options                | jsonb         | NN, `{}`         | Lựa chọn SKU, tối đa 5 cặp mã → chuỗi 1–100 ký tự; không null/object/array                                       |
-| options_key            | text          | Generated stored | Chuỗi tổ hợp chuẩn hóa xác định từ options để chống trùng, không nhận từ client                                  |
-| price                  | numeric(14,0) | NN               | Giá bán hiện tại, > 0                                                                                            |
-| on_hand                | integer       | NN, 0            | Hàng thực tế đang ở kho                                                                                          |
-| reserved               | integer       | NN, 0            | Tổng hàng đang giữ cho đơn chưa giao                                                                             |
-| is_active              | boolean       | NN, true         | Có được bán mới không                                                                                            |
-| first_reserved_at      | timestamptz   | NULL             | Catalog ghi lần đầu reserve được chấp nhận; đã có giá trị thì product_id/options bất biến, không xóa khi release |
-| created_at, updated_at | timestamptz   | NN               | Thời gian                                                                                                        |
+| Cột                    | Kiểu         | Null/default    | Ý nghĩa                                                         |
+| ---------------------- | ------------ | --------------- | --------------------------------------------------------------- |
+| product_id             | bigint       | NN, FK products | Sản phẩm cha                                                    |
+| sku                   | varchar(40)  | NN, UQ          | Mã tự sinh, bất biến                                            |
+| options                | jsonb        | NN, `{}`        | Mã lựa chọn → giá trị; các SKU cùng Product có cùng bộ mã       |
+| price_vnd              | bigint       | NN              | Giá bán hiện tại, số nguyên VND > 0                             |
+| deleted_at             | timestamptz  | NULL            | Đánh dấu xóa mềm, giữ lịch sử SKU                               |
+| created_at, updated_at | timestamptz  | NN              | Thời gian                                                       |
+
+Tồn được lưu tại `inventory` theo từng SKU, không nằm trên ProductVariant. `on_hand` là hàng thực tế, `reserved` là lượng giữ; `available = on_hand - reserved` được tính khi đọc. `inventory_ledger` ghi Admin, lý do, số lượng trước/sau và thời điểm cho tồn ban đầu, điều chỉnh và xóa SKU. `reserved <= on_hand`; cập nhật tồn khóa dòng inventory và không sửa reserved trực tiếp.
 
 Ràng buộc DB:
 
-- UQ `(product_id, options_key)` áp dụng cả SKU ngừng bán; muốn bán lại cùng tổ hợp thì bật lại SKU đó sau kiểm tra cấu hình hiện hành. Với options `{}`, mỗi Product chỉ có một SKU mặc định.
-- CHECK `jsonb_typeof(options) = 'object'`, `octet_length(options_key) <= 1500`, `price > 0`; hàm chuẩn hóa từ chối cấu trúc/giá trị sai theo hợp đồng bên dưới.
-- CHECK `on_hand >= 0 AND reserved >= 0 AND reserved <= on_hand`.
-- Thêm UQ `(id, product_id)` để dùng FK ghép ở order_items/events.
-- Index `(product_id, is_active)`; UNIQUE tổ hợp hỗ trợ tra SKU theo Product/lựa chọn.
+- CHECK `jsonb_typeof(options) = 'object'`, `price_vnd > 0`; ứng dụng kiểm tra options theo `Product.optionConfig`.
+- CHECK `inventory.on_hand >= 0 AND inventory.reserved >= 0 AND inventory.reserved <= inventory.on_hand`.
+- Xóa SKU dùng `deleted_at`; không xóa dòng inventory/ledger hoặc SKU được đơn tham chiếu. Tổ hợp options không trùng giữa các SKU chưa xóa; Catalog khóa Product trong thao tác thay đổi SKU để tuần tự hóa kiểm tra.
+- Index `(product_id, deleted_at)`; `available` không lưu thành cột riêng.
 
 Định nghĩa hàm SQL IMMUTABLE `canonical_variant_options(jsonb)` cho cột generated options_key: kiểm tra object và giới hạn trường/mã/giá trị; chuẩn hóa từng giá trị bằng normalize_label, sắp mã theo thứ tự byte ổn định rồi serialize danh sách cặp thành JSON text có escaping xác định. `{}` cho khóa `[]`. Không ghép bằng dấu phân cách tùy ý hoặc lấy thứ tự khóa client làm khóa; không dùng hash làm bằng chứng duy nhất chống trùng. Tổng khóa tối đa 1.500 byte để giới hạn kích thước index. Khác thứ tự khóa/hoa thường/khoảng trắng vẫn trùng tổ hợp; `Đen` khác `Black`, `256GB` khác `256 GB` nếu chưa có quy tắc đồng nhất chủ động. Backend lưu giá trị hiển thị đã trim/NFC/gộp khoảng trắng và xác nhận đúng tập mã Product; DB bảo vệ chống trùng qua UQ. Hàm generated chỉ xử lý cùng dòng, không đọc cấu hình Category.
 
-Sinh sku_code bằng **sequence riêng** `sku_code_seq`: lấy `nextval` rồi thêm tiền tố và đệm tối thiểu 6 chữ số; giá trị trên 999999 giữ toàn bộ chữ số, không cắt. Không dùng `MAX + 1`, số dòng hiện có, tên sản phẩm hoặc options để sinh mã. Sequence có thể có khoảng trống khi rollback; điều đó hợp lệ. Mã SKU bất biến ngay từ lúc tạo, kể cả chưa có đơn.
+Mã SKU được server sinh theo ID sau khi tạo row trong cùng transaction (`SKU-` kèm ID đệm); người dùng không nhập/sửa mã. Không thêm trạng thái riêng cho SKU. Xóa mềm làm SKU ngừng xuất hiện trong quản trị/bán mới; SKU còn reservation không xóa được. Tồn 0 hoặc available 0 ngăn đặt mua qua kiểm tra stock.
 
-Không lưu cột `available`; không tạo bảng Color/Size hoặc EAV tổng quát. Khách chọn giá trị từ SKU có sẵn; Admin nhập giá trị theo mã đã cấu hình tại danh mục. Bản đầu lọc options theo so khớp chính xác sau chuẩn hóa, không lọc khoảng số trên chuỗi dung lượng/kích thước và chưa lọc products.attributes.
+Không lưu cột `available`; không tạo bảng Color/Size hoặc EAV tổng quát. Khách chọn giá trị từ SKU có sẵn; Admin cấu hình mã lựa chọn riêng trong từng Product. Bản đầu lọc options theo so khớp chính xác sau chuẩn hóa, không lọc khoảng số trên chuỗi dung lượng/kích thước.
 
-CSV không có thông số/lựa chọn; adapter dùng products.attributes = `{}`, variant_option_keys = `[]`, options = `{}`, lấy toàn bộ price/stock vào một SKU và reserved = 0. sku_code vẫn sinh NX-SKU qua sequence, còn NXR của CSV ở products.seed_sku. Không suy đoán thông số thật từ nhãn synthetic, không sao chép stock sang nhiều biến thể. SKU thêm sau có tồn riêng qua Catalog; UI chọn sẵn SKU duy nhất. Khi chuyển sang nhiều biến thể, tạm ngừng bán Product, ngừng bán SKU mặc định, cập nhật tập mã và nhập các SKU mới/tồn riêng qua nghiệp vụ kho rồi mở lại Product khi hợp lệ; không nhân tồn cũ. Tồn SKU mặc định cũ không tự chuyển sang SKU mới và các reservation cũ vẫn được xử lý theo SKU đã giữ.
+CSV không có thông số/lựa chọn; adapter dùng variant_option_keys = `[]`, options = `{}`, lấy toàn bộ price/stock vào một SKU và reserved = 0. sku_code vẫn sinh NX-SKU qua sequence, còn NXR của CSV ở products.seed_sku. Không suy đoán thông số thật từ nhãn synthetic, không sao chép stock sang nhiều biến thể. SKU thêm sau có tồn riêng qua Catalog; UI chọn sẵn SKU duy nhất. Khi chuyển sang nhiều biến thể, tạm ngừng bán Product, ngừng bán SKU mặc định, cập nhật tập mã và nhập các SKU mới/tồn riêng qua nghiệp vụ kho rồi mở lại Product khi hợp lệ; không nhân tồn cũ. Tồn SKU mặc định cũ không tự chuyển sang SKU mới và các reservation cũ vẫn được xử lý theo SKU đã giữ.
 
-Sau khi SKU đã có đơn được chấp nhận, cấm sửa product_id/options. Catalog ghi first_reserved_at trong cùng transaction checkout; có thể JOIN order_items để đối soát. Không xóa dấu khi hủy đơn. SKU chưa dùng được đổi options sau kiểm tra trùng/cấu hình/ảnh; tồn chỉ đổi qua nghiệp vụ kho.
+SKU code và options cố định sau khi tạo; nếu options khai báo sai thì xóa mềm SKU và thêm SKU đúng. Giá và tồn có thể điều chỉnh; mọi thay đổi tồn cần lý do và ghi ledger. Tồn 0 làm SKU không thể bán; không có trạng thái riêng cho SKU. Đây là điều chỉnh tồn cơ bản trong quản lý SKU, chưa phải màn kiểm kê kho riêng.
 
 ### 4.5. `product_images` — liên kết ảnh tại Catalog
 
-Cả product_images và image_assets thuộc module Catalog trong database chung. Module sở hữu upload/trạng thái/credential/liên kết. image_assets bổ sung cho 29 bảng nghiệp vụ được mô tả.
+Migration hiện tại lưu liên kết Product/SKU tới media asset, alt text, thứ tự, cờ ảnh đại diện và thời gian tạo. Bảng tên legacy `image_assets` lưu metadata cho cả ảnh và video; media asset chỉ được tạo sau khi Supabase Storage trả upload thành công.
 
-| Cột            | Kiểu         | Null/default              | Ý nghĩa                                                               |
-| -------------- | ------------ | ------------------------- | --------------------------------------------------------------------- |
-| product_id     | bigint       | NN, FK products           | Sản phẩm                                                              |
-| variant_id     | bigint       | NULL, FK product_variants | NULL là ảnh chung; có giá trị là ảnh dành cho một SKU cùng Product    |
-| image_asset_id | bigint       | NN, FK image_assets       | Asset do Catalog quản lý trong cùng database                          |
-| storage_key    | varchar(500) | NN                        | object_path Supabase đã được Catalog xác minh; path bất biến          |
-| storage_bucket | varchar(255) | NN                        | Bucket public chứa object                                             |
-| provider       | varchar(50)  | NN, SUPABASE_STORAGE      | Projection nhà cung cấp                                               |
-| cdn_url        | text         | NN                        | URL public HTTPS từ bucket/path; không chứa secret hoặc URL ký upload |
-| content_sha256 | char(64)     | NN                        | Hash bytes bất biến; thay ảnh tạo path/asset mới                      |
-| alt_text       | varchar(200) | NULL                      | Văn bản thay thế                                                      |
-| sort_order     | integer      | NN, 0                     | Thứ tự trong bộ ảnh                                                   |
-| is_primary     | boolean      | NN, false                 | Ảnh đại diện sản phẩm                                                 |
-| source_url     | text         | NULL                      | Provenance ảnh nhập ban đầu, không làm URL hiển thị chính             |
-| is_placeholder | boolean      | NN, false                 | true cho ảnh minh họa theo danh mục của notebook                      |
-| created_at     | timestamptz  | NN                        | Thời gian                                                             |
+| Cột | Kiểu | Null/default | Ý nghĩa |
+| --- | --- | --- | --- |
+| id | bigint identity | NN, PK | ID liên kết |
+| product_id | bigint | NN, FK products | Sản phẩm |
+| variant_id | bigint | NULL, FK product_variants | NULL là ảnh chung; có giá trị là ảnh của SKU cùng Product |
+| image_asset_id | bigint | NN, FK image_assets | Asset do Catalog quản lý |
+| alt_text | varchar(200) | NN, `''` | Văn bản thay thế |
+| sort_order | integer | NN, 0 | Thứ tự trong bộ ảnh |
+| is_primary | boolean | NN, false | Ảnh đại diện Product |
+| created_at | timestamptz | NN | Thời gian |
 
-CHECK `sort_order >= 0`; FK ghép `(variant_id, product_id)` → product_variants `(id, product_id)` bảo đảm SKU thuộc cùng Product. Partial UQ `(product_id) WHERE is_primary = true`; CHECK ảnh đại diện phải là ảnh chung (`NOT is_primary OR variant_id IS NULL`). Index `(product_id, variant_id, sort_order, id)` và `(image_asset_id)`.
+CHECK `sort_order >= 0`; trigger kiểm tra SKU thuộc cùng Product; partial UQ một ảnh đại diện chung cho mỗi Product; CHECK ảnh đại diện phải là ảnh chung. Video không thể là ảnh đại diện. Migration hiện tại ngăn trùng media asset hai lần trong cùng Product. Gỡ liên kết không xóa asset Storage; Order giữ snapshot metadata cần thiết cho đơn lịch sử.
 
-Không UQ toàn bảng trên image_asset_id: nhiều SKU/Product có thể dùng chung asset. Hai partial UQ chống lặp liên kết: `(product_id, image_asset_id) WHERE variant_id IS NULL` và `(product_id, variant_id, image_asset_id) WHERE variant_id IS NOT NULL`.
-
-Catalog kiểm tra/khóa asset READY trong database chung trước khi ghi liên kết cùng transaction. upload_status chỉ nằm ở image_assets; product_images.image_asset_id có FK tới image_assets.id. Khóa/version Product khi đổi ảnh/gỡ liên kết/mở bán để bảo đảm Product ACTIVE có ảnh chung hợp lệ.
-
-Khi chọn SKU, ưu tiên ảnh SKU rồi ảnh chung. Dùng lại asset bằng liên kết mới; Order giữ bucket/object_path/hash/URL snapshot. Gỡ liên kết không xóa Supabase Storage asset. Dọn vật lý về sau phải kiểm tra tham chiếu Catalog/Order trong database chung và chặn liên kết mới đồng thời; FK không thay snapshot. Không dọn asset trong bản đầu.
-
-Seed upload placeholder qua Catalog và xác minh READY trước transaction Catalog. Lưu source_url từ CSV, is_placeholder = true, variant_id = NULL, is_primary = true và alt_text nêu ảnh minh họa. Admin thay ảnh thật đặt is_placeholder = false nhưng không thay nguồn lịch sử Product.
-
+Khi chọn SKU, ưu tiên ảnh SKU rồi ảnh chung. Không tạo trạng thái READY cho asset; API chỉ cho liên kết imageAssetId đã được ghi metadata sau upload thành công.
 ### 4.5.1. `image_assets` — metadata Supabase Storage tại Catalog
 
-Thiết kế này chưa có migration hoặc adapter upload. Module Catalog sở hữu operation upload/metadata trong PostgreSQL; Supabase Storage giữ object bytes. Không trực tiếp ghi/xóa bảng storage.objects hoặc đồng nhất application imageAssetId với ID nội bộ của Storage.
+Catalog lưu thông tin media trong PostgreSQL; Supabase Storage giữ bytes. Backend nhận ảnh JPEG/PNG/WebP tối đa 5 MiB hoặc video MP4/WebM/MOV tối đa 50 MB, upload vào object path mới với `upsert:false`, rồi khi Storage trả thành công thì ghi metadata và trả ID nội bộ cùng public URL. Không xác minh chữ ký bytes, đọc object lại, tính SHA-256 hoặc dùng trạng thái READY/PENDING. Nếu Storage thành công nhưng ghi metadata thất bại, object có thể mồ côi; upload lần nữa sẽ dùng path mới. Bucket phải cho phép các MIME type và giới hạn tương ứng.
 
-| Cột                         | Kiểu                | Null/default         | Ý nghĩa                                                                  |
-| --------------------------- | ------------------- | -------------------- | ------------------------------------------------------------------------ |
-| id                          | bigint identity     | NN, PK               | imageAssetId trong API, serialize chuỗi                                  |
-| provider                    | varchar(50)         | NN, SUPABASE_STORAGE | Provider đã chốt                                                         |
-| storage_bucket              | varchar(255)        | NN                   | Bucket catalog-images do server cấu hình                                 |
-| object_path                 | varchar(500)        | NN                   | Path do Catalog sinh/lưu trước upload, ví dụ catalog/UUID.webp; bất biến |
-| content_sha256              | char(64)            | NN                   | SHA-256 bytes đã kiểm tra, dùng đối soát và bảo toàn nội dung            |
-| cdn_url                     | text                | NULL trước READY     | URL public HTTPS từ bucket/path do server cấu hình                       |
-| format                      | varchar(20)         | NULL trước READY     | jpeg/jpg, png, webp đã kiểm tra từ bytes                                 |
-| bytes                       | bigint              | NULL trước READY     | Kích thước object đã đối soát                                            |
-| width / height              | integer mỗi cột     | NULL trước READY     | Pixel từ nội dung ảnh đã decode/kiểm tra                                 |
-| upload_status               | varchar(16)         | NN, PENDING          | PENDING / READY / FAILED                                                 |
-| requester_scope             | varchar(200)        | NN                   | Admin/job seed do server xác thực                                        |
-| idempotency_key             | varchar(200)        | NN                   | Khóa chống lặp                                                           |
-| request_fingerprint         | char(64)            | NN                   | Hash bytes và tham số chuẩn hóa                                          |
-| failure_code                | varchar(100)        | NULL                 | Mã lỗi an toàn, không response provider nguyên bản                       |
-| attempt_count               | integer             | NN, 0                | Lần xử lý/đối soát                                                       |
-| next_retry_at / lease_until | timestamptz mỗi cột | NULL                 | Lịch retry và lease worker                                               |
-| created_at / updated_at     | timestamptz mỗi cột | NN                   | Thời gian tạo/cập nhật                                                   |
+| Cột | Kiểu | Null/default | Ý nghĩa |
+| --- | --- | --- | --- |
+| id | bigint identity | NN, PK | imageAssetId trong API, serialize chuỗi |
+| uploaded_by_id | bigint | NN, FK users | Admin đã upload |
+| bucket | varchar(100) | NN | Bucket do backend cấu hình |
+| object_path | varchar(500) | NN, UQ cùng bucket | Path bất biến do Catalog sinh |
+| content_type | varchar(100) | NN | MIME thuộc allowlist JPEG/PNG/WebP hoặc MP4/WebM/QuickTime |
+| content_length | integer | NN | Kích thước file upload |
+| public_url | text | NN | URL public được dựng từ cấu hình bucket và object path |
+| created_at | timestamptz | NN | Thời gian ghi metadata sau khi Storage nhận upload |
 
-UQ (requester_scope, idempotency_key), UQ (storage_bucket, object_path); index (upload_status, next_retry_at). CHECK provider/status hợp lệ, attempt_count không âm, bytes/width/height dương khi có. READY bắt buộc đủ bucket/path/hash/URL/format/bytes/pixel và URL HTTPS đúng namespace server; CHECK DB không thay validation bytes hoặc xác minh object tồn tại.
-
-Ghi PENDING rồi upload ngoài transaction với upsert:false. Thay ảnh tạo object_path mới; không ghi đè object được tham chiếu từ đơn. Timeout giữ PENDING và đối soát bucket/path cùng SHA-256 bytes trước khi READY/retry; object tồn tại hoặc URL dựng được chưa đủ chứng minh đúng nội dung. Nếu thiếu bytes sau restart, client gửi lại cùng key để đối soát, không tạo operation/path mới.
-
-Bucket public chỉ cho đọc ảnh catalog, không mở ghi cho anon/browser. Backend kiểm tra Admin trước khi dùng SUPABASE_SECRET_KEY; secret key/service_role không vào frontend/log. Khi triển khai, bucket giới hạn JPEG/PNG/WebP và 5 MiB; adapter vẫn kiểm tra riêng. Không lưu ảnh/base64/API secret trong bảng metadata. Không tự tạo bucket hoặc policy ngoài project đã cấu hình.
-
-Gỡ liên kết không xóa object. Di chuyển từ provider cũ (nếu có dữ liệu thực) phải upload thành object mới, xác minh bytes/metadata rồi cập nhật liên kết có kiểm soát; giữ snapshot/URL lịch sử, không suy diễn bucket/path từ URL cũ và không xóa asset cũ tự động. Database backup và Storage object backup là hai đầu vào restore riêng.
-
+Backend chỉ cho Admin upload và giữ secret key phía server. Migration `6_product_video_media` nới CHECK MIME/kích thước cho video; Bucket phải được cấu hình riêng, public-read cho browser, không cho anon/browser ghi. Gỡ liên kết không xóa object. Không tạo bucket/policy tự động; database backup không bao gồm object bytes nên cần backup Storage riêng.
 ### 4.6. Ví dụ SKU
 
 | id   | product_id       | sku_code      | options                             |   price | on_hand | reserved | available khi đọc |
@@ -634,7 +587,7 @@ Không cần FK từ đơn tới sổ địa chỉ. Snapshot là dữ liệu gia
 | image_storage_key_snapshot    | varchar(500)  | NULL                    | object_path bất biến tại lúc đặt                                                                                |
 | image_storage_bucket_snapshot | varchar(255)  | NULL                    | Bucket tại lúc đặt                                                                                              |
 | image_provider_snapshot       | varchar(50)   | NULL                    | Provider sở hữu asset lịch sử                                                                                   |
-| image_content_hash_snapshot   | char(64)      | NULL                    | SHA-256 bytes snapshot; không dựa vào version tự động của provider                                              |
+| image_content_type_snapshot   | varchar(100)  | NULL                    | MIME của asset ảnh lúc đặt; không dựa vào trạng thái provider                                              |
 | image_cdn_url_snapshot        | text          | NULL                    | URL đọc ảnh; fallback UI khi CDN không sẵn sàng                                                                 |
 | retailrocket_item_id_snapshot | varchar(50)   | NULL                    | ID nguồn tại lúc đặt, tiện export                                                                               |
 | unit_price                    | numeric(14,0) | NN                      | Giá một đơn vị tại lúc đặt                                                                                      |
@@ -976,7 +929,7 @@ Khóa product rồi variant, đọc reserved mới nhất, tính on_hand mới; 
 | Địa giới                                         | Giữ các bản cũ; không cascade xóa địa chỉ                                                                                   |
 | UserAddress                                      | Có thể xóa vật lý; đơn dùng snapshot độc lập                                                                                |
 | ProductImage                                     | Có thể gỡ liên kết nếu catalog vẫn hợp lệ; bản đầu không xóa vật lý asset Supabase Storage, kể cả asset chưa gắn            |
-| ImageAsset                                       | Catalog sở hữu metadata/trạng thái upload và operation chống lặp; giữ asset READY và lịch sử, chưa xóa vật lý trong bản đầu |
+| ImageAsset                                       | Catalog sở hữu metadata/trạng thái upload và operation chống lặp; giữ asset có metadata trong Catalog và lịch sử, chưa xóa vật lý trong bản đầu |
 | CartItem                                         | Có thể xóa theo nghiệp vụ; FK cart_id cho phép ON DELETE CASCADE khi dọn giỏ                                                |
 | Cart/Visitor/TrackingSession                     | Giữ trong demo; đánh trạng thái hết hạn, không cascade mất event                                                            |
 | Order/OrderItem/History/Movement                 | Giữ nguyên; không sửa/xóa lịch sử qua API                                                                                   |
@@ -1004,11 +957,11 @@ Bản đầu không phân vùng event, không thêm GIN cho mọi JSONB, không 
 1. Seed Admin bằng cấu hình local, lưu hash; không ghi mật khẩu thật vào tài liệu/repository.
 2. Nhập một location_dataset đầy đủ, provinces/wards rồi mới đánh is_current; không để bản dở dang thành hiện hành.
 3. Đọc/validate toàn bộ ba CSV và manifest trước ghi: schema 14/3/4 cột, count 500/23/1664 của snapshot đầu, ID duy nhất, category/root/name tham chiếu đúng, số nguyên/boolean hợp lệ, checksum và quota đúng. root của Product suy từ danh mục seed; không đòi category nguồn cấp item mà CSV không có. Tái xuất từ clean phải dùng latest category một dòng/item và kiểm tra cây như SRS 8.3.1.
-4. Đọc/kiểm tra placeholder bằng stream/buffer giới hạn, gọi provider module Catalog trong backend với idempotency key ổn định; upload Supabase Storage và xác minh READY/CDN trước transaction nhập lô. Không gọi network khi giữ khóa DB hoặc lưu file gốc. Upload thất bại thì chưa nhập catalog. Giữ asset khi rollback để seed lại dùng cùng ID; không tự dọn trong bản đầu.
-5. Khóa tác vụ seed catalog để không chạy hai importer đồng thời. Trong một transaction, tạo/đối chiếu catalog_datasets; cùng version khác hash thì từ chối. Nhập categories theo `(seed_dataset_id, seed_category_id)`, parent_id NULL/attribute_config `{}` cho danh mục mới; giữ cây/cấu hình danh mục đã có. Nhập mappings qua ID nội bộ và nhãn brand metadata seed theo name_key. Không ép ID CSV vào identity và không gán provenance lên danh mục Admin trùng tên; xung đột phải báo để xử lý.
+4. Đọc/kiểm tra placeholder bằng stream/buffer giới hạn, gọi provider module Catalog trong backend với idempotency key ổn định; upload Supabase Storage; ghi metadata sau phản hồi thành công trước transaction nhập lô. Không gọi network khi giữ khóa DB hoặc lưu file gốc. Upload thất bại thì chưa nhập catalog. Giữ asset khi rollback để seed lại dùng cùng ID; không tự dọn trong bản đầu.
+5. Khóa tác vụ seed catalog để không chạy hai importer đồng thời. Trong một transaction, tạo/đối chiếu catalog_datasets; cùng version khác hash thì từ chối. Nhập categories theo `(seed_dataset_id, seed_category_id)`, parent_id NULL cho danh mục mới; giữ cây danh mục đã có. Product seed dùng options `{}` và cấu hình `{"options": {}}`. Nhập mappings qua ID nội bộ và nhãn brand metadata seed theo name_key. Không ép ID CSV vào identity và không gán provenance lên danh mục Admin trùng tên; xung đột phải báo để xử lý.
 6. Nhập Product mới theo source_item_id → retailrocket_item_id, lưu seed_product_id/seed_sku, danh mục seed và thống kê nguồn. Đối chiếu thêm cặp dataset/seed_product_id; nếu ID cũ trỏ item khác, source_item_id thuộc dataset khác hoặc Product đã có nhưng thiếu provenance cần thiết thì báo xung đột, không ghép tùy ý. category_id vận hành lúc tạo bằng seed_category_id nội bộ; về sau Admin được đổi category_id.
-7. Product mới có attributes `{}`, variant_option_keys `[]`, nhận một SKU options `{}`, mã vận hành sinh qua sequence, price = CSV.price, on_hand = CSV.stock, reserved = 0, first_reserved_at NULL; thêm ảnh chung seed variant_id NULL làm đại diện. Với tồn dương tạo INITIAL ledger; tồn 0 không tạo movement delta 0. Chỉ mở ACTIVE sau đủ kiểm tra, kể cả hết hàng; is_active false → INACTIVE.
-8. Với Product đã import, không tái dựng SKU mặc định theo options rỗng nếu Admin đã sửa biến thể; không ghi đè attributes/tập mã/options, giá, tồn, category/cấu hình/cây, ảnh, trạng thái hoặc thêm INITIAL. Seed chỉ tạo Product chưa có và các bản ghi nguồn còn thiếu khi nhất quán; provenance bất biến sai thì dừng để sửa chủ động. Kiểm tra counts và tham chiếu của bộ seed rồi commit toàn lô. Lỗi giữa chừng rollback dataset/category/mapping/Product/SKU/ledger mới.
+7. Product mới có variant_option_keys `[]`, nhận một SKU options `{}`, mã vận hành sinh qua sequence, price = CSV.price, on_hand = CSV.stock, reserved = 0, first_reserved_at NULL; thêm ảnh chung seed variant_id NULL làm đại diện. Với tồn dương tạo INITIAL ledger; tồn 0 không tạo movement delta 0. Chỉ mở ACTIVE sau đủ kiểm tra, kể cả hết hàng; is_active false → INACTIVE.
+8. Với Product đã import, không tái dựng SKU mặc định theo options rỗng nếu Admin đã sửa biến thể; không ghi đè mô tả/tập mã/options, giá, tồn, category/cấu hình/cây, ảnh, trạng thái hoặc thêm INITIAL. Seed chỉ tạo Product chưa có và các bản ghi nguồn còn thiếu khi nhất quán; provenance bất biến sai thì dừng để sửa chủ động. Kiểm tra counts và tham chiếu của bộ seed rồi commit toàn lô. Lỗi giữa chừng rollback dataset/category/mapping/Product/SKU/ledger mới.
 9. Không import hàng triệu event RetailRocket vào interaction_events LIVE. source_interactions/source_users không sinh event hoặc đơn. Dataset training ở khu vực nguồn riêng; replay dùng DB test hoặc data_origin REPLAY.
 
 `location_datasets.version`, `catalog_datasets.version`, ID RetailRocket và các unique constraint giúp seed không nhân đôi. Manifest/CSV là artifact bất biến; bảng catalog_datasets chỉ lưu thông tin đối chiếu, không có bảng ETL/job. Sản phẩm Admin mới không có RetailRocket ID vẫn bán được và nhận recommendation theo quy tắc. Đổi sang một bộ catalog mới trong DB đang có giao dịch cần migration đối chiếu riêng; không tự reset database hoặc cập nhật mapping nguồn của Product cũ.
@@ -1024,8 +977,8 @@ Bản đầu không phân vùng event, không thêm GIN cho mọi JSONB, không 
 | products.brand                                         | Phân giải brands.name_key → products.brand_id                                                                                                                         |
 | products.category_id, category_name                    | Tra danh mục seed, kiểm tra tên trên artifact; lưu products.seed_category_id và category_id lúc tạo                                                                   |
 | products.price, stock                                  | Một SKU mặc định: price, on_hand; reserved = 0                                                                                                                        |
-| Không có thuộc tính trong CSV                          | Product attributes `{}`, variant_option_keys `[]`; SKU options `{}`; Category mới parent_id NULL/attribute_config `{}`                                                |
-| products.image_url                                     | product_images.source_url; upload qua Catalog lên Supabase Storage, lưu image_asset_id và projection bucket/object_path/content_sha256/cdn_url; is_placeholder = true |
+| Không có thuộc tính trong CSV                          | Product variant_option_keys `[]`; SKU options `{}`; Category mới parent_id NULL/option_config `{}`                                                |
+| products.image_url                                     | product_images.source_url; upload qua Catalog lên Supabase Storage, lưu image_asset_id và projection bucket/object_path/public_url; is_placeholder = true |
 | products.is_active                                     | true → ACTIVE sau validation, false → INACTIVE                                                                                                                        |
 | products.interactions, users                           | products.source_interactions/source_users; snapshot nguồn                                                                                                             |
 | categories.category_id, root_categoryid, category_name | categories.seed_category_id, retailrocket_root_category_id, name                                                                                                      |
@@ -1039,7 +992,7 @@ products_demo không xuất categoryid của item, nên products.retailrocket_ca
 | Đợt | Nội dung                                                                                                                                                                                                                                                         |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 01  | Hàm chuẩn hóa, users/auth_sessions, địa giới và địa chỉ                                                                                                                                                                                                          |
-| 02  | catalog_datasets → categories có parent_id/attribute_config → brands metadata/mappings → products attributes/variant_option_keys → variants options/options_key/first_reserved_at → images variant_id; hàm canonical, sequence SKU và CHECK/UQ/FK nội bộ Catalog |
+| 02  | catalog_datasets → categories có parent_id/option_config → brands metadata/mappings → products description/variant_option_keys → variants options/options_key/first_reserved_at → images variant_id; hàm canonical, sequence SKU và CHECK/UQ/FK nội bộ Catalog |
 | 03  | Visitor/session, cart, idempotency                                                                                                                                                                                                                               |
 | 04  | Sequence mã đơn, orders/items/history/notes và inventory_movements                                                                                                                                                                                               |
 | 05  | Recommendation requests/items, events, audit                                                                                                                                                                                                                     |
@@ -1048,13 +1001,13 @@ products_demo không xuất categoryid của item, nên products.retailrocket_ca
 
 Các đợt trên là các nhóm nội dung thiết kế, không phải số migration phải chạy lại. Phần users/auth_sessions trong đợt 01 đã có ở migration 1; không tạo lại bảng. Các mục còn thiếu như địa giới/địa chỉ phải nằm trong migration mới. Task 002/010/019/021/024/029/040/043/049/063 theo dõi tại [Implementation tasks](IMPLEMENTATION_TASKS.md).
 
-Các đợt trên là kế hoạch nghiệp vụ trong một backend và một database. Prisma giữ baseline Auth, bảng lịch sử auth_schema_migrations và dùng _prisma_migrations cho migration mới; Auth, password reset và Category đã có migration. Các đợt tiếp theo mở rộng có version, không chạy lại hoặc sửa migration đã áp dụng. Module ảnh thêm image_assets và FK product_images.image_asset_id trước seed. Tracking/gợi ý website thuộc backend; model Python/FastAPI là tích hợp tương lai, chưa cần database riêng.
+Các đợt trên là nhóm thay đổi schema theo kế hoạch nghiệp vụ, không phải migration đang chạy. Dự án hiện dùng `schema.prisma` và đồng bộ thủ công với PostgreSQL local bằng `npm run db:push`; Prisma Migrate và các file migration đã được gỡ. Module ảnh lưu metadata trong database chung; Tracking/gợi ý website thuộc backend; model Python/FastAPI là tích hợp tương lai, chưa cần database riêng.
 
 ### 11.4. Triển khai Catalog trong schema ứng dụng
 
-users/auth_sessions, password_reset_tokens và Category đã có migration; Product/SKU, image_assets, Order và các bảng còn lại chưa có migration hoặc dữ liệu do code hiện tại tạo. Triển khai các phần còn lại theo thiết kế đa ngành, mở rộng schema Category/Product/SKU cùng Catalog khi cần.
+Schema hiện tại mô tả các bảng Auth, Category, Product/SKU, media và inventory trong `backend/prisma/schema.prisma`. Prisma Migrate và migration files không thuộc workflow hiện tại. Các bảng Order/Payment/Tracking/Recommendation còn lại là thiết kế; triển khai schema bằng `db:push` chỉ khi chủ động đồng bộ PostgreSQL local.
 
-Mỗi thay đổi schema thêm Prisma migration có version, dùng _prisma_migrations sau baseline và giữ auth_schema_migrations cùng phần Auth đã áp dụng. Không tự tạo schema bằng db push/migrate reset hoặc nhập artifact chưa được xác minh. Bất biến snapshot/ID/tồn và quyền schema được kiểm chứng bằng DB test riêng trước bàn giao.
+Schema được mô tả trong `backend/prisma/schema.prisma`; chỉ đồng bộ thủ công bằng `npm run db:push` tới PostgreSQL local không có dữ liệu cần giữ. Không trỏ lệnh này tới Supabase hoặc database dùng chung. Bất biến snapshot/ID/tồn được kiểm chứng bằng DB test riêng trước bàn giao.
 
 <a id="verification"></a>
 
@@ -1092,13 +1045,13 @@ Mỗi thay đổi schema thêm Prisma migration có version, dùng _prisma_migra
 | DB-26 | Thanh toán COD/payOS; webhook hợp lệ, giả chữ ký, sai số tiền, gửi lặp và webhook đến đơn hết hạn/hủy                     | Chỉ đúng khoản payOS được xác nhận; payment status, paid_at, reference và transaction không lệch hoặc ghi lặp                    | TC-46–TC-48         |
 | DB-27 | Reset token hợp lệ/sai/hết hạn/dùng lại; đổi mật khẩu đồng thời với phiên cũ                                              | Chỉ một lần reset; thu hồi mọi phiên trong cùng transaction; token rõ không được lưu                                             | TC-49               |
 | DB-28 | Thêm email_outbox trùng event key; provider lỗi và worker retry                                                           | Một hàng/event; lỗi email không rollback order/payment; retry có giới hạn/backoff và không lộ recipient/secret trong event/audit | TC-50               |
-| DB-29 | Upload lặp/timeout, commit DB lỗi sau Supabase Storage thành công; gắn/thay/gỡ ảnh                                        | Một asset/operation; READY đủ metadata; FK trong database chung; snapshot đơn bất biến; phục hồi theo bucket/object_path         | TC-28, TC-53, TC-54 |
+| DB-29 | Storage upload thành công nhưng commit metadata lỗi; gắn/thay/gỡ ảnh | Có thể có object mồ côi; FK metadata trong database chung; snapshot đơn bất biến         | TC-28, TC-53, TC-54 |
 
 <a id="references"></a>
 
 ## 13. Nguồn kỹ thuật và lịch sử tài liệu
 
-- [module ảnh Catalog](Folder-ARCHITECTURE.md#image-upload): hợp đồng upload Supabase Storage, chống lặp và bảo toàn asset; schema hiện hành tại mục 4.5–4.5.1.
+- [module ảnh Catalog](Folder-ARCHITECTURE.md#image-upload): hợp đồng upload Supabase Storage, ghi metadata khi Storage báo thành công; không có SHA-256, trạng thái READY hoặc idempotency; schema hiện hành tại mục 4.5–4.5.1.
 - [Supabase Storage uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads): upload object/path mới; [public buckets](https://supabase.com/docs/guides/storage/buckets/fundamentals): quyền đọc/ghi riêng.
 - Build Demo Catalog — `Build_Demo_Catalog.docx` (chưa có trong checkout; cần cung cấp để đối chiếu): diễn giải tiền xử lý và hướng AI.
 - Notebook Build — `Build_Demo_Catalog.ipynb` (chưa có trong checkout; cần cung cấp để đối chiếu): thuật toán quota và schema ba CSV; chuẩn đối chiếu artifact.
@@ -1119,5 +1072,10 @@ Mỗi thay đổi schema thêm Prisma migration có version, dùng _prisma_migra
 | 2.6 | 29/10/2026 | Chuyển gửi email reset sang Gmail SMTP qua Nodemailer |
 | 2.7 | 30/10/2026 | Thêm schema/migration Category và ghi rõ cách Prisma duy trì name_key bằng trigger |
 | 2.8 | 30/10/2026 | Chuẩn hóa NFC, trim và gộp khoảng trắng Unicode của tên Category trong migration mới |
+| 2.9 | 01/11/2026 | Bỏ Attributes riêng của Product; thông tin chung dùng mô tả, Category chỉ phân loại; từng Product tự cấu hình lựa chọn SKU. |
+| 3.0 | 01/11/2026 | Product chỉ ACTIVE/INACTIVE, mặc định ACTIVE; tạo đủ nội dung/SKU/ảnh/tồn trong một transaction; không có DRAFT. |
+| 3.1 | 01/11/2026 | Ghi nhận migration Product/SKU triển khai: tồn/ledger riêng, SKU không có trạng thái bán, tồn điều chỉnh có lý do và xóa SKU mềm. |
+| 3.4 | 01/11/2026 | Chuyển cấu hình SKU sang Product; Category chỉ phân loại, backfill cấu hình cũ. |
+| 3.5 | 01/11/2026 | Mở rộng metadata Catalog để lưu video MP4/WebM/MOV tối đa 50 MB. |
 
-Auth, password_reset_tokens và categories có migration; các bảng nghiệp vụ khác và ca kiểm chứng trong tài liệu là thiết kế, chưa phải kết quả đã triển khai. Các ví dụ ID/giá chỉ minh họa.
+Auth, password_reset_tokens, categories, Product/SKU, ảnh/video media và tồn kho Catalog đã có migration. Các bảng nghiệp vụ Order/Payment/Tracking/Recommendation và ca kiểm chứng trong tài liệu là thiết kế, chưa phải kết quả đã triển khai. Các ví dụ ID/giá chỉ minh họa.

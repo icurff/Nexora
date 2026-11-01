@@ -32,7 +32,7 @@ Hệ thống cho phép người dùng đăng ký tài khoản, đăng nhập, đ
 
 Người dùng có thể xem danh sách sản phẩm, tìm kiếm theo tên, lọc theo danh mục, khoảng giá, thuộc tính biến thể và tình trạng còn hàng. Hệ thống hỗ trợ sắp xếp kết quả để thuận tiện cho việc lựa chọn. Trang chi tiết sản phẩm cung cấp tên, hình ảnh, mô tả, giá bán, các lựa chọn biến thể và tình trạng cung ứng.
 
-Đối với sản phẩm có nhiều biến thể, người dùng chọn các thuộc tính phù hợp theo ngành hàng, ví dụ màu/cỡ với quần áo, màu/dung lượng với điện thoại hoặc dung tích với đồ gia dụng. Thông số chung của sản phẩm được phân biệt với các lựa chọn tạo SKU có giá và tồn riêng. Sản phẩm không có biến thể sử dụng một SKU mặc định không có lựa chọn. Thông tin và ảnh hiển thị phải phản ánh đúng SKU được chọn, dùng ảnh chung nếu SKU không có ảnh riêng.
+Đối với sản phẩm có nhiều biến thể, người dùng chọn các thuộc tính phù hợp theo ngành hàng, ví dụ màu/cỡ với quần áo, màu/dung lượng với điện thoại hoặc dung tích với đồ gia dụng. Thông số chung của sản phẩm được ghi trong mô tả; các lựa chọn tạo SKU có giá và tồn riêng. Sản phẩm không có biến thể sử dụng một SKU mặc định không có lựa chọn. Thông tin và ảnh hiển thị phải phản ánh đúng SKU được chọn, dùng ảnh chung nếu SKU không có ảnh riêng.
 
 #### 1.2.3. Quản lý giỏ hàng
 
@@ -56,9 +56,9 @@ Hệ thống cung cấp danh sách sản phẩm gợi ý tại các vị trí ph
 
 | Nhóm chức năng     | Nội dung yêu cầu                                                                                                                                      |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Quản lý sản phẩm   | Thêm, cập nhật nội dung/thông số chung, hình ảnh, lựa chọn SKU có giá/tồn riêng và trạng thái kinh doanh                                              |
+| Quản lý sản phẩm   | Thêm, cập nhật nội dung mô tả, hình ảnh, lựa chọn SKU có giá/tồn riêng và trạng thái kinh doanh                                              |
 | Quản lý hình ảnh   | Upload ảnh qua module ảnh Catalog lên Supabase Storage; gắn asset sẵn sàng vào Product/SKU, chọn ảnh đại diện và giữ ảnh lịch sử khi thay/gỡ liên kết |
-| Quản lý danh mục   | Tổ chức danh mục cha–con và cấu hình thông số/lựa chọn theo ngành hàng trong cùng form; không có quản lý thương hiệu hoặc module thuộc tính riêng     |
+| Quản lý danh mục   | Tổ chức danh mục cha–con và cấu hình lựa chọn SKU theo ngành hàng trong cùng form; không có quản lý thương hiệu hoặc module thuộc tính riêng     |
 | Quản lý tồn kho    | Theo dõi số lượng hàng trong kho, số lượng đang giữ cho đơn hàng và số lượng có thể bán; ghi nhận nhập hàng, điều chỉnh tồn kho                       |
 | Quản lý đơn hàng   | Tra cứu, xác nhận, hủy đơn theo điều kiện; cập nhật quá trình giao hàng, kết quả giao và tình trạng thanh toán COD/payOS                              |
 | Quản lý khách hàng | Tra cứu thông tin cần thiết cho hoạt động bán hàng; khóa hoặc mở tài khoản khách hàng                                                                 |
@@ -165,7 +165,7 @@ RetailRocket được sử dụng làm nguồn dữ liệu chính cho nghiên c�
 
 Catalog trình diễn của Nexora được xây dựng từ 500 sản phẩm có liên kết với mã sản phẩm nguồn, tổ chức thành 23 danh mục hiển thị. Tên ngành hàng, tên sản phẩm, nhãn thương hiệu dạng metadata, giá, tồn kho và mô tả được tạo để phục vụ minh họa; hình ảnh sử dụng placeholder. Nhãn thương hiệu không có màn hình hoặc API quản trị riêng. Các nhãn như điện tử, thời trang hoặc gia dụng không được xem là tên ngành hàng thật đã xác định từ RetailRocket.
 
-Catalog vận hành hỗ trợ danh mục cha–con và cấu hình thông số/lựa chọn ngay trong danh mục. Các giá trị được lưu linh hoạt tại Product/SKU, không bắt buộc màu và size cho mọi ngành hàng; nhãn và giá trị lựa chọn lúc mua được giữ trong snapshot dòng đơn. 23 danh mục seed ban đầu là danh mục gốc chưa khai báo thuộc tính, mỗi Product có một SKU không có lựa chọn. Không suy đoán thông số thật của item từ các nhãn synthetic; thiết kế đa ngành không đồng nghĩa đã thay dataset nghiên cứu.
+Catalog vận hành hỗ trợ danh mục cha–con và cấu hình lựa chọn SKU ngay trong danh mục. Giá trị lựa chọn được lưu tại SKU, thông tin chung nằm trong mô tả Product, không bắt buộc màu và size cho mọi ngành hàng; nhãn và giá trị lựa chọn lúc mua được giữ trong snapshot dòng đơn. 23 danh mục seed ban đầu là danh mục gốc chưa khai báo lựa chọn SKU, mỗi Product có một SKU không có lựa chọn. Không suy đoán thông số thật của item từ các nhãn synthetic; thiết kế đa ngành không đồng nghĩa đã thay dataset nghiên cứu.
 
 Vì vậy, dữ liệu tổng hợp phục vụ giao diện không được sử dụng làm bằng chứng về ý nghĩa thực của sản phẩm hoặc sở thích theo ngành hàng của người dùng nguồn. Phạm vi huấn luyện không mặc định giới hạn trong 500 sản phẩm demo; việc lựa chọn tập nghiên cứu phải được mô tả riêng theo phương pháp thực nghiệm và điều kiện tài nguyên.
 

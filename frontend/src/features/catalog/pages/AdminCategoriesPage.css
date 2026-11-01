@@ -75,29 +75,6 @@
   font: inherit;
   font-size: 10px;
 }
-.category-filter {
-  display: flex;
-  gap: 3px;
-  margin: 12px 0;
-  padding-bottom: 10px;
-  overflow-x: auto;
-  border-bottom: 1px solid #edf0ed;
-}
-.category-filter button {
-  flex: 0 0 auto;
-  padding: 7px 9px;
-  color: #87918a;
-  background: transparent;
-  border: 0;
-  border-radius: 4px;
-  font-size: 9px;
-  cursor: pointer;
-}
-.category-filter button.active {
-  color: #52795e;
-  background: #eaf0e9;
-  font-weight: 700;
-}
 .category-tree,
 .category-tree ul {
   margin: 0;
@@ -123,9 +100,6 @@
 .category-tree-row.selected {
   color: #43654c;
   background: #eef4ed;
-}
-.category-tree-row.inactive {
-  color: #9a9e99;
 }
 .category-tree-toggle,
 .category-tree-spacer {
@@ -208,20 +182,6 @@
   border-radius: 4px;
   cursor: pointer;
 }
-.category-badge {
-  padding: 6px 8px;
-  border-radius: 20px;
-  font-size: 8px;
-  white-space: nowrap;
-}
-.category-badge.active {
-  color: #54795c;
-  background: #edf5ec;
-}
-.category-badge.inactive {
-  color: #976e3c;
-  background: #fbf2e6;
-}
 .category-editor-empty {
   min-height: 280px;
   display: flex;
@@ -257,7 +217,6 @@
   gap: 12px;
 }
 .category-field,
-.category-config-row label,
 .category-option-row label {
   min-width: 0;
   display: flex;
@@ -267,7 +226,6 @@
   font-size: 9px;
 }
 .category-field > span,
-.category-config-row label > span,
 .category-option-row label > span {
   color: #68766c;
   font-size: 9px;
@@ -279,8 +237,6 @@
 }
 .category-field input,
 .category-field select,
-.category-config-row input,
-.category-config-row select,
 .category-option-row input {
   width: 100%;
   min-width: 0;
@@ -296,8 +252,6 @@
 }
 .category-field input:focus,
 .category-field select:focus,
-.category-config-row input:focus,
-.category-config-row select:focus,
 .category-option-row input:focus {
   border-color: #91ad93;
   box-shadow: 0 0 0 2px #eaf1e9;
@@ -310,34 +264,6 @@
 .category-field-error {
   color: #a44f48 !important;
 }
-.category-active-toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 11px;
-  background: #f8faf7;
-  border: 1px solid #ebefea;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.category-active-toggle input {
-  margin-top: 2px;
-  accent-color: #55775d;
-}
-.category-active-toggle strong,
-.category-active-toggle small {
-  display: block;
-}
-.category-active-toggle strong {
-  color: #5d6e61;
-  font-size: 9px;
-}
-.category-active-toggle small {
-  margin-top: 4px;
-  color: #929d94;
-  font-size: 8px;
-}
-.category-inline-warning,
 .category-form-error,
 .category-form-success {
   display: flex;
@@ -348,17 +274,10 @@
   font-size: 9px;
   line-height: 1.4;
 }
-.category-inline-warning {
-  color: #8b6a36;
-  background: #fff8eb;
-}
 .category-config-section {
   padding: 13px;
   border: 1px solid #e5ece5;
   border-radius: 6px;
-}
-.category-config-section--common {
-  background: #f8fbf8;
 }
 .category-config-section--variants {
   background: #f7f9fc;
@@ -431,13 +350,6 @@
   border-radius: 4px;
   font-size: 8px;
 }
-.category-config-row {
-  display: grid;
-  grid-template-columns: 1fr 1.3fr 1fr 0.7fr 28px;
-  align-items: end;
-  gap: 7px;
-  margin-top: 8px;
-}
 .category-option-row {
   display: grid;
   grid-template-columns: 1fr 1.5fr 28px;
@@ -497,12 +409,6 @@
   .category-management-layout {
     grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
   }
-  .category-config-row {
-    grid-template-columns: 1fr 1.2fr 1fr 28px;
-  }
-  .category-config-row label:nth-child(4) {
-    grid-column: 1 / 4;
-  }
 }
 @media (max-width: 650px) {
   .category-management-layout {
@@ -513,19 +419,6 @@
   }
   .category-form-grid {
     grid-template-columns: 1fr;
-  }
-  .category-config-row {
-    grid-template-columns: 1fr 1fr 28px;
-  }
-  .category-config-row label:nth-child(3) {
-    grid-column: 1;
-  }
-  .category-config-row label:nth-child(4) {
-    grid-column: 2;
-  }
-  .category-config-row .category-remove-button {
-    grid-column: 3;
-    grid-row: 1 / span 2;
   }
   .category-option-row {
     grid-template-columns: 1fr 1fr 28px;

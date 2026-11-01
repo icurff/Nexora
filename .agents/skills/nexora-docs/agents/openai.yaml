@@ -1,4 +1,0 @@
-interface:
-  display_name: 'Nexora Markdown Docs'
-  short_description: 'Keep Nexora Markdown design and scope consistent'
-  default_prompt: 'Use $nexora-docs to update Nexora Markdown documentation for the agreed changes.'

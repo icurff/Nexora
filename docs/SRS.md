@@ -4,10 +4,10 @@
 
 | Thông tin           | Giá trị                                                                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Phiên bản           | 2.6                                                                                                                                     |
+| Phiên bản           | 3.0 |
 | Ngày lập            | 09/10/2026                                                                                                                              |
-| Cập nhật            | 29/10/2026                                                                                                                              |
-| Trạng thái          | Draft — sẵn sàng rà soát trước triển khai                                                                                               |
+| Cập nhật            | 01/11/2026 |
+| Trạng thái          | Draft — có phần Catalog Product/SKU đã triển khai; còn phụ thuộc upload ảnh và nghiệm thu tích hợp                                      |
 | Tài liệu nghiệp vụ  | [BRD](BRD.md)                                                                                                                           |
 | Thiết kế dữ liệu    | [Database design](DATABASE_DESIGN.md); một database chung theo [Architecture](Folder-ARCHITECTURE.md)                                   |
 | Kiến trúc           | [Modular monolith](Folder-ARCHITECTURE.md): một frontend, một backend NestJS                                                            |
@@ -59,9 +59,8 @@ Tất cả FR trong tài liệu là bắt buộc cho phiên bản hiện tại. 
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Product                            | Mẫu sản phẩm hiển thị trên catalog; có thể gắn một item RetailRocket                                            |
 | SKU / ProductVariant               | Tổ hợp lựa chọn cụ thể của Product; có giá và tồn riêng, mã SKU tự sinh; không có lựa chọn thì một SKU mặc định |
-| Attributes                         | Thông số chung của Product theo cấu hình danh mục, ví dụ chất liệu hoặc hệ điều hành; không phân biệt SKU       |
 | Options                            | Các lựa chọn phân biệt SKU, ví dụ màu/cỡ/dung lượng; object mã → chuỗi, khách chọn từ giá trị có sẵn            |
-| Attribute config                   | Cấu hình mã/nhãn/kiểu thông số và mã/nhãn lựa chọn tại Category, không phải module quản trị thuộc tính riêng    |
+| Option config                   | Cấu hình mã/nhãn lựa chọn SKU riêng của từng Product; Category chỉ phân loại |
 | On hand                            | Số lượng đang nằm trong kho logic                                                                               |
 | Reserved                           | Số lượng trong kho đã giữ cho đơn chưa xuất giao                                                                |
 | Available                          | On hand − Reserved; lượng có thể tiếp tục bán                                                                   |
@@ -97,7 +96,7 @@ Tài khoản bị khóa bị từ chối các thao tác yêu cầu xác thực, 
 
 ### 2.2. Môi trường
 
-- ReactJS/TypeScript cho web, NestJS cho backend, Supabase PostgreSQL cho dữ liệu và Supabase Storage cho ảnh; Docker Compose chỉ phục vụ frontend/backend local, không healthcheck.
+- ReactJS/TypeScript cho web, NestJS cho backend, PostgreSQL local qua Docker Compose và Supabase Storage cho ảnh/video; không healthcheck.
 - Giao diện tiếng Việt, giá số nguyên VND; thời gian lưu theo UTC và hiển thị theo Asia/Ho_Chi_Minh.
 - API gọi trực tiếp backend local, ảnh đọc CDN; module Catalog phụ trách upload/Supabase Storage, email phụ thuộc nhà cung cấp; không phụ thuộc model AI để mua hàng.
 - Trước nghiệm thu bản web phải cung cấp snapshot địa giới local, artifact catalog và cấu hình Supabase Storage/email/payOS. Hiện chưa có module ảnh/địa chỉ trong code và docs/data đang trống; đây là đầu vào phải chuẩn bị, không phải khả năng đã được triển khai.
@@ -107,7 +106,7 @@ Tài khoản bị khóa bị từ chối các thao tác yêu cầu xác thực, 
 
 ## 3. Yêu cầu chức năng
 
-Hiện tại repository gồm frontend React/Vite và backend NestJS monolith với AuthModule, Prisma kết nối Supabase PostgreSQL qua DATABASE_URL/SSL và một database chung. Supabase Auth không thay AuthModule hiện có. Auth đã có đăng ký/login/refresh/logout/session/đổi mật khẩu/khôi phục mật khẩu và guard Customer/Admin; UI quên/đặt mật khẩu đã gọi API thật. Trang `/admin` kiểm tra role Admin ở client và endpoint ADMIN-only ở backend. Các module nghiệp vụ khác bên dưới là yêu cầu chưa triển khai. Không có gateway hoặc broker. Model Python/FastAPI là tích hợp AI tương lai, chưa có mã nguồn/container/database. Xem [Architecture](Folder-ARCHITECTURE.md).
+Hiện tại repository gồm frontend React/Vite và backend NestJS monolith với AuthModule, Prisma ORM và PostgreSQL local qua Compose. `schema.prisma` là source of truth; cập nhật schema bằng `npm run db:push` chỉ trên DB local, không dùng Prisma Migrate hoặc Supabase PostgreSQL. Supabase Storage giữ file ảnh/video. Supabase Auth không thay AuthModule hiện có. Auth đã có đăng ký/login/refresh/logout/session/đổi mật khẩu/khôi phục mật khẩu và guard Customer/Admin; UI quên/đặt mật khẩu đã gọi API thật. Trang `/admin` kiểm tra role Admin ở client và endpoint ADMIN-only ở backend. Các module nghiệp vụ khác bên dưới là yêu cầu chưa triển khai. Không có gateway hoặc broker. Model Python/FastAPI là tích hợp AI tương lai, chưa có mã nguồn/container/database. Xem [Architecture](Folder-ARCHITECTURE.md).
 
 Transaction nghiệp vụ có thể bao gồm nhiều module trong database chung. Checkout và lifecycle cập nhật đơn, giỏ, tồn, ledger và business event nguyên tử, rollback toàn bộ khi lỗi. Lời gọi provider ngoài transaction; ghi job email bền vững cùng nghiệp vụ rồi gửi sau commit. Không dùng Saga hoặc HTTP/Kafka giữa module.
 
@@ -131,9 +130,9 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | Mã        | Yêu cầu                                                                                                                                                                                                                                                             |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | FR-CAT-01 | Trang chủ có lối vào danh mục, sản phẩm mới và nhóm sản phẩm được quan tâm; không yêu cầu module quản lý banner                                                                                                                                                     |
-| FR-CAT-02 | Tìm tên sản phẩm, phân trang, lọc danh mục gồm các danh mục con/lựa chọn SKU/giá/còn hàng; sắp xếp mới nhất hoặc giá tăng/giảm; trạng thái lọc phản ánh trên URL; chưa lọc thông số chung Product hoặc khoảng số theo lựa chọn                                      |
-| FR-CAT-03 | Trang chi tiết hiển thị nội dung, thông số, ảnh chung/ảnh SKU; tự chọn SKU duy nhất, nhiều biến thể cho chọn các thuộc tính theo mọi thứ tự; chỉ Customer đã đăng nhập mới thêm SKU hợp lệ vào giỏ; Guest được yêu cầu đăng nhập và quay lại sản phẩm sau đăng nhập |
-| FR-CAT-04 | Hết hàng vẫn hiển thị có nhãn; nháp/ngừng bán không xuất hiện công khai; SKU không còn bán không được đặt mới                                                                                                                                                       |
+| FR-CAT-02 | Tìm tên sản phẩm, phân trang, lọc danh mục gồm các danh mục con/lựa chọn SKU/giá/còn hàng; sắp xếp mới nhất hoặc giá tăng/giảm; trạng thái lọc phản ánh trên URL; chưa lọc khoảng số theo lựa chọn                                      |
+| FR-CAT-03 | Trang chi tiết hiển thị nội dung mô tả, ảnh chung/ảnh SKU; tự chọn SKU duy nhất, nhiều biến thể cho chọn các thuộc tính theo mọi thứ tự; chỉ Customer đã đăng nhập mới thêm SKU hợp lệ vào giỏ; Guest được yêu cầu đăng nhập và quay lại sản phẩm sau đăng nhập |
+| FR-CAT-04 | Hết hàng vẫn hiển thị có nhãn; ngừng bán không xuất hiện công khai; SKU không còn bán không được đặt mới                                                                                                                                                       |
 | FR-REC-01 | Hiển thị gợi ý theo quy tắc, có nguồn rule_based và request ID; loại sản phẩm ngừng bán/hết hàng; không tuyên bố kết quả là GNN                                                                                                                                     |
 
 ### 3.3. Giỏ và checkout
@@ -165,10 +164,10 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | FR-ORD-06 | Admin xác nhận giao thành công; đơn COD phải xác nhận thu tiền và cập nhật DELIVERED/PAID; đơn payOS đã PAID được cập nhật DELIVERED; ghi transaction theo dòng đơn đúng một lần                                                                     |
 | FR-ORD-07 | Admin ghi giao thất bại có lý do; được giao lại không xuất kho thêm. Chỉ đơn UNPAID mới được nhận hàng về để hủy/nhập lại tồn một lần                                                                                                                |
 | FR-INV-01 | Catalog theo dõi on hand/reserved/available từng SKU; reserved bằng tổng quantity dòng đơn PENDING/CONFIRMED; tạo đơn và giữ hàng cùng transaction, không âm hoặc bán vượt available                                                                 |
-| FR-INV-02 | Admin nhập/điều chỉnh tồn có lý do và lịch sử; không làm on hand thấp hơn reserved; không sửa số reserved bằng thao tác kiểm kê                                                                                                                      |
-| FR-ADM-01 | Admin tạo/sửa/nháp/mở bán/ngừng bán Product, thông số và lựa chọn SKU theo cấu hình danh mục; chống trùng tổ hợp; dữ liệu dùng trong reservation/đơn được bảo toàn; không xóa dây chuyền đơn                                                         |
-| FR-ADM-02 | Admin quản lý Category cha–con và attribute_config trong cùng form; chặn chu trình và thay đổi làm dữ liệu đang bán sai cấu hình. Brand chỉ là metadata seed, không có CRUD/API quản trị Brand; không có module/bảng thuộc tính riêng                |
-| FR-ADM-03 | Module Catalog trong backend kiểm tra/upload JPEG/PNG/WebP bằng buffer/stream giới hạn lên Supabase Storage, lưu image_assets trong database chung; gắn asset READY vào Product/SKU bằng transaction; không giữ file gốc hoặc xóa vật lý ảnh lịch sử |
+| FR-INV-02 | Giai đoạn sau: Admin nhập/điều chỉnh tồn có lý do và lịch sử; không làm on hand thấp hơn reserved; không sửa số reserved bằng thao tác kiểm kê                                                       |
+| FR-ADM-01 | Admin tạo Product ACTIVE với nội dung/SKU/ảnh đầy đủ, sửa/ngừng bán/mở bán lại Product và lựa chọn SKU theo cấu hình riêng của Product; chống trùng tổ hợp; dữ liệu dùng trong reservation/đơn được bảo toàn; không xóa dây chuyền đơn |
+| FR-ADM-02 | Admin quản lý Product/SKU và Category cha–con trong Catalog; Product tạo ACTIVE nguyên tử với SKU khởi tạo tồn 0 và ảnh đã upload thành công; chưa quản lý tồn; Brand chỉ là metadata seed, không có CRUD/API quản trị Brand; không có module/bảng thuộc tính riêng |
+| FR-ADM-03 | Module Catalog upload nhiều ảnh JPEG/PNG/WebP (≤5 MiB) và video MP4/WebM/MOV (≤50 MB) lên Supabase Storage, lưu metadata sau phản hồi thành công và gắn media vào Product/SKU; không xác minh chữ ký bytes, tính SHA-256, dùng READY hoặc xóa vật lý asset lịch sử |
 | FR-ADM-04 | Admin tìm/lọc đơn, xem chi tiết, thêm ghi chú nội bộ và xem lịch sử; không lưu hãng vận chuyển/mã vận đơn                                                                                                                                            |
 | FR-ADM-05 | Admin tìm Customer, xem thông tin nghiệp vụ cần thiết, khóa/mở có lý do; không xem mật khẩu hoặc reset mật khẩu giúp khách                                                                                                                           |
 | FR-ADM-06 | Dashboard phân biệt đơn tạo theo createdAt, đơn đang chờ, kết quả hủy/thất bại và tiền đã thu theo paidAt; tiền hàng/phí ship tách riêng                                                                                                             |
@@ -187,7 +186,7 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | FR-EMAIL-01 | Tạo thông báo email xác nhận đơn và thông báo khi trạng thái đơn/thanh toán thay đổi; gửi bất đồng bộ, chống gửi trùng theo sự kiện và thử gửi lại lỗi tạm thời                                   |
 | FR-EMAIL-02 | Email lỗi/không sẵn sàng không rollback hoặc chặn nghiệp vụ đơn; lưu trạng thái gửi để vận hành nhận biết và xử lý lại                                                                            |
 | FR-LOC-01   | Phục vụ địa giới từ snapshot local có nguồn/ngày phiên bản; kiểm tra quan hệ tỉnh–đơn vị cấp xã, giữ tên/mã tại lúc đặt trong snapshot đơn                                                        |
-| FR-OPS-01   | Có cấu hình mẫu, migration, seed và hướng dẫn local; dữ liệu/ảnh bền vững khi khởi động lại; không tự reset dữ liệu khi start                                                                     |
+| FR-OPS-01   | Có cấu hình mẫu, Prisma schema, seed và hướng dẫn local; dữ liệu/ảnh bền vững khi khởi động lại; không tự đồng bộ schema hoặc reset dữ liệu khi start                                         |
 
 <a id="use-cases"></a>
 
@@ -268,8 +267,8 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 
 - **Tác nhân:** mọi người truy cập. **Trước:** Product đang bán.
 - **Dữ liệu:** lựa chọn theo tập mã của Product và số lượng, ví dụ color/size hoặc color/storage.
-- **Luồng chính:** tải chi tiết/thông số → hiển thị ảnh/giá ban đầu → tự chọn nếu chỉ có một SKU đang bán; nếu nhiều SKU, chọn các giá trị theo bất kỳ thứ tự → cập nhật các tổ hợp phù hợp, ảnh và giá → khi đủ lựa chọn xác định SKU. SKU seed options rỗng không yêu cầu chọn nhãn; ảnh placeholder kèm thông báo dữ liệu minh họa.
-- **Ngoại lệ:** tổ hợp không tồn tại bị vô hiệu hóa; hết hàng có nhãn và chặn mua; đổi lựa chọn khiến lựa chọn cũ vô hiệu thì bỏ lựa chọn cũ. Link tới nháp/ngừng bán trả trạng thái không còn khả dụng, không lộ nội dung nháp.
+- **Luồng chính:** tải chi tiết/mô tả → hiển thị ảnh/giá ban đầu → tự chọn nếu chỉ có một SKU đang bán; nếu nhiều SKU, chọn các giá trị theo bất kỳ thứ tự → cập nhật các tổ hợp phù hợp, ảnh và giá → khi đủ lựa chọn xác định SKU. SKU seed options rỗng không yêu cầu chọn nhãn; ảnh placeholder kèm thông báo dữ liệu minh họa.
+- **Ngoại lệ:** tổ hợp không tồn tại bị vô hiệu hóa; hết hàng có nhãn và chặn mua; đổi lựa chọn khiến lựa chọn cũ vô hiệu thì bỏ lựa chọn cũ. Link tới ngừng bán trả trạng thái không còn khả dụng, không cho đặt mua mới.
 - **Sau:** xem chưa giữ hàng; chỉ ghi view khi chi tiết tải thành công. **Nghiệm thu:** TC-09, TC-45.
 
 ### UC-09 — Thêm giỏ
@@ -386,28 +385,30 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 
 ### UC-23 — Quản trị Product và SKU
 
-- **Tác nhân:** Admin. **Dữ liệu:** tên, mô tả, category, thông số chung, tập mã lựa chọn của Product, options từng SKU, ảnh, giá và tồn ban đầu; mã SKU do hệ thống sinh. Brand demo chỉ đọc, không được Admin tạo/sửa/chọn từ màn hình quản lý.
-- **Luồng:** tạo nháp → thêm SKU/ảnh → kiểm tra đủ điều kiện → mở bán; sau đó sửa nội dung/giá, thêm SKU hoặc ngừng bán.
-- **Ngoại lệ:** trùng mã SKU/tổ hợp options đã chuẩn hóa, mã/kiểu thuộc tính sai, giá sai hoặc thiếu dữ liệu mở bán bị từ chối. SKU đang bán cùng Product phải có cùng tập mã; không trộn options rỗng với options có giá trị. SKU đã có reservation/đơn được chấp nhận không đổi options. ID nguồn seed không sửa qua form thường.
-- **Sau:** chỉ ảnh hưởng bán mới; không sửa snapshot hoặc giải phóng reservation của đơn cũ khi ngừng bán. Sản phẩm/SKU đã có giao dịch không bị xóa vật lý. **Nghiệm thu:** TC-26.
+- **Tác nhân:** Admin. **Dữ liệu:** tên, mô tả, Category, options và giá từng SKU, ảnh; mã SKU do hệ thống sinh. Tồn kho không thuộc UI quản trị hiện tại.
+- **Luồng:** nhập đủ nội dung, SKU và tham chiếu media đã upload thành công → lưu Product ACTIVE cùng SKU khởi tạo tồn 0 và media trong một transaction; sau đó sửa nội dung/giá SKU, thêm/xóa SKU, quản lý liên kết ảnh hoặc ngừng/mở bán Product.
+- **Ngoại lệ:** trùng tổ hợp options, mã lựa chọn SKU sai, giá sai, asset chưa tồn tại hoặc thiếu dữ liệu bị từ chối. Các SKU cùng Product phải dùng cùng tập mã lựa chọn. Mã SKU và options cố định sau khi tạo; nếu khai báo sai thì xóa mềm SKU và thêm SKU đúng. Không có trạng thái bán riêng cho SKU. Không xóa SKU đang được đơn giữ; Product ACTIVE phải còn ít nhất một SKU. Snapshot đơn cũ không đổi khi sửa giá.
+- **Sau:** không có thao tác xem/điều chỉnh tồn trong quản trị Product hiện tại. **Nghiệm thu:** TC-26, TC-28, TC-53, TC-54.
 
 ### UC-24 — Quản trị Category
 
-- **Tác nhân:** Admin. **Luồng:** thêm/sửa nhãn, chọn cha tùy chọn, cấu hình attributes/options → kiểm tra tên trùng, chu trình và dữ liệu bị ảnh hưởng → lưu; ngừng dùng khi không muốn gán mới.
-- **Ngoại lệ:** cha phải hợp lệ/đang dùng, không tự trỏ hoặc tạo chu trình. Cấu hình không kế thừa từ cha; sửa cấu hình/đổi danh mục Product bị chặn nếu làm dữ liệu đang bán không hợp lệ. Mã đã dùng không đổi ý nghĩa/kiểu/đơn vị tại chỗ; đổi ngữ nghĩa cần mã mới/chuyển dữ liệu chủ động. Không có quản trị Brand hoặc module thuộc tính riêng. Category đã được Product/Category con/mapping tham chiếu không xóa; ngừng dùng không tự ngừng bán sản phẩm cũ.
-- **Sau:** lọc danh mục gồm các danh mục con; admin không gán mới vào danh mục có bản thân/tổ tiên ngừng dùng. Brand metadata seed không có thao tác quản trị. **Nghiệm thu:** TC-27.
+- **Tác nhân:** Admin. **Luồng:** thêm/sửa nhãn, chọn cha tùy chọn → kiểm tra tên trùng và chu trình → lưu.
+- **Ngoại lệ:** cha phải tồn tại, không tự trỏ hoặc tạo chu trình. Cấu hình không kế thừa từ cha; mã đã dùng không đổi ý nghĩa tại chỗ. Không có trạng thái bật/tắt, quản trị Brand hoặc module thuộc tính riêng. Category đã được Product/Category con/mapping tham chiếu không xóa.
+- **Sau:** mọi danh mục đều có thể gán cho Product; bộ lọc tìm kiếm gồm danh mục con. Brand metadata seed không có thao tác quản trị. **Nghiệm thu:** TC-27.
 
-### UC-25 — Quản trị ảnh
+### UC-25 — Quản trị ảnh và video
 
-- **Tác nhân:** Admin. **Dữ liệu:** ảnh chung Product hoặc ảnh gắn một SKU cùng Product, lựa chọn ảnh đại diện chung.
-- **Luồng:** Admin upload trực tiếp backend → module Catalog kiểm tra và upload Supabase Storage → ghi image_assets READY trong database chung → giải phóng buffer → trả imageAssetId → kiểm tra READY và ghi product_images trong transaction. Ảnh SKU ưu tiên trước ảnh chung; browser đọc CDN, backend không giữ file gốc.
-- **Ngoại lệ:** định dạng/dung lượng sai bị từ chối; không nhận đường dẫn file tùy ý; lỗi upload không tạo tham chiếu hỏng. Gỡ liên kết ảnh đang dùng phải có ảnh thay thế hoặc trạng thái hợp lệ; không xóa vật lý asset Supabase Storage trong bản đầu. Timeout chưa rõ kết quả giữ PENDING để đối soát, không trả READY; retry cùng key không sinh asset mới.
-- **Sau:** không làm hỏng lịch sử đơn; ảnh snapshot được giữ, UI fallback khi CDN không sẵn sàng. **Nghiệm thu:** TC-28, TC-53, TC-54.
+- **Tác nhân:** Admin. **Dữ liệu:** nhiều ảnh/video chung Product hoặc ảnh gắn một SKU cùng Product, chọn một ảnh chung làm đại diện.
+- **Luồng:** Admin chọn nhiều tệp → frontend gửi từng tệp qua backend → Catalog upload path mới với `upsert:false` → khi Storage trả thành công, lưu metadata và tự đưa media vào danh sách Product. Ảnh JPEG/PNG/WebP tối đa 5 MiB; video MP4/WebM/MOV tối đa 50 MB. Browser chỉ đọc bucket public; secret chỉ ở backend.
+- **Ngoại lệ:** MIME không hỗ trợ hoặc vượt giới hạn bị từ chối; không nhận URL tùy ý; lỗi upload không tạo metadata liên kết. Không có trạng thái READY hoặc xác minh chữ ký bytes. Gỡ liên kết không xóa asset Storage.
+- **Sau:** mỗi Product ACTIVE vẫn cần một ảnh đại diện; video không thể làm ảnh đại diện. Gỡ liên kết không làm hỏng lịch sử đơn. **Nghiệm thu:** TC-28, TC-53, TC-54.
 
 ### UC-26 — Nhập và điều chỉnh tồn
 
+> Hoãn triển khai: hiện tại không có API hoặc UI quản trị tồn kho. SKU khởi tạo tồn bằng 0; các luồng đặt hàng/kiểm kê sẽ được mở lại ở giai đoạn sau.
+
 - **Tác nhân:** Admin. **Dữ liệu:** SKU, số lượng nhập hoặc số thực tế kiểm kê, lý do.
-- **Luồng:** xem on hand/reserved/available → nhập điều chỉnh → kiểm tra với reserved mới nhất → lưu và ghi giá trị trước/sau cùng người/thời gian/lý do.
+- **Luồng:** xem on hand/reserved/available trong form SKU → nhập tồn thực tế mới và lý do → kiểm tra với reserved mới nhất → lưu và ghi giá trị trước/sau cùng Admin/thời gian/lý do.
 - **Ngoại lệ:** on hand mới < reserved hoặc giá trị âm/không nguyên: từ chối, yêu cầu xử lý đơn liên quan; không sửa trực tiếp reserved hoặc available.
 - **Sau:** việc kiểm kê không tạo hành vi mua hoặc event addtocart. **Nghiệm thu:** TC-29.
 
@@ -456,7 +457,7 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 ### UC-33 — Chuẩn bị dữ liệu demo, địa giới và chạy local
 
 - **Tác nhân:** người phát triển, không phải endpoint công khai. **Đầu vào:** ba CSV từ notebook Build, manifest/version/checksum, placeholder đã upload CDN, snapshot địa giới và cấu hình local. Tái dựng CSV mới cần ba parquet clean.
-- **Luồng:** kiểm tra artifact/schema/quota/tham chiếu → kiểm tra/upload ảnh CDN → migration → seed danh mục/mapping/Product/SKU có version → tạo tài khoản demo → chạy service → kiểm tra 500 Product, 23 danh mục, 500 SKU mặc định và địa giới → restart kiểm tra bền vững.
+- **Luồng:** kiểm tra artifact/schema/quota/tham chiếu → kiểm tra/upload ảnh CDN → đồng bộ Prisma schema vào PostgreSQL local → seed danh mục/mapping/Product/SKU có version → tạo tài khoản demo → chạy service → kiểm tra 500 Product, 23 danh mục, 500 SKU mặc định và địa giới → restart kiểm tra bền vững.
 - **Ngoại lệ:** thiếu CSV/manifest/ảnh, trùng ID, sai checksum hoặc mapping thì dừng trước ghi catalog; lỗi ghi rollback cả lô. Seed lại không nhân đôi, tự reset hoặc ghi đè chỉnh sửa Admin. Placeholder đúng danh mục và truy cập được qua CDN là ảnh hợp lệ; CDN lỗi có fallback UI, không coi ảnh đã sẵn sàng khi upload chưa thành công.
 - **Sau:** có hướng dẫn tái lập và export hành vi không chứa dữ liệu liên hệ. **Nghiệm thu:** TC-37, TC-38, TC-39, TC-42, TC-43, TC-44, TC-45.
 
@@ -468,12 +469,13 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 
 | Đối tượng | Trạng thái/điều kiện    | Hành vi                                                                             |
 | --------- | ----------------------- | ----------------------------------------------------------------------------------- |
-| Product   | DRAFT                   | Chỉ Admin xem/sửa; được phép thiếu nội dung đang chuẩn bị                           |
 | Product   | ACTIVE                  | Công khai khi đủ tên, category đang dùng, ảnh và ít nhất một SKU hợp lệ đang mở bán |
 | Product   | INACTIVE                | Không xuất hiện catalog và không nhận thêm giỏ/đơn; đơn đã có vẫn xử lý             |
 | SKU       | Đang bán, available > 0 | Có thể chọn mua trong giới hạn available                                            |
 | SKU       | Đang bán, available = 0 | Hiển thị hết hàng; không thêm mới/checkout                                          |
 | SKU       | Ngừng bán               | Không nhận thêm mua mới; không tự hủy đơn đã giữ SKU này                            |
+
+Product chỉ có ACTIVE và INACTIVE. Tạo mới qua Admin luôn ACTIVE, không hỗ trợ DRAFT hoặc lưu Product thiếu nội dung/SKU/ảnh; upload ảnh diễn ra trước, và lưu Product/SKU/liên kết ảnh/tồn ban đầu là một transaction. INACTIVE dùng để ngừng bán sản phẩm đã tạo, có thể mở bán lại khi đủ điều kiện.
 
 Hết hàng là điều kiện suy ra từ tồn, không phải một trạng thái phải sửa thủ công. Product ACTIVE có tất cả SKU hết hàng vẫn xuất hiện công khai với nhãn hết hàng. Không được chuyển Product sang ACTIVE nếu không còn SKU nào được phép bán.
 
@@ -517,7 +519,7 @@ Không có các chuyển trạng thái khác. DELIVERED/CANCELLED kết thúc. P
 
 ### 5.5. Địa chỉ và snapshot
 
-Đơn lưu tên người nhận, điện thoại, mã/tên tỉnh, mã/tên đơn vị cấp xã, địa chỉ chi tiết, tiền hàng, phí ship và từng dòng tên/mã SKU/giá/số lượng dưới các cột riêng. Riêng options_snapshot là JSONB chứa mã lựa chọn → `{label, value}` tại lúc Catalog reserve; SKU không có lựa chọn dùng `{}`. Order dùng snapshot đã được Catalog xác nhận, không nhận nhãn/giá tùy ý từ client. Thay đổi cấu hình thuộc tính, catalog hoặc sổ địa chỉ không làm đổi đơn cũ; không chụp toàn bộ Product vào một JSONB.
+Đơn lưu tên người nhận, điện thoại, mã/tên tỉnh, mã/tên đơn vị cấp xã, địa chỉ chi tiết, tiền hàng, phí ship và từng dòng tên/mã SKU/giá/số lượng dưới các cột riêng. Riêng options_snapshot là JSONB chứa mã lựa chọn → `{label, value}` tại lúc Catalog reserve; SKU không có lựa chọn dùng `{}`. Order dùng snapshot đã được Catalog xác nhận, không nhận nhãn/giá tùy ý từ client. Thay đổi cấu hình lựa chọn SKU, catalog hoặc sổ địa chỉ không làm đổi đơn cũ; không chụp toàn bộ Product vào một JSONB.
 
 Địa chỉ đã lưu có mã địa giới không còn hoạt động phải được khách kiểm tra và cập nhật trước lần mua mới. Không tự thay địa giới trong các đơn đã đặt. Các mã địa giới và ID nguồn dataset được biểu diễn như định danh, không dùng tính toán số học hoặc làm mất số 0 đầu.
 
@@ -559,8 +561,8 @@ Client retry giữ event ID; thao tác mới thực sự tạo ID mới. Không 
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | User/Session                       | Danh tính, role, trạng thái, hash mật khẩu, phiên/thu hồi; không lưu mật khẩu rõ                                                                       |
 | Address/Location                   | Chủ địa chỉ, người nhận, thông tin địa giới local và phiên bản dữ liệu                                                                                 |
-| Product                            | Nội dung synthetic, attributes, variant_option_keys, trạng thái, category, brand metadata chỉ đọc nếu có, ID nguồn, phiên bản seed và thống kê lịch sử |
-| Category                           | Danh mục cha–con không chu trình; attribute_config cho thông số và lựa chọn SKU; cấu hình không kế thừa                                                |
+| Product                            | Nội dung mô tả synthetic, variant_option_keys, trạng thái, category, brand metadata chỉ đọc nếu có, ID nguồn, phiên bản seed và thống kê lịch sử |
+| Category | Danh mục cha–con không chu trình; chỉ phân loại Product |
 | Catalog dataset / Category mapping | Version/checksum, danh mục seed gắn root, mapping category RetailRocket về root và danh mục seed                                                       |
 | Variant                            | Mã SKU tự sinh, options JSONB và khóa tổ hợp chuẩn hóa chống trùng; giá và tồn riêng; SKU mặc định options rỗng                                        |
 | Ảnh                                | Module Catalog sở hữu image_assets, Supabase Storage adapter và product_images trong database chung; đơn giữ snapshot asset/key/version/URL            |
@@ -585,19 +587,18 @@ Các giới hạn độ dài/dung lượng dưới đây là **mặc định đ�
 | Điện thoại nhận hàng                              | Có                            | Bỏ khoảng trắng/dấu gạch nối; chấp nhận dấu + ở đầu và 10–15 chữ số; chỉ kiểm tra định dạng, không xác minh sở hữu                                                                                                       |
 | Tỉnh/đơn vị cấp xã                                | Có khi giao hàng              | Mã có trong snapshot và quan hệ cha–con hợp lệ; đơn vị còn hoạt động cho địa chỉ mua mới                                                                                                                                 |
 | Địa chỉ chi tiết                                  | Có                            | 1–300 ký tự; cho phép số nhà, đường, căn hộ, thôn/tổ                                                                                                                                                                     |
-| Tên Product                                       | Có khi mở bán                 | 1–200 ký tự; tên có thể trùng nhưng ID/slug phân biệt                                                                                                                                                                    |
-| Mô tả                                             | Có khi mở bán                 | 1–5.000 ký tự văn bản; không thực thi HTML/script người nhập                                                                                                                                                             |
-| Category                                          | Có khi mở bán                 | Một giá trị; parent_id tùy chọn, không chu trình; không gán mới nếu danh mục/tổ tiên ngừng dùng                                                                                                                          |
+| Tên Product | Có khi tạo/sửa | 1–200 ký tự; tên có thể trùng nhưng ID/slug phân biệt |
+| Mô tả | Có khi tạo/sửa Product | 1–5.000 ký tự văn bản; không thực thi HTML/script người nhập |
+| Category | Có khi tạo/sửa Product | Một giá trị; parent_id tùy chọn, không chu trình; mọi danh mục đều có thể gán |
 | Brand                                             | Không                         | Metadata seed chỉ đọc nếu có; Admin không tạo, sửa hoặc chọn Brand trong form quản trị                                                                                                                                   |
-| Cấu hình thuộc tính Category                      | Object, mặc định `{}`         | Hai nhóm attributes/options theo mã ổn định `[a-z][a-z0-9_]{0,31}`; nhãn 1–100 ký tự; tối đa 30 thông số và 5 lựa chọn; không kế thừa từ cha                                                                             |
-| Attributes của Product                            | Object, mặc định `{}`         | Mã thuộc nhóm attributes của danh mục; kiểu string/number/boolean theo cấu hình; string 1–200 ký tự, số hữu hạn, không null/object/array; tối đa 30 trường và 16 KiB UTF-8; đơn vị lấy từ cấu hình                       |
-| Tập mã lựa chọn Product                           | Array, mặc định `[]`          | Tối đa 5 mã khác nhau thuộc nhóm options của danh mục, không trùng mã đang dùng trong attributes; tất cả SKU đang bán có đúng tập mã này                                                                                 |
+| Cấu hình lựa chọn SKU tại Product | Object, mặc định `{"options": {}}` | Mỗi Product có mã/nhãn riêng; mã theo `[a-z][a-z0-9_]{0,31}`, nhãn 1–100 ký tự, tối đa 5; cố định sau khi tạo |
+| Tập mã lựa chọn Product                           | Array, mặc định `[]`          | Tối đa 5 mã khác nhau từ cấu hình riêng của Product; mọi SKU có cùng tập mã                                                                                 |
 | Options của SKU                                   | Object, mặc định `{}`         | Mã → chuỗi 1–100 ký tự; trim/NFC/gộp khoảng trắng; so trùng không phân biệt hoa/thường nhưng giữ dấu; không tự đồng nhất Đen/Black hoặc đơn vị; khóa tổ hợp chuẩn hóa tối đa 1.500 byte; SKU không có lựa chọn dùng `{}` |
 | Mã SKU                                            | Hệ thống sinh                 | Tối đa 64 ký tự, ví dụ NX-SKU-000001; dùng sequence, duy nhất toàn catalog, bất biến từ lúc tạo và không tái sử dụng                                                                                                     |
 | Giá SKU                                           | Có                            | Số nguyên VND > 0; không chấp nhận float/âm/NaN; server kiểm tra tổng tiền nằm trong miền lưu trữ chính xác                                                                                                              |
 | Số lượng giỏ                                      | Có                            | Số nguyên > 0; không vượt available khi tăng/đặt; không đặt thêm giới hạn thương mại theo SKU ngoài tồn                                                                                                                  |
 | Tồn ban đầu/kiểm kê                               | Có                            | Số nguyên >= 0 và on hand mới >= reserved                                                                                                                                                                                |
-| Ảnh upload                                        | Có ít nhất một ảnh khi mở bán | JPEG/PNG/WebP, <= 5 MiB/file; kiểm tra nội dung ảnh, không chỉ phần mở rộng                                                                                                                                              |
+| Media upload                                      | Có ít nhất một ảnh đại diện khi mở bán | Ảnh JPEG/PNG/WebP ≤5 MiB; video MP4/WebM/MOV ≤50 MB/tệp; kiểm tra MIME allowlist, không xác minh chữ ký bytes |
 | Ghi chú khách/nội bộ                              | Không                         | Tối đa 1.000 ký tự; tách quyền xem                                                                                                                                                                                       |
 | Lý do hủy Admin/giao thất bại/khóa/điều chỉnh tồn | Có                            | 1–500 ký tự; mã lý do hệ thống dùng cho tự hết hạn                                                                                                                                                                       |
 | Từ khóa tìm kiếm                                  | Không                         | Tối đa 100 ký tự; rỗng tương đương duyệt catalog                                                                                                                                                                         |
@@ -606,8 +607,8 @@ Các giới hạn độ dài/dung lượng dưới đây là **mặc định đ�
 
 - Tìm theo chuỗi con trong tên Product, không phân biệt hoa/thường và dấu tiếng Việt; chưa có tìm gần đúng, sửa lỗi chính tả hoặc autocomplete.
 - Catalog mặc định 24 Product/trang, mới nhất trước; thay bộ lọc đưa về trang đầu. Chọn nhiều giá trị áp dụng OR trong cùng mã lựa chọn, AND giữa các mã; tất cả lựa chọn/giá/còn hàng phải khớp cùng một SKU. So khớp giá trị theo cùng chuẩn hóa dùng chống trùng SKU.
-- Chọn danh mục bao gồm sản phẩm gắn trực tiếp và thuộc mọi danh mục con. Bộ lọc lựa chọn lấy từ SKU đang bán của Product công khai trong phạm vi danh mục; nhãn lấy từ cấu hình, chỉ gộp cùng mã khi cùng ý nghĩa. Khi duyệt toàn cửa hàng chỉ hiện các mã được cấu hình nhất quán; mã riêng ngành chỉ hiện khi chọn danh mục phù hợp. Nếu cấu hình mã khác nhau trong phạm vi lọc, ẩn facet mơ hồ và API từ chối mã đó, yêu cầu chọn danh mục cụ thể hơn. Giữ lựa chọn hợp lệ hiện tại ngay cả khi kết quả rỗng để khách bỏ lọc. Chưa lọc attributes Product hoặc khoảng số/đổi đơn vị trên options.
-- Product seed có attributes `{}`, variant_option_keys `[]` và một SKU options `{}`; UI tự chọn SKU, không hiện lựa chọn “Mặc định”. Ảnh seed là ảnh chung variant_id NULL. Nếu chuyển sang nhiều biến thể, ngừng bán SKU mặc định và tạo tồn riêng cho SKU mới qua nghiệp vụ kho, không nhân stock cũ.
+- Chọn danh mục bao gồm sản phẩm gắn trực tiếp và thuộc mọi danh mục con. Bộ lọc lựa chọn lấy từ SKU đang bán của Product công khai trong phạm vi danh mục; nhãn lấy từ cấu hình, chỉ gộp cùng mã khi cùng ý nghĩa. Khi duyệt toàn cửa hàng chỉ hiện các mã được cấu hình nhất quán; mã riêng ngành chỉ hiện khi chọn danh mục phù hợp. Nếu cấu hình mã khác nhau trong phạm vi lọc, ẩn facet mơ hồ và API từ chối mã đó, yêu cầu chọn danh mục cụ thể hơn. Giữ lựa chọn hợp lệ hiện tại ngay cả khi kết quả rỗng để khách bỏ lọc. Chưa lọc khoảng số/đổi đơn vị trên options.
+- Product seed có variant_option_keys `[]` và một SKU options `{}`; UI tự chọn SKU, không hiện lựa chọn “Mặc định”. Ảnh seed là ảnh chung variant_id NULL. Nếu chuyển sang nhiều biến thể, ngừng bán SKU mặc định và tạo tồn riêng cho SKU mới qua nghiệp vụ kho, không nhân stock cũ.
 - Catalog có thông báo “Dữ liệu sản phẩm minh họa”; tên/danh mục tiếng Anh của CSV được giữ nguyên. Ảnh placeholder không được diễn đạt như ảnh chụp hàng thật.
 - Giá thẻ là giá thấp nhất của SKU đang mở bán khớp bộ lọc; có chênh lệch thì ghi “Từ”. Nếu bật còn hàng, chỉ tính SKU còn hàng. Không có bộ lọc thì xét các SKU đang mở bán.
 - Danh sách đơn/quản trị mặc định 20 dòng/trang, mới nhất trước. Các API danh sách áp dụng giới hạn trang hợp lý phía server; không tải toàn bộ lịch sử một lần.
@@ -619,7 +620,7 @@ Các giới hạn độ dài/dung lượng dưới đây là **mặc định đ�
 | Màn hình                             | Nội dung và hành động                                                                                            | Yêu cầu trạng thái                                                                                 |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Trang chủ/catalog                    | Danh mục, tìm/lọc/sort, thẻ Product, gợi ý                                                                       | Loading, rỗng, lỗi tải, hết hàng                                                                   |
-| Chi tiết Product                     | Ảnh chung/ảnh SKU, mô tả, thông số, chọn các lựa chọn SKU, quantity, thêm giỏ                                    | Chưa chọn đủ, tổ hợp không có, hết hàng, không còn khả dụng                                        |
+| Chi tiết Product                     | Ảnh chung/ảnh SKU, mô tả, chọn các lựa chọn SKU, quantity, thêm giỏ                                    | Chưa chọn đủ, tổ hợp không có, hết hàng, không còn khả dụng                                        |
 | Đăng ký/đăng nhập/khôi phục mật khẩu | Form, lỗi theo trường, quay về trang hợp lệ, gửi lại email khôi phục                                             | Đang gửi, email trùng, sai thông tin, tài khoản khóa, liên kết reset hết hạn/đã dùng               |
 | Hồ sơ/đổi mật khẩu                   | Các trường được phép; email chỉ đọc                                                                              | Lưu thành công/thất bại, yêu cầu đăng nhập lại                                                     |
 | Sổ địa chỉ                           | Danh sách, mặc định, thêm/sửa/xóa, dropdown địa giới                                                             | Chưa có địa chỉ, mã đã ngừng dùng, quan hệ không hợp lệ                                            |
@@ -627,7 +628,7 @@ Các giới hạn độ dài/dung lượng dưới đây là **mặc định đ�
 | Checkout                             | Dòng chọn, địa chỉ, phương thức COD/payOS, lưu địa chỉ tùy chọn, ghi chú, tổng phải trả                          | Chưa đăng nhập, giỏ/giá đổi, không đủ hàng, chưa biết kết quả gửi trước                            |
 | Đặt thành công                       | Mã đơn, phương thức/trạng thái thanh toán, hạn xác nhận; URL thanh toán nếu payOS                                | Không hiển thị đã thanh toán trước khi backend xác minh webhook                                    |
 | Đơn Customer                         | Danh sách, chi tiết snapshot, lịch sử, hủy khi hợp lệ                                                            | Rỗng, không được xem, trạng thái đã thay đổi                                                       |
-| Admin catalog                        | Form nháp/mở bán/ngừng bán, thông số Product, options SKU, ảnh, danh mục cha–con và cấu hình ngay trong danh mục | Thiếu dữ liệu mở bán, thuộc tính sai, trùng tổ hợp SKU, chu trình, tài nguyên đang được tham chiếu |
+| Admin catalog                        | Form tạo ACTIVE ngay/ngừng bán/mở bán lại, mô tả Product, options SKU khai báo riêng theo Product, ảnh và danh mục cha–con | Thiếu dữ liệu mở bán, lựa chọn SKU sai, trùng tổ hợp SKU, chu trình, tài nguyên đang được tham chiếu |
 | Admin tồn                            | On hand/reserved/available, nhập/kiểm kê/lịch sử                                                                 | Không đủ hàng chưa giữ, xung đột khi lưu                                                           |
 | Admin đơn                            | Tìm/lọc, snapshot, thời hạn, ghi chú, nút theo trạng thái                                                        | Lý do bắt buộc, xác nhận tác động, trạng thái cũ bị từ chối                                        |
 | Admin Customer                       | Tìm tên/email, trạng thái, khóa/mở                                                                               | Xác nhận khóa, không hỗ trợ reset mật khẩu thay khách hoặc đổi role                                |
@@ -652,11 +653,11 @@ Form báo lỗi cụ thể và giữ dữ liệu phù hợp để sửa. Nút đ
 | NFR-08 | Thời gian server là nguồn cho hạn đơn; lưu UTC, hiển thị Asia/Ho_Chi_Minh; có xử lý bù đơn hết hạn                                                                                                                                                             | Thay đồng hồ client; mô phỏng backend dừng qua hạn; kiểm tra mốc ngày dashboard                                                         |
 | NFR-09 | Event/export không chứa token, mật khẩu, email, điện thoại hoặc địa chỉ nhận hàng; ghi chú nội bộ không lộ sang Customer                                                                                                                                       | Kiểm tra event/export và response Customer                                                                                              |
 | NFR-10 | Chỉ cam kết demo một người; vẫn có chống tranh chấp dữ liệu và trạng thái loading/error                                                                                                                                                                        | Chạy hành trình một người; kiểm tra hai request tranh cùng SKU như kiểm thử toàn vẹn, không phải load test                              |
-| NFR-11 | Cấu hình/secret ngoài source, validation server, kiểm tra origin/CSRF cho mutation dựa cookie; hạn chế thử đăng nhập lặp; upload ảnh có kiểm tra                                                                                                               | Kiểm tra cấu hình và test yêu cầu không hợp lệ/origin sai/đăng nhập lặp/upload không phải ảnh                                           |
+| NFR-11 | Cấu hình/secret ngoài source, validation server, kiểm tra origin/CSRF cho mutation dựa cookie; hạn chế thử đăng nhập lặp; upload media theo MIME allowlist và giới hạn dung lượng                                                                                | Kiểm tra cấu hình và test yêu cầu không hợp lệ/origin sai/đăng nhập lặp/upload media không hỗ trợ hoặc quá dung lượng                    |
 | NFR-12 | Có request ID và log lỗi chẩn đoán không chứa dữ liệu bí mật; lịch sử nghiệp vụ có người/thời gian/lý do                                                                                                                                                       | Đối chiếu thao tác với log và lịch sử đơn/tồn                                                                                           |
 | NFR-13 | payOS secret chỉ ở cấu hình backend; webhook xác minh chữ ký và chống replay/ghi nhận trùng                                                                                                                                                                    | Secret không xuất hiện ở bundle frontend/log; giả chữ ký, amount/orderCode sai và webhook lặp không tạo PAID giả hoặc transaction trùng |
 | NFR-14 | Auth chỉ lưu hash token reset một lần/hạn 30 phút; nếu Notification lưu job chứa token thì phải mã hóa payload và xóa sau gửi/hết hạn; phản hồi không cho dò email; provider secret ngoài source/log                                                           | Kiểm tra token hết hạn/replay, phản hồi với email có/không có tài khoản và log/cấu hình                                                 |
-| NFR-15 | Một frontend React/Vite, một backend NestJS modular monolith và một PostgreSQL database trên Supabase; module giao tiếp trong tiến trình; ảnh ở Supabase Storage. Compose chỉ hai ứng dụng và không có healthcheck. Model Python/FastAPI là tích hợp tương lai | Kiểm tra cấu trúc hai ứng dụng, migration chung, Compose/build và HTTP/auth trực tiếp; không phụ thuộc gateway/Kafka                    |
+| NFR-15 | Một frontend React/Vite, một backend NestJS modular monolith và một PostgreSQL local trong Docker Compose; module giao tiếp trong tiến trình; ảnh/video ở Supabase Storage. Compose không có healthcheck. Model Python/FastAPI là tích hợp tương lai | Kiểm tra cấu trúc ứng dụng, Prisma schema, Compose và HTTP/auth trực tiếp; không phụ thuộc gateway/Kafka |
 
 Không đặt SLA production hoặc chỉ tiêu tải đồng thời. Khi nghiệm thu ghi lại cấu hình máy và các vấn đề phản hồi quan sát được; trang không được treo vô hạn mà thiếu thông báo lỗi/thử lại. Chu kỳ xử lý nền và timeout kỹ thuật được cấu hình trong thiết kế, trong khi việc chặn xác nhận sau expiresAt là yêu cầu bắt buộc độc lập.
 
@@ -697,16 +698,16 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | GET /payments/payos/return, /cancel                                              | Chuyển khách về giao diện để tải trạng thái đơn                                                                  | Công khai; không cập nhật trạng thái thanh toán         |
 | GET /orders, /orders/:id                                                         | Danh sách/chi tiết đơn cá nhân                                                                                   | Customer, chỉ đơn của mình                              |
 | POST /orders/:id/cancel                                                          | Customer hủy PENDING UNPAID                                                                                      | Chủ đơn                                                 |
-| GET, POST /admin/products                                                        | Tra cứu/tạo Product                                                                                              | Admin                                                   |
-| GET, PATCH /admin/products/:id                                                   | Chi tiết/sửa nội dung, trạng thái hợp lệ                                                                         | Admin                                                   |
-| POST /admin/products/:id/variants                                                | Thêm SKU                                                                                                         | Admin                                                   |
-| PATCH /admin/variants/:id                                                        | Sửa trường SKU được phép, không cập nhật tồn trực tiếp                                                           | Admin                                                   |
-| GET /admin/categories, GET /admin/categories/:id, POST, PATCH /admin/categories | Quản lý Category cha–con và attribute_config; không có API /admin/brands hoặc module thuộc tính riêng            | Admin                                                   |
-| POST /admin/images                                                               | Catalog upload Supabase Storage; multipart file + Idempotency-Key, trả imageAssetId/status/metadata              | Admin                                                   |
-| POST /admin/products/:id/images                                                  | Catalog gắn imageAssetId READY vào Product/SKU                                                                   | Admin                                                   |
+| GET, POST /admin/products                                                        | Lọc/tìm/phân trang và tạo ACTIVE Product đủ SKU/ảnh trong transaction; SKU có tồn khởi tạo 0                   | Admin                                                   |
+| GET, PATCH /admin/products/:id                                                   | Chi tiết/sửa Product và trạng thái ACTIVE/INACTIVE                                                               | Admin                                                   |
+| POST /admin/products/:id/variants                                                | Thêm SKU; tồn khởi tạo 0                                                                                          | Admin                                                   |
+| PATCH, DELETE /admin/variants/:id                                                | Sửa giá; mã/options cố định; soft delete SKU nếu không còn reservation và Product vẫn hợp lệ                    | Admin                                                   |
+| GET /admin/categories, GET /admin/categories/:id, POST, PATCH /admin/categories | Quản lý Category cha–con và trạng thái gán; không cấu hình SKU ở Category, không có API /admin/brands | Admin |
+| POST /admin/images                                                               | Catalog upload Supabase Storage; multipart file, trả imageAssetId/URL/MIME/kích thước khi upload thành công              | Admin                                                   |
+| POST /admin/products/:id/images                                                  | Catalog gắn imageAssetId có metadata trong Catalog vào Product/SKU                                                                   | Admin                                                   |
 | PATCH, DELETE /admin/products/:id/images/:imageId                                | Catalog sửa thứ tự/alt text/ảnh đại diện hoặc gỡ liên kết; không xóa asset Supabase Storage                      | Admin                                                   |
-| GET /admin/inventory, /admin/inventory/:skuId/history                            | Tồn và lịch sử                                                                                                   | Admin                                                   |
-| POST /admin/inventory/:skuId/adjustments                                         | Nhập/kiểm kê có lý do                                                                                            | Admin                                                   |
+| GET /admin/inventory, /admin/inventory/:skuId/history                            | Tồn và lịch sử — giai đoạn sau                                                                                   | Admin                                                   |
+| POST /admin/inventory/:skuId/adjustments                                         | Nhập/kiểm kê có lý do — giai đoạn sau                                                                            | Admin                                                   |
 | GET /admin/orders, /admin/orders/:id                                             | Tra cứu đơn quản trị                                                                                             | Admin                                                   |
 | POST /admin/orders/:id/confirm, /cancel, /ship                                   | Hành động đơn trước/đến giao; các hậu tố thuộc cùng :id                                                          | Admin, kiểm tra trạng thái                              |
 | POST /admin/orders/:id/deliver, /delivery-fail, /retry-delivery, /receive-return | Kết quả giao, giao lại và nhận hàng về                                                                           | Admin, kiểm tra trạng thái                              |
@@ -721,25 +722,35 @@ POST /auth/password-reset-requests nhận email và trả phản hồi chung; PO
 
 #### 8.1.1. Hợp đồng API quản trị Category
 
-Các route `/api/v1/admin/categories` yêu cầu Admin. `GET` trả `{ items: Category[] }`; `GET /:id` trả một Category; `POST` tạo (201); `PATCH /:id` cập nhật (200). ID là chuỗi bigint thập phân, thời gian là ISO 8601 UTC. Category gồm `id`, `name`, `slug`, `parentId`, `isActive`, `effectiveActive`, `attributeConfig`, `createdAt`, `updatedAt`.
+Các route `/api/v1/admin/categories` yêu cầu Admin. `GET` trả `{ items: Category[] }`; `GET /:id` trả một Category; `POST` tạo (201); `PATCH /:id` cập nhật (200). ID là chuỗi bigint thập phân, thời gian là ISO 8601 UTC. Category gồm `id`, `name`, `slug`, `parentId`, `createdAt`, `updatedAt`. Danh mục không có trạng thái bật/tắt; mọi danh mục đều được dùng để gán sản phẩm.
 
-`attributeConfig` dùng danh sách để form có thể thêm/xóa dòng: `attributes: [{ code, label, type, unit? }]` với type `string|number|boolean`, và `options: [{ code, label }]`. Catalog kiểm tra cấu hình rồi lưu thành JSONB object keyed-by-code. Cấu hình không kế thừa từ cha; tối đa 30 thông số và 5 lựa chọn. Backend xác thực tên/slug duy nhất, cha tồn tại/đang dùng và không chọn chính mình/hậu duệ. Không có API xóa Category; ngừng dùng không tự ngừng bán Product cũ. Ghi cây chưa tuần tự hóa các thao tác Admin đồng thời.
+Backend xác thực tên/slug duy nhất, cha tồn tại và không chọn chính mình/hậu duệ. Không có API xóa hoặc trạng thái bật/tắt Category. Ghi cây chưa tuần tự hóa các thao tác Admin đồng thời.
 
-#### 8.1.2. Hợp đồng API ảnh của Catalog
+#### 8.1.2. Hợp đồng API Product/SKU của Catalog
+
+Các route `/api/v1/admin/products` và `/api/v1/admin/variants` yêu cầu role Admin. Danh sách nhận `q`, `categoryId`, `status`, `page`, `pageSize`; tìm tên không phân biệt hoa/dấu, lọc danh mục gồm toàn bộ danh mục con và giữ tham số lọc/phân trang trên URL. Response trả ID bigint dạng chuỗi và giá VND dạng chuỗi; không trả dữ liệu tồn kho.
+
+`POST /admin/products` nhận tên, mô tả, categoryId, `optionConfig: { options: [{ code, label }] }` riêng cho Product, tối thiểu một SKU `{ options, priceVnd }` và media đã upload `{ imageAssetId, variantId?, altText?, sortOrder, isPrimary }`. Phải có đúng một ảnh đại diện chung; video không thể là ảnh đại diện. Backend kiểm tra Category tồn tại, options đúng `Product.optionConfig`, tổ hợp không trùng và media asset tồn tại trong Catalog; sau đó tạo Product ACTIVE, mã SKU, dòng inventory khởi tạo tồn 0 và liên kết media trong một transaction. Lỗi ở bất kỳ bước nào rollback toàn bộ.
+
+`PATCH /admin/variants/:id` chỉ nhận `priceVnd`; options và cấu hình Product cố định sau khi tạo. Mã SKU bất biến. Tồn kho chưa thể xem hoặc sửa qua quản trị. `DELETE /admin/variants/:id` soft delete SKU, không xóa inventory/ledger/tham chiếu; từ chối nếu có reservation hoặc làm Product ACTIVE mất SKU cuối cùng. Nếu khai báo sai, xóa mềm SKU và thêm SKU đúng; cấu hình options của Product không sửa sau khi tạo.
+
+Upload endpoint `/admin/images` yêu cầu cấu hình `SUPABASE_URL`, secret key và bucket public `catalog-images` (hoặc bucket cấu hình), cho phép MIME ảnh và video nêu trên. Storage đã được smoke-test upload trực tiếp thành công; luồng upload qua Admin API cùng ghi metadata database chưa được kiểm chứng end-to-end. Nếu Storage nhận object nhưng database ghi metadata lỗi, object có thể còn lại không có asset row; upload lại tạo path mới.
+
+#### 8.1.3. Hợp đồng API ảnh của Catalog
 
 <a id="image-api"></a>
 
-Các route dưới đây là đặc tả mục tiêu có prefix `/api/v1` trực tiếp trên backend. Module Catalog sở hữu upload, metadata, trạng thái và liên kết ảnh trong database chung. Không có API tra cứu ảnh riêng; frontend nhận imageAssetId và URL public từ kết quả upload READY. Khi nhận PENDING hoặc chưa rõ kết quả do timeout, frontend cho thử lại POST upload cùng Idempotency-Key và file để nhận trạng thái/kết quả của cùng operation.
+Các route dưới đây có prefix `/api/v1` trực tiếp trên backend. Module Catalog sở hữu upload, metadata và liên kết media trong database chung. Frontend không yêu cầu Admin nhập ID; backend dùng ID nội bộ để liên kết, frontend nhận ID cùng URL sau khi upload thành công. Không dùng trạng thái READY/PENDING, SHA-256 hoặc idempotency cho upload. Nếu Storage đã nhận file nhưng phản hồi hoặc ghi metadata bị gián đoạn, object có thể mồ côi; lần upload lại tạo path mới.
 
 | Method / route                               | Đích             | Đầu vào / kết quả                                                                                           |
 | -------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------- |
-| `POST /admin/images`                         | Catalog          | Admin; multipart `file` + `Idempotency-Key`; 201 khi READY mới, 200 khi trả READY cũ, 202 khi PENDING       |
-| `POST /admin/products/:id/images`            | Catalog          | Admin; imageAssetId, variantId?, altText?, sortOrder?, isPrimary?; kiểm tra/khóa READY trong database chung |
+| `POST /admin/images`                         | Catalog          | Admin; multipart `file`; JPEG/PNG/WebP ≤5 MiB hoặc MP4/WebM/MOV ≤50 MB; trả ID asset nội bộ, URL, MIME và kích thước |
+| `POST /admin/products/:id/images`            | Catalog          | Admin; ID asset nội bộ, variantId?, altText?, sortOrder?, isPrimary?; kiểm tra asset tồn tại trong database chung |
 | `PATCH /admin/products/:id/images/:imageId`  | Catalog          | Sửa thứ tự/alt text/ảnh đại diện; thay asset bằng liên kết mới                                              |
 | `DELETE /admin/products/:id/images/:imageId` | Catalog          | Chỉ gỡ liên kết nếu Product vẫn hợp lệ; giữ asset lịch sử                                                   |
-| Seed upload trong CLI backend                | Catalog provider | Job seed gọi provider trong tiến trình, cùng validation/idempotency; không có HTTP route seed công khai     |
+| Seed upload trong CLI backend                | Catalog provider | Job seed gọi provider trong tiến trình; không có HTTP route seed công khai     |
 
-Lỗi: 400 thiếu key/file hoặc ảnh hỏng; 401/403 chưa xác thực/sai quyền; 404 asset không tồn tại khi gắn ảnh; 409 cùng key khác payload hoặc asset chưa READY; 413 quá 5 MiB; 415 sai định dạng; 429 quá giới hạn; 502/503/504 lỗi provider/timeout. Không nhận URL/provider/READY do client tự khai. Timeout chưa rõ giữ PENDING và đối soát bucket/object_path trước upload lại. Backend giới hạn multipart hữu hạn và timeout phù hợp; thử lại POST upload cùng key/file không tạo operation mới.
+Lỗi: 400 thiếu file hoặc MIME không hỗ trợ; 401/403 chưa xác thực/sai quyền; 404 asset không tồn tại khi gắn media; 413 ảnh quá 5 MiB hoặc video quá 50 MB; 503 thiếu cấu hình/provider lỗi/timeout. Backend gửi từng tệp một với timeout 120 giây. Upload retry có thể tạo object mới nếu lần trước đã thành công phía Storage nhưng response/ghi metadata bị gián đoạn.
 
 ### 8.2. Hành vi lỗi ở mức nghiệp vụ
 
@@ -795,7 +806,7 @@ Lỗi: 400 thiếu key/file hoặc ảnh hỏng; 401/403 chưa xác thực/sai q
 
 #### 8.3.3. Chuyển sang mô hình vận hành và ranh giới AI
 
-Một dòng products_demo tạo một Product có attributes `{}`, variant_option_keys `[]` và một ProductVariant options `{}`. Variant nhận toàn bộ price/stock, reserved = 0 và mã vận hành sinh bằng sequence; sku CSV giữ riêng như seed_sku. Không nhân stock qua nhiều SKU. Danh mục seed ban đầu có parent_id NULL, attribute_config `{}`; ảnh là ảnh chung variant_id NULL. is_active true chuyển ACTIVE chỉ sau khi đủ danh mục, ảnh và SKU hợp lệ; stock = 0 vẫn ACTIVE/hết hàng. is_active false chuyển INACTIVE. Mọi thống kê/ID nguồn được lưu đối chiếu, không sửa qua form Admin. Hợp đồng ba CSV không đổi; không yêu cầu notebook sinh thông số giả.
+Một dòng products_demo tạo một Product có variant_option_keys `[]` và một ProductVariant options `{}`. Variant nhận toàn bộ price/stock, reserved = 0 và mã vận hành sinh bằng sequence; sku CSV giữ riêng như seed_sku. Không nhân stock qua nhiều SKU. Danh mục seed ban đầu có parent_id NULL, option_config `{}`; ảnh là ảnh chung variant_id NULL. is_active true chuyển ACTIVE chỉ sau khi đủ danh mục, ảnh và SKU hợp lệ; stock = 0 vẫn ACTIVE/hết hàng. is_active false chuyển INACTIVE. Mọi thống kê/ID nguồn được lưu đối chiếu, không sửa qua form Admin. Hợp đồng ba CSV không đổi; không yêu cầu notebook sinh lựa chọn SKU giả.
 
 Snapshot lưu trong notebook ghi 417.053 item có category, 235.061 item có event, 49.815 thiếu category, 185.246 còn lại, 25 root toàn cây và 23 root được chọn. Đây là mốc đối chiếu phiên bản đầu, không hardcode như bất biến cho mọi dataset tương lai. Bộ CSV/clean parquet chưa có trong thư mục docs; output notebook không chứng minh seed database đã chạy.
 
@@ -842,10 +853,10 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-23 | Xác nhận giao COD chưa thu/đã thu và payOS đã trả; retry; thử với CANCELLED                                                                                | COD chỉ PAID khi thu; payOS giữ paidAt gốc; transaction mỗi dòng một lần; không hoàn tất đơn hủy                                                                                                         |
 | TC-24 | Giao thất bại rồi giao lại nhiều lần                                                                                                                       | Lý do bắt buộc; lịch sử đầy đủ; không nhập/xuất kho hoặc thu thêm phí ship                                                                                                                               |
 | TC-25 | Nhận toàn bộ hàng về, retry; thử hoàn trước khi nhận                                                                                                       | Hoàn đủ một lần rồi CANCELLED/UNPAID; chỉ thất bại chưa làm tăng tồn                                                                                                                                     |
-| TC-26 | Tạo/mở bán Product đa ngành; options trùng khác thứ tự/hoa thường/khoảng trắng, sai kiểu/mã/tập khóa; đổi options SKU đã reserve hoặc có đơn               | Chặn tổ hợp trùng và dữ liệu sai; SKU đã dùng bất biến; không sửa nguồn/snapshot; giá/tồn riêng từng SKU                                                                                                 |
-| TC-27 | Tạo cây Category, tự trỏ/chu trình; sửa cấu hình/đổi Category làm SKU đang bán sai; thử quản lý Brand hoặc xóa Category đang dùng                         | Cây hợp lệ, lọc gồm danh mục con; chặn chu trình/thay đổi sai; không có CRUD Brand/module thuộc tính riêng; giữ tham chiếu cũ                                                                            |
-| TC-28 | Upload ảnh hợp lệ/sai định dạng/quá giới hạn/thiếu quyền; gắn SKU khác Product; dùng chung asset nhiều SKU; Supabase Storage timeout và thay ảnh đã có đơn | Chỉ asset xác minh được READY; chặn SKU sai Product; ưu tiên ảnh SKU rồi ảnh chung; gỡ một liên kết không xóa asset Supabase Storage; chỉ lưu metadata/URL, giải phóng buffer, giữ asset lịch sử         |
-| TC-29 | Nhập hàng/kiểm kê với reserved đang thay đổi                                                                                                               | Không cho onHand < reserved; có người/lý do/trước–sau; không tự sửa reserved                                                                                                                             |
+| TC-26 | Tạo Product ACTIVE đủ nội dung/SKU/ảnh; thử thiếu dữ liệu, asset ảnh chưa tồn tại, tồn 0, lỗi giữa transaction; options trùng/sai; thử sửa options, sửa giá/tồn, xóa SKU có reservation và SKU cuối | Tạo thành công là ACTIVE với SKU/ảnh/tồn nhất quán; thiếu/sai bị từ chối; options/mã bất biến; giá/tồn sửa được; tồn 0 hợp lệ; không xóa SKU đang reserve hoặc SKU cuối của Product ACTIVE; snapshot đơn giữ nguyên |
+| TC-27 | Tạo cây Category, tự trỏ/chu trình; đổi danh mục Product có SKU; thử quản lý Brand hoặc xóa Category đang dùng | Cây hợp lệ, lọc gồm danh mục con; chặn chu trình/thay đổi sai; cấu hình SKU của Product không bị Category áp đặt; không có CRUD Brand; giữ tham chiếu cũ |
+| TC-28 | Upload ảnh hợp lệ/sai định dạng/quá giới hạn/thiếu quyền; gắn SKU khác Product; dùng chung asset nhiều SKU; Supabase Storage lỗi và thay ảnh đã có đơn | Chỉ asset có metadata sau khi Storage trả thành công; chặn SKU sai Product; ưu tiên ảnh SKU rồi ảnh chung; gỡ một liên kết không xóa asset Supabase Storage; chỉ lưu metadata/URL, giải phóng buffer, giữ asset lịch sử |
+| TC-29 | Điều chỉnh onHand từ form SKU với reserved đang thay đổi; thử thiếu lý do, âm/lẻ và thấp hơn reserved                                                        | Không cho onHand < reserved; có Admin/lý do/trước–sau; không tự sửa reserved; available tính khi đọc                                                                                                    |
 | TC-30 | Admin tìm/lọc đơn, xem lịch sử, thêm ghi chú                                                                                                               | Kết quả đúng; ghi chú nội bộ không trả cho Customer; không sửa nội dung đơn                                                                                                                              |
 | TC-31 | Khóa/mở Customer có phiên và đơn đang xử lý                                                                                                                | Khóa chặn token cũ, không hủy đơn; mở không hồi sinh phiên; không khóa Admin qua API Customer                                                                                                            |
 | TC-32 | Tập đơn mới/chờ/hủy/thất bại/đã giao ở hai mốc ngày                                                                                                        | Đơn theo createdAt/trạng thái, tiền theo paidAt; ship riêng; retry giao thất bại không nhân số đơn                                                                                                       |
@@ -855,7 +866,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-36 | Gợi ý không có tín hiệu/không đủ ứng viên/SKU hết hàng/lỗi provider nội bộ                                                                                 | Nguồn rule_based, thứ tự ổn định, chỉ item bán được; ẩn khi rỗng, không chặn mua                                                                                                                         |
 | TC-37 | Seed 500 item, thay catalog qua Admin, seed lại, Product mới chưa có RR ID                                                                                 | Manifest cố định; không trùng/ghi đè; Product mới vẫn bán được; nguồn/category tách biệt                                                                                                                 |
 | TC-38 | Địa giới offline, cập nhật snapshot, export hành vi                                                                                                        | Chạy không gọi nguồn live; đơn cũ giữ tên/mã; export có version, không thông tin liên hệ                                                                                                                 |
-| TC-39 | Khởi chạy/restart với Supabase; DB/SSL/quyền lỗi, Storage thiếu object hoặc thiếu artifact                                                                 | Không /health; chẩn đoán qua API/log. DB và object đã commit giữ nguyên, URL ảnh có fallback; lỗi không READY/seed giả, không tự reset project                                                           |
+| TC-39 | Khởi chạy/restart với Supabase; DB/SSL/quyền lỗi, Storage lỗi hoặc thiếu artifact | Không /health; chẩn đoán qua API/log. DB và object đã commit giữ nguyên, URL ảnh có fallback; không báo upload thành công giả/seed giả, không tự reset project |
 | TC-40 | Gọi API sai quyền, origin sai, nhập script, upload bất thường, xem log/response                                                                            | Không vượt quyền, thực thi nội dung nhập hoặc lộ secret; validation server có hiệu lực                                                                                                                   |
 | TC-41 | Đi trọn luồng ở 390px/1366px, API lỗi, giỏ rỗng, click lặp                                                                                                 | UI dùng được, báo trạng thái rõ; không thông báo đặt thành công giả hoặc mất dữ liệu cần sửa                                                                                                             |
 | TC-42 | Một item có nhiều category theo thời gian, category mới nhất lỗi/null; cây chu trình/mồ côi                                                                | Giữ đúng dòng cuối rồi bỏ null, không nhân item; cây sai bị từ chối; không dùng merge EDA làm thống kê                                                                                                   |
@@ -869,8 +880,8 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-50 | Gửi email tạo đơn/thay đổi trạng thái, nhà cung cấp lỗi/tạm ngừng, worker retry cùng event                                                                 | Đơn/payment không rollback; không tạo job trùng event key; dùng provider idempotency nếu hỗ trợ, ghi nhận hạn chế gửi lặp khi provider không hỗ trợ; retry/thất bại quan sát được, không lộ secret/token |
 | TC-51 | Backend dừng trước/sau commit checkout/lifecycle; request/webhook lặp và cạnh tranh SKU cuối                                                               | Trước commit rollback toàn bộ; sau commit cùng key trả kết quả cũ; tồn/ledger/event đúng một lần, không cần Saga hoặc broker để phục hồi                                                                 |
 | TC-52 | Tìm tên, lọc options/giá/còn hàng nhiều ngành và danh mục cha trong PostgreSQL                                                                             | Các điều kiện khớp cùng SKU, gồm danh mục con; kết quả search/stock/payment dùng database chung; không cần ES/Redis                                                                                      |
-| TC-53 | Upload Admin qua backend/Catalog/Supabase Storage; giả URL/READY hoặc gọi route seed từ client                                                             | Metadata/liên kết trong database chung, kiểm tra READY/bucket/path/hash trong transaction; URL public HTTPS hợp lệ, chặn vượt quyền, không lộ secret hoặc giữ file gốc                                   |
-| TC-54 | Upload lặp/khác payload, timeout/restart sau upload trước commit metadata; thay/gỡ ảnh                                                                     | Thử lại POST upload cùng key/file trả asset/PENDING của cùng operation, khác bytes trả 409; không cần API tra cứu ảnh riêng; đối soát bucket/path và hash, upsert:false không ghi đè object lịch sử; không READY chỉ vì URL dựng được |
+| TC-53 | Upload Admin qua backend/Catalog/Supabase Storage; giả imageAssetId hoặc URL hoặc gọi route seed từ client                                                             | Metadata/liên kết trong database chung, kiểm tra asset metadata trong transaction; URL public HTTPS hợp lệ, chặn vượt quyền, không lộ secret hoặc giữ file gốc                                   |
+| TC-54 | Storage nhận upload nhưng phản hồi/ghi metadata bị gián đoạn; thay/gỡ ảnh | Upload tiếp theo tạo path mới; có thể tồn tại object mồ côi; upsert:false không ghi đè object; gỡ liên kết không xóa asset Storage |
 
 Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, triển khai trong backend theo task 063–067; chúng chưa có code trong snapshot hiện tại. Không cần chờ hoặc khởi tạo Python/FastAPI để làm các chức năng này. Nghiên cứu/model serving thật ở task 073–077 nằm ngoài nghiệm thu bản web local.
 
@@ -977,7 +988,7 @@ Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, 
 ### 10.1. Giới hạn đã thống nhất
 
 - Không wishlist, xác minh email, đổi email, SMS, social login hoặc Keycloak. Email khôi phục mật khẩu và thông báo đơn hàng thuộc phạm vi.
-- Không bảng/quản trị Color, Size, SizeGroup hoặc EAV tổng quát; cấu hình thuộc tính nằm trong form Category, giá trị nằm tại Product/SKU. Khách chọn options có sẵn, không tự gõ khi mua. Chưa lọc khoảng số theo thông số hoặc tự chuyển đổi đơn vị.
+- Không bảng/quản trị Color, Size, SizeGroup hoặc EAV tổng quát; cấu hình lựa chọn SKU nằm trong form Product, không phụ thuộc Category, giá trị nằm tại SKU. Thông số chung được viết trong mô tả Product; không có trường Attributes riêng. Khách chọn options có sẵn, không tự gõ khi mua. Chưa lọc khoảng số trên lựa chọn SKU hoặc tự chuyển đổi đơn vị.
 - Không voucher, đánh giá, cổng thanh toán ngoài payOS, hoàn tiền, đối soát COD, hãng/mã vận đơn, giao một phần, đổi trả sau nhận hàng, hàng hỏng hoặc mua lại. Đơn payOS đã thanh toán không được hủy trong phạm vi này.
 - Không sửa đơn trực tiếp, không yêu cầu hủy sau xác nhận từ Customer, không giới hạn số đơn chờ.
 - Giả định toàn bộ hàng giao thất bại nhận về nguyên vẹn; không nhập kho trước khi xác nhận nhận lại.
@@ -986,11 +997,11 @@ Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, 
 ### 10.2. Đầu vào và cấu hình cần chuẩn bị
 
 - Cần cung cấp dữ liệu RetailRocket raw/clean và hai notebook Build/EDA khi đối chiếu nghiên cứu; ba CSV xuất, manifest/checksum, asset placeholder CDN và snapshot địa giới để seed/nghiệm thu web. docs/data hiện trống và các file ở mục nguồn tham khảo chưa có trong checkout; các con số trong tài liệu là mốc thiết kế ghi nhận trước đây, chưa được đối chiếu lại với artifact ở lần cập nhật này. Không tự bịa hoặc reseed đầu vào còn thiếu.
-- Một database ứng dụng chung trên Supabase; backend dùng DATABASE_URL/SSL và app role có quyền phù hợp. Không còn DB local/init script trong Compose; dữ liệu cũ chỉ chuyển qua quy trình riêng, không tự migrate. SUPABASE_SECRET_KEY chỉ ở backend/Catalog; không commit secret thật.
+- Một database ứng dụng chung chạy local trong Docker Compose; Prisma `schema.prisma` là source of truth, đồng bộ thủ công bằng `npm run db:push` chỉ với database local. Supabase chỉ dùng cho Storage; SUPABASE_SECRET_KEY chỉ ở backend/Catalog; không commit secret thật.
 - Luồng payOS cần client ID, API key, checksum key, return/cancel URL và webhook URL được cấu hình phía backend. Thiếu cấu hình hoặc provider lỗi thì báo lỗi thanh toán, giữ đơn UNPAID; không giả lập thành công.
 - Email cần cấu hình nhà cung cấp SMTP/API và địa chỉ gửi phía backend; thiếu cấu hình thì báo trạng thái gửi lỗi/thử lại, không làm sai giao dịch đơn hàng.
 - Việc tải dữ liệu ban đầu có thể cần Internet/quyền truy cập nguồn; chạy demo sau chuẩn bị không cần gọi nguồn đó trực tiếp.
-- Frontend ReactJS/Vite và backend NestJS là hai ứng dụng, mỗi ứng dụng có package/lockfile/Dockerfile riêng. Backend dùng Prisma, migration có version và AuthModule; các module nghiệp vụ tiếp tục trong cùng ứng dụng. Model Python/FastAPI là tích hợp tương lai.
+- Frontend ReactJS/Vite và backend NestJS là hai ứng dụng, mỗi ứng dụng có package/lockfile/Dockerfile riêng. Backend dùng Prisma ORM/schema và AuthModule; không dùng Prisma Migrate. Các module nghiệp vụ tiếp tục trong cùng ứng dụng. Model Python/FastAPI là tích hợp tương lai.
 - Cấu trúc module, transaction chung, Compose, CI và hướng dẫn chạy theo [Architecture](Folder-ARCHITECTURE.md). CD AWS là giai đoạn sau; không cần database riêng hoặc Kafka giữa module.
 
 ### 10.3. Điều kiện hoàn thành phần mềm
@@ -999,7 +1010,7 @@ Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, 
 2. Kịch bản một người thực hiện cả vai Customer/Admin hoàn tất các nhánh mua, hủy, hết hạn, giao thành công, thất bại/giao lại/nhận hàng về.
 3. Không có lỗi vượt quyền, âm tồn, giữ/hoàn tồn lặp, tạo đơn trùng hoặc sai snapshot.
 4. Có catalog 500 sản phẩm, 23 danh mục, 1.664 mapping nguồn của snapshot đầu, 500 SKU mặc định và manifest tái lập; metadata synthetic/placeholder có nhãn minh họa, ảnh đọc CDN, địa giới chạy local. Số SKU/Product có thể tăng do Admin sau seed.
-5. Có mã nguồn, migration, seed, cấu hình mẫu, OpenAPI khi triển khai, hướng dẫn chạy và bằng chứng kết quả kiểm thử; dữ liệu test tách database demo.
+5. Có mã nguồn, Prisma schema, seed, cấu hình mẫu, OpenAPI khi triển khai, hướng dẫn chạy và bằng chứng kết quả kiểm thử; dữ liệu test tách database demo.
 6. Khởi động lại giữ nguyên dữ liệu/ảnh; tác vụ xử lý bù đơn hết hạn hoạt động.
 
 ### 10.4. Quản lý thay đổi tài liệu
@@ -1027,3 +1038,9 @@ Nếu yêu cầu mới thay đổi quyền, thời hạn, tồn, tiền, event h
 | 2.4 | 29/10/2026 | Đồng bộ Prisma repositories/Migrate; mật khẩu mới tối thiểu 6 ký tự, giữ bcrypt và bỏ kiểm tra giới hạn 72 byte |
 | 2.5 | 29/10/2026 | Bỏ API tra cứu ảnh riêng; đồng bộ hợp đồng upload và TC-54 để thử lại POST cùng key/file khi chưa rõ kết quả |
 | 2.6 | 30/10/2026 | Bổ sung trạng thái API Category đã triển khai và bỏ yêu cầu xử lý cạnh tranh cây danh mục trong TC-27 |
+| 2.7 | 01/11/2026 | Bỏ Attributes riêng của Product; thông tin chung dùng mô tả, Category chỉ phân loại. |
+| 2.8 | 01/11/2026 | Bỏ DRAFT; tạo Product ACTIVE cùng nội dung/SKU/ảnh đầy đủ trong một lần lưu; bổ sung yêu cầu nguyên tử và kiểm chứng TC-26. |
+| 2.9 | 01/11/2026 | Cập nhật quy tắc SKU: mã/options cố định; sửa giá/tồn có lý do, không có trạng thái SKU riêng; tồn 0 làm SKU ngừng bán, xóa mềm giữ lịch sử đơn/ledger. |
+| 3.2 | 01/11/2026 | Bỏ Attributes riêng của Product; thông tin chung dùng mô tả. |
+| 3.4 | 01/11/2026 | Chuyển bộ lựa chọn SKU từ Category sang từng Product; mỗi sản phẩm có tổ hợp riêng. |
+| 3.5 | 01/11/2026 | Form Product chọn nhiều ảnh/video, tự upload và bỏ nhập ID asset thủ công. |

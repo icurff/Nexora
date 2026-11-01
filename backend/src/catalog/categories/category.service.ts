@@ -10,56 +10,8 @@ import {
   PrismaService,
   type TransactionClient,
 } from '../../database/prisma.service.js';
-import type {
-  CategoryAttributeConfigDto,
-  CreateCategoryDto,
-  UpdateCategoryDto,
-} from './category.dto.js';
+import type { CreateCategoryDto, UpdateCategoryDto } from './category.dto.js';
 import { CategoryRepository } from './category.repository.js';
-
-type PublicConfig = {
-  attributes: Array<{
-    code: string;
-    label: string;
-    type: string;
-    unit?: string;
-  }>;
-  options: Array<{ code: string; label: string }>;
-};
-
-function publicConfig(value: Prisma.JsonValue): PublicConfig {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    return { attributes: [], options: [] };
-  const config = value as Record<string, Prisma.JsonValue>;
-  const mapEntries = (group: Prisma.JsonValue | undefined) =>
-    group && typeof group === 'object' && !Array.isArray(group)
-      ? Object.entries(group).flatMap(([code, entry]) =>
-          entry && typeof entry === 'object' && !Array.isArray(entry)
-            ? [{ code, ...(entry as Record<string, Prisma.JsonValue>) }]
-            : [],
-        )
-      : [];
-  return {
-    attributes: mapEntries(config.attributes) as PublicConfig['attributes'],
-    options: mapEntries(config.options) as PublicConfig['options'],
-  };
-}
-
-function storedConfig(
-  config: CategoryAttributeConfigDto,
-): Prisma.InputJsonObject {
-  return {
-    attributes: Object.fromEntries(
-      config.attributes.map(({ code, label, type, unit }) => [
-        code,
-        { label, type, ...(unit ? { unit } : {}) },
-      ]),
-    ),
-    options: Object.fromEntries(
-      config.options.map(({ code, label }) => [code, { label }]),
-    ),
-  };
-}
 
 function normalizedName(name: string) {
   return name.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase();
@@ -77,15 +29,12 @@ function slugFromName(name: string) {
     .replace(/-+$/g, '');
 }
 
-function toResponse(row: CategoryRow, effectiveActive: boolean) {
+function toResponse(row: CategoryRow) {
   return {
     id: row.id.toString(),
     name: row.name,
     slug: row.slug,
     parentId: row.parentId?.toString() ?? null,
-    isActive: row.isActive,
-    effectiveActive,
-    attributeConfig: publicConfig(row.attributeConfig),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -100,40 +49,14 @@ export class CategoryService {
 
   async list() {
     const rows = await this.repository.list();
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    const effective = new Map<bigint, boolean>();
-    const isEffective = (
-      row: CategoryRow,
-      visited = new Set<bigint>(),
-    ): boolean => {
-      const cached = effective.get(row.id);
-      if (cached !== undefined) return cached;
-      if (visited.has(row.id)) return false;
-      visited.add(row.id);
-      const parent = row.parentId === null ? null : byId.get(row.parentId);
-      const result = row.isActive && (!parent || isEffective(parent, visited));
-      effective.set(row.id, result);
-      return result;
-    };
-    return { items: rows.map((row) => toResponse(row, isEffective(row))) };
+    return { items: rows.map(toResponse) };
   }
 
   async get(id: string) {
     const categoryId = this.parseId(id);
     const row = await this.repository.byId(categoryId);
     if (!row) throw new NotFoundException({ code: 'CATEGORY_NOT_FOUND' });
-    let active = true;
-    let cursor: CategoryRow | null = row;
-    const visited = new Set<bigint>();
-    while (cursor) {
-      if (visited.has(cursor.id)) { active = false; break; }
-      visited.add(cursor.id);
-      active = active && cursor.isActive;
-      cursor = cursor.parentId
-        ? await this.repository.byId(cursor.parentId)
-        : null;
-    }
-    return toResponse(row, active);
+    return toResponse(row);
   }
 
   async create(input: CreateCategoryDto) {
@@ -152,14 +75,10 @@ export class CategoryService {
             parent: input.parentId
               ? { connect: { id: this.parseId(input.parentId) } }
               : undefined,
-            isActive: input.isActive ?? true,
-            attributeConfig: input.attributeConfig
-              ? storedConfig(input.attributeConfig)
-              : { attributes: {}, options: {} },
           },
           transaction,
         );
-        return toResponse(row, await this.effectiveActive(row, transaction));
+        return toResponse(row);
       } catch (error) {
         this.translatePrismaError(error);
       }
@@ -185,10 +104,6 @@ export class CategoryService {
       const data: Prisma.CategoryUpdateInput = {
         ...(name ? { name, nameKey: normalizedName(name) } : {}),
         ...(input.slug !== undefined ? { slug: input.slug } : {}),
-        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-        ...(input.attributeConfig !== undefined
-          ? { attributeConfig: storedConfig(input.attributeConfig) }
-          : {}),
         ...(parentIdWasProvided
           ? input.parentId
             ? { parent: { connect: { id: this.parseId(input.parentId) } } }
@@ -197,7 +112,7 @@ export class CategoryService {
       };
       try {
         const row = await this.repository.update(categoryId, data, transaction);
-        return toResponse(row, await this.effectiveActive(row, transaction));
+        return toResponse(row);
       } catch (error) {
         this.translatePrismaError(error);
       }
@@ -224,30 +139,10 @@ export class CategoryService {
       if (visited.has(cursor.id))
         throw new BadRequestException({ code: 'CATEGORY_TREE_INVALID' });
       visited.add(cursor.id);
-      if (!cursor.isActive)
-        throw new BadRequestException({ code: 'CATEGORY_PARENT_INACTIVE' });
       cursor = cursor.parentId
         ? await this.repository.byId(cursor.parentId, transaction)
         : null;
     }
-  }
-
-  private async effectiveActive(
-    row: CategoryRow,
-    transaction: TransactionClient,
-  ) {
-    let active = true;
-    let cursor: CategoryRow | null = row;
-    const visited = new Set<bigint>();
-    while (cursor) {
-      if (visited.has(cursor.id)) return false;
-      visited.add(cursor.id);
-      active = active && cursor.isActive;
-      cursor = cursor.parentId
-        ? await this.repository.byId(cursor.parentId, transaction)
-        : null;
-    }
-    return active;
   }
 
   private parseId(id: string) {
