@@ -405,8 +405,8 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 
 ### UC-26 — Nhập và điều chỉnh tồn
 
-- **Tác nhân:** Admin. **Dữ liệu:** SKU, loại thao tác nhập/điều chỉnh/kiểm kê, số lượng và lý do.
-- **Luồng:** mở trang Tồn kho hoặc liên kết từ SKU → xem tồn thực tế/đang giữ/có thể bán → nhập số lượng hoặc tồn thực tế mới → xác nhận → cập nhật tồn nguyên tử.
+- **Tác nhân:** Admin. **Dữ liệu:** SKU hoặc Product không có SKU, loại thao tác nhập/điều chỉnh/kiểm kê, số lượng và lý do.
+- **Luồng:** mở trang Tồn kho → xem các dòng tồn SKU và Product không SKU cùng tồn thực tế/đang giữ/có thể bán. Dòng SKU mở chi tiết điều chỉnh SKU; dòng Product mở form sửa Product để quản lý tồn cấp Product.
 - **Ngoại lệ:** on hand mới < reserved, âm, không nguyên, vượt giới hạn hoặc lý do rỗng: từ chối. Kiểm kê dùng version đã đọc; nếu tồn vừa đổi thì yêu cầu tải lại và xác nhận lại. Retry cùng idempotency key/payload trả kết quả trước; key cùng payload khác bị từ chối.
 - **Sau:** mỗi SKU, kể cả từng tổ hợp màu/size, có tồn riêng; không cập nhật reserved. Xóa SKU chỉ khi tồn thực tế và reserved đều bằng 0. Kiểm kê không tạo hành vi mua/event addtocart. **Nghiệm thu:** TC-29.
 
@@ -705,7 +705,7 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | POST /admin/images                                                               | Catalog upload Supabase Storage; multipart file, trả imageAssetId/URL/MIME/kích thước khi upload thành công              | Admin                                                   |
 | POST /admin/products/:id/images                                                  | Catalog gắn imageAssetId có metadata trong Catalog vào Product/SKU                                                                   | Admin                                                   |
 | PATCH, DELETE /admin/products/:id/images/:imageId                                | Catalog sửa thứ tự/alt text/ảnh đại diện hoặc gỡ liên kết; không xóa asset Supabase Storage                      | Admin                                                   |
-| GET /admin/inventory, GET /admin/inventory/:skuId, GET /admin/inventory/:skuId/history | Tồn theo SKU, chi tiết và lịch sử phân trang; lọc/tìm/phân trang danh sách                                | Admin                                                   |
+| GET /admin/inventory, GET /admin/inventory/:skuId, GET /admin/inventory/:skuId/history | Danh sách tồn gồm SKU và Product không SKU; chi tiết/lịch sử phân trang theo SKU; lọc/tìm/phân trang danh sách | Admin                                                   |
 | POST /admin/inventory/:skuId/adjustments                                         | Nhập hàng, điều chỉnh +/- hoặc kiểm kê; lý do, version kiểm kê và idempotency key                            | Admin                                                   |
 | GET /admin/orders, /admin/orders/:id                                             | Tra cứu đơn quản trị                                                                                             | Admin                                                   |
 | POST /admin/orders/:id/confirm, /cancel, /ship                                   | Hành động đơn trước/đến giao; các hậu tố thuộc cùng :id                                                          | Admin, kiểm tra trạng thái                              |
@@ -733,7 +733,7 @@ Các route `/api/v1/admin/products` và `/api/v1/admin/variants` yêu cầu role
 
 `PATCH /admin/variants/:id` chỉ nhận `priceVnd`; options và cấu hình Product cố định sau khi tạo. Mã SKU bất biến. Tồn quản lý riêng cho từng SKU/options. `DELETE /admin/variants/:id` soft delete SKU, không xóa inventory/tham chiếu; từ chối nếu on_hand/reserved còn dương. Product ACTIVE có thể mất SKU cuối cùng; khi đó Product quay về bán trực tiếp theo giá Product và tồn Product sau khi Admin thiết lập tồn. Nếu khai báo sai, xử lý tồn về 0, xóa mềm SKU và thêm SKU đúng; cấu hình options của Product không sửa sau khi tạo.
 
-Các route `/api/v1/admin/inventory` chỉ dành cho Admin. Danh sách nhận `q`, `categoryId` (gồm danh mục con), `status`, `availability`, `productId`, `page`, `pageSize`; mặc định 20 dòng và ID giữ dạng chuỗi. Kết quả gồm thông tin SKU/tổ hợp options, `onHand`, `reserved`, `available = onHand - reserved`, version và thời gian cập nhật. Lịch sử trả trước/sau, delta, reserved trước/sau, loại thao tác, Admin, lý do và ISO timestamp; bản ghi cũ không có loại hiển thị là lịch sử cũ.
+Các route `/api/v1/admin/inventory` chỉ dành cho Admin. Danh sách nhận `q`, `categoryId` (gồm danh mục con), `status`, `availability`, `productId`, `page`, `pageSize`; mặc định 20 dòng và ID giữ dạng chuỗi. Danh sách trả cả dòng `kind: SKU` cho từng SKU và `kind: PRODUCT` cho Product không có SKU; mỗi dòng có `onHand`, `reserved`, `available = onHand - reserved`, version và thời gian cập nhật. Dòng Product không có SKU không có mã/tổ hợp SKU và được quản lý tồn cấp Product qua form Product. Chi tiết và lịch sử điều chỉnh vẫn áp dụng cho SKU. Lịch sử trả trước/sau, delta, reserved trước/sau, loại thao tác, Admin, lý do và ISO timestamp; bản ghi cũ không có loại hiển thị là lịch sử cũ.
 
 `POST /admin/inventory/:skuId/adjustments` nhận `{ idempotencyKey, type, quantity, expectedVersion?, reason }`. `RESTOCK` cộng số lượng dương; `ADJUSTMENT` cộng/trừ delta khác 0; `STOCKTAKE` đặt on_hand và bắt buộc version đang đọc. Mỗi thao tác khóa Product → SKU → Inventory, kiểm tra `0 ≤ reserved ≤ onHand ≤ 2147483647`, tăng version và lưu kết quả idempotency cùng transaction. Actor lấy từ phiên Admin. Key duy nhất theo Admin: payload lặp trả kết quả cũ, payload khác trả 409. Kiểm kê sai version trả 409. Không sửa reserved/available qua API; hệ thống không lưu lịch sử biến động tồn.
 

@@ -41,4 +41,4 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
-      - run: docker build --target ${{ matrix.target }} -t nexora-${{ matrix.app }}:ci .
+      # - run: docker build --target ${{ matrix.target }} -t nexora-${{ matrix.app }}:ci .

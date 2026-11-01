@@ -44,6 +44,7 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 function optionsText(row: InventoryRow) {
+  if (row.kind === 'PRODUCT') return 'Tồn kho cấp sản phẩm · Không có SKU';
   const entries = Object.entries(row.optionLabels);
   return entries.length
     ? entries.map(([label, value]) => `${label}: ${value}`).join(' · ')
@@ -155,11 +156,11 @@ function InventoryList({
         <div>
           <span className="admin-inventory-kicker">CATALOG / KHO</span>
           <h1>Quản lý tồn kho</h1>
-          <p>Theo dõi số lượng riêng cho từng SKU và tổ hợp lựa chọn.</p>
+          <p>Theo dõi tồn kho theo SKU hoặc trực tiếp ở cấp sản phẩm.</p>
         </div>
         <div className="inventory-count">
           <PackageCheck size={17} />
-          <span>{query.data?.total ?? '—'} SKU</span>
+          <span>{query.data?.total ?? '—'} mặt hàng</span>
         </div>
       </div>
       <form className="inventory-filters" onSubmit={submit}>
@@ -241,7 +242,9 @@ function InventoryList({
           <button onClick={() => void query.refetch()}>Thử lại</button>
         </div>
       ) : !query.data?.items.length ? (
-        <div className="inventory-state">Không tìm thấy SKU phù hợp.</div>
+        <div className="inventory-state">
+          Không tìm thấy mặt hàng tồn kho phù hợp.
+        </div>
       ) : (
         <>
           <div className="inventory-table-wrap">
@@ -260,7 +263,7 @@ function InventoryList({
               </thead>
               <tbody>
                 {query.data.items.map((row) => (
-                  <tr key={row.skuId}>
+                  <tr key={`${row.kind}:${row.skuId ?? row.product.id}`}>
                     <td>
                       <Link
                         to={`/admin/products/${row.product.id}/edit`}
@@ -268,7 +271,8 @@ function InventoryList({
                       >
                         <strong>{row.product.name}</strong>
                         <small>
-                          {row.sku} · {row.product.category.name}
+                          {row.kind === 'SKU' ? row.sku : 'Tồn cấp sản phẩm'} ·{' '}
+                          {row.product.category.name}
                         </small>
                       </Link>
                     </td>
@@ -297,16 +301,25 @@ function InventoryList({
                     </td>
                     <td>{formatTime(row.updatedAt)}</td>
                     <td>
-                      <button
-                        className="inventory-row-link"
-                        onClick={() => {
-                          const next = new URLSearchParams(params);
-                          next.set('skuId', row.skuId);
-                          setParams(next);
-                        }}
-                      >
-                        Chi tiết <ArrowRight size={14} />
-                      </button>
+                      {row.kind === 'SKU' ? (
+                        <button
+                          className="inventory-row-link"
+                          onClick={() => {
+                            const next = new URLSearchParams(params);
+                            next.set('skuId', row.skuId);
+                            setParams(next);
+                          }}
+                        >
+                          Chi tiết <ArrowRight size={14} />
+                        </button>
+                      ) : (
+                        <Link
+                          className="inventory-row-link"
+                          to={`/admin/products/${row.product.id}/edit`}
+                        >
+                          Quản lý <ArrowRight size={14} />
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -316,7 +329,7 @@ function InventoryList({
           <div className="inventory-pagination">
             <span>
               Trang {query.data.page} / {Math.max(1, query.data.totalPages)} ·{' '}
-              {query.data.total} SKU
+              {query.data.total} mặt hàng
             </span>
             <div>
               <button disabled={page <= 1} onClick={() => changePage(page - 1)}>
