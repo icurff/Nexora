@@ -183,8 +183,9 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | FR-DATA-02  | Chuẩn bị xuất dữ liệu hành vi có version để phía AI dùng sau; giữ event type, thời gian, item, định danh nội bộ; không xuất dữ liệu liên hệ/giao hàng                                             |
 | FR-DATA-03  | Kiểm tra category mới nhất mỗi item, quota theo root và ba schema CSV theo mục 8.3; chặn import khi trùng khóa, thiếu tham chiếu, sai quota hoặc checksum                                         |
 | FR-DATA-04  | Chuyển một dòng CSV thành một Product và một SKU mặc định; lưu ID/mã nguồn và thống kê lịch sử riêng, upload placeholder qua module ảnh Catalog lên Supabase Storage và gắn nhãn dữ liệu minh họa |
-| FR-EMAIL-01 | Tạo thông báo email xác nhận đơn và thông báo khi trạng thái đơn/thanh toán thay đổi; gửi bất đồng bộ, chống gửi trùng theo sự kiện và thử gửi lại lỗi tạm thời                                   |
-| FR-EMAIL-02 | Email lỗi/không sẵn sàng không rollback hoặc chặn nghiệp vụ đơn; lưu trạng thái gửi để vận hành nhận biết và xử lý lại                                                                            |
+| FR-EMAIL-01 | Tạo email khi đặt COD và khi đơn COD được xác nhận/hủy/hết hạn; gửi bất đồng bộ, chống gửi trùng theo sự kiện và thử gửi lại lỗi tạm thời |
+| FR-EMAIL-02 | Email lỗi/không sẵn sàng không rollback hoặc chặn nghiệp vụ đơn; lưu trạng thái gửi và mã lỗi đã lọc trong job vận hành |
+| FR-NOTIF-01 | Customer xem thông báo bền vững khi tạo/xác nhận/hủy/hết hạn đơn COD; có danh sách, số chưa đọc, đánh dấu đã đọc và cập nhật realtime; chỉ đọc/sửa thông báo của mình |
 | FR-LOC-01   | Frontend tải danh mục tỉnh/thành và đơn vị cấp xã từ JSON tiếng Việt online; mã chỉ dùng cho dropdown, không nhập danh mục vào DB |
 | FR-OPS-01   | Có cấu hình mẫu, Prisma schema, seed và hướng dẫn local; dữ liệu/ảnh bền vững khi khởi động lại; không tự đồng bộ schema hoặc reset dữ liệu khi start                                         |
 
@@ -323,10 +324,17 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 
 ### UC-14B — Gửi email thông báo đơn hàng
 
-- **Tác nhân:** hệ thống. **Kích hoạt:** tạo đơn hoặc ghi nhận thay đổi trạng thái đơn/thanh toán.
+- **Tác nhân:** hệ thống. **Kích hoạt:** tạo đơn COD hoặc thay đổi trạng thái đơn COD.
 - **Luồng:** Backend ghi email_outbox/job cùng transaction nghiệp vụ → worker nhận việc và gửi sau commit → lưu trạng thái gửi/retry/backoff. Khóa nhận việc và event key chống xử lý lặp; payload email không đi vào tracking/export AI.
 - **Ngoại lệ:** lỗi nhà cung cấp được retry có giới hạn/backoff; không rollback đơn, payment hay tồn kho. Tránh gửi lặp cùng event key; lỗi cuối cùng phải hiện trong trạng thái vận hành/log có mã tra cứu, không chứa secret.
 - **Sau:** Customer vẫn xem được trạng thái mới nhất trong tài khoản; email là kênh bổ sung. **Nghiệm thu:** TC-50.
+
+### UC-14C — Nhận thông báo đơn hàng trong web
+
+- **Tác nhân:** Customer sở hữu đơn. **Kích hoạt:** đơn COD được tạo, xác nhận, hủy hoặc hết hạn.
+- **Luồng:** ghi thông báo cùng transaction đổi trạng thái → SSE báo cho các phiên Customer → chuông cập nhật số chưa đọc và danh sách → Customer mở thông báo để xem đơn hoặc đánh dấu đã đọc.
+- **Ngoại lệ:** mất kết nối SSE thì tải lại từ API khi kết nối lại/tab hoạt động; lỗi cập nhật realtime không rollback đơn. API chỉ trả thông báo thuộc Customer hiện tại.
+- **Sau:** trạng thái đọc được lưu trong PostgreSQL và đồng bộ giữa các tab. **Nghiệm thu:** TC-55.
 
 ### UC-15 — Xem đơn của Customer
 
@@ -689,6 +697,10 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | PATCH, DELETE /cart/items/:id                                                    | Sửa quantity/xóa                                                                                                 | Customer hoạt động                                      |
 | POST /orders                                                                     | Tạo đơn COD nguyên tử, trả 201 với đơn; cùng key/payload trả kết quả đã lưu                                     | Customer hoạt động                                      |
 | GET /orders, GET /orders/:id, GET /orders/by-checkout-key/:key                   | Danh sách/chi tiết đơn cá nhân và khôi phục kết quả checkout theo idempotency key                                | Customer; chỉ đơn của mình                              |
+| GET /notifications?page=&pageSize=&unreadOnly=                                  | Danh sách thông báo phân trang và số chưa đọc                                                                     | Customer; chỉ của mình                                  |
+| GET /notifications/unread-count                                                  | Đếm thông báo chưa đọc                                                                                             | Customer; chỉ của mình                                  |
+| PATCH /notifications/:id/read, /notifications/read-all                          | Đánh dấu một hoặc tất cả thông báo đã đọc                                                                         | Customer; chỉ của mình                                  |
+| GET /notifications/stream                                                       | Nhận tín hiệu SSE để đồng bộ thông báo từ API                                                                      | Customer; phiên đang hoạt động                          |
 | POST /orders/:id/cancel                                                         | Hủy đơn PENDING UNPAID nguyên tử; giải phóng reserved                                                           | Chủ đơn                                                 |
 | GET /admin/orders, GET /admin/orders/:id, POST /admin/orders/:id/confirm          | Xem đơn và xác nhận PENDING trước hạn                                                                           | Admin                                                   |
 | POST /admin/orders/:id/cancel                                                   | Hủy PENDING/CONFIRMED trước giao; lý do bắt buộc                                                                | Admin                                                   |
@@ -719,6 +731,8 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | POST /recommendations                                                            | Gợi ý theo quy tắc, lấy ngữ cảnh được phép                                                                       | Guest/Customer                                          |
 
 POST /auth/password-reset-requests nhận email và trả phản hồi chung; POST /auth/password-resets xác nhận token cùng mật khẩu mới. Các endpoint này công khai, chưa có rate limit và không tiết lộ tài khoản tồn tại; giới hạn tần suất dự kiến dùng Redis. Không có endpoint wishlist, đổi email, mua lại, reset mật khẩu do Admin thực hiện thay khách, cổng thanh toán ngoài payOS, refund hoặc sửa nội dung đơn. Không có endpoint công khai để sửa ánh xạ dataset hoặc gửi event transaction.
+
+Thông báo trả `{ id, type, orderId, title, body, createdAt, readAt }`; ID bigint là chuỗi thập phân, thời gian ISO 8601 UTC. `GET /notifications` trả `items`, `total`, `unreadCount`; `page` bắt đầu từ 1, `pageSize` tối đa 100, `unreadOnly` nhận true/false. ID không tồn tại hoặc thuộc tài khoản khác cùng trả 404. SSE phát `notifications.sync` khi nối lại và `notifications.changed` sau khi có thay đổi; client tải dữ liệu mới từ REST.
 
 #### 8.1.1. Hợp đồng API quản trị Category
 
@@ -881,11 +895,12 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-47 | Webhook payOS hợp lệ, gửi lặp, chữ ký sai, sai orderCode/amount hoặc đơn đã hủy                                                                            | Chỉ callback hợp lệ đúng đơn chuyển PAID; callback lặp không nhân doanh thu/event; callback không hợp lệ không đổi trạng thái                                                                            |
 | TC-48 | Return/cancel URL mở trước/sau webhook; payOS đã trả rồi giao thất bại                                                                                     | Return URL không xác nhận PAID; API hiển thị trạng thái chuẩn; đơn paid chỉ được giao lại, không hủy/hoàn tồn                                                                                            |
 | TC-49 | Khôi phục mật khẩu với email có/không có tài khoản; token sai, hết hạn, đã dùng; thử lại nhiều lần                                                         | Phản hồi chung không dò được email; email hợp lệ có liên kết dùng một lần; đổi mật khẩu thu hồi mọi phiên; link lỗi không đổi mật khẩu                                                                   |
-| TC-50 | Gửi email tạo đơn/thay đổi trạng thái, nhà cung cấp lỗi/tạm ngừng, worker retry cùng event                                                                 | Đơn/payment không rollback; không tạo job trùng event key; dùng provider idempotency nếu hỗ trợ, ghi nhận hạn chế gửi lặp khi provider không hỗ trợ; retry/thất bại quan sát được, không lộ secret/token |
+| TC-50 | Gửi email tạo/hủy/xác nhận/hết hạn COD, provider lỗi/tạm ngừng, worker retry cùng event                                                                       | Đơn không rollback; không tạo job trùng event key; retry có giới hạn/backoff và mã lỗi không lộ secret/token; SMTP có thể đã nhận thư trước khi kết nối lỗi nên không bảo đảm gửi đúng một lần |
 | TC-51 | Backend dừng trước/sau commit checkout/lifecycle; request/webhook lặp và cạnh tranh SKU cuối                                                               | Trước commit rollback toàn bộ; sau commit cùng key trả kết quả cũ; tồn/event đúng một lần, không cần Saga hoặc broker để phục hồi                                                                       |
 | TC-52 | Tìm tên, lọc options/giá/còn hàng nhiều ngành và danh mục cha trong PostgreSQL                                                                             | Các điều kiện khớp cùng SKU, gồm danh mục con; kết quả search/stock/payment dùng database chung; không cần ES/Redis                                                                                      |
 | TC-53 | Upload Admin qua backend/Catalog/Supabase Storage; giả imageAssetId hoặc URL hoặc gọi route seed từ client                                                             | Metadata/liên kết trong database chung, kiểm tra asset metadata trong transaction; URL public HTTPS hợp lệ, chặn vượt quyền, không lộ secret hoặc giữ file gốc                                   |
 | TC-54 | Storage nhận upload nhưng phản hồi/ghi metadata bị gián đoạn; thay/gỡ ảnh | Upload tiếp theo tạo path mới; có thể tồn tại object mồ côi; upsert:false không ghi đè object; gỡ liên kết không xóa asset Storage |
+| TC-55 | Tạo/xác nhận/hủy/hết hạn COD; retry cùng sự kiện; mất/kết nối lại SSE; Customer truy cập ID người khác; đánh dấu đọc ở nhiều tab | Một thông báo web và email job/event; trạng thái đọc lưu bền vững; reconnect đồng bộ từ API; không lộ thông báo người khác; lỗi SSE không ảnh hưởng đơn |
 
 Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, triển khai trong backend theo task 063–067; chúng chưa có code trong snapshot hiện tại. Không cần chờ hoặc khởi tạo Python/FastAPI để làm các chức năng này. Nghiên cứu/model serving thật ở task 073–077 nằm ngoài nghiệm thu bản web local.
 
@@ -900,6 +915,7 @@ Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, 
 | BREQ-01          | FR-AUTH-05               | UC-05                             | TC-05                             |
 | BREQ-11          | FR-AUTH-06, FR-AUTH-07   | UC-04A, UC-04B                    | TC-49                             |
 | BREQ-11          | FR-EMAIL-01, FR-EMAIL-02 | UC-14B                            | TC-50                             |
+| BREQ-12          | FR-NOTIF-01              | UC-14C                            | TC-55                             |
 | BREQ-04          | FR-ADDR-01               | UC-06                             | TC-06                             |
 | BREQ-04          | FR-ADDR-02               | UC-06                             | TC-07                             |
 | BREQ-04          | FR-ADDR-03               | UC-13, UC-14                      | TC-14, TC-17                      |

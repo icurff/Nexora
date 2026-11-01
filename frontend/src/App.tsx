@@ -42,6 +42,7 @@ import { AdminProductsPage } from './features/catalog/pages/AdminProductsPage.js
 import { AdminInventoryPage } from './features/catalog/pages/AdminInventoryPage.js';
 import { AdminOrdersPage } from './features/admin/pages/AdminOrdersPage.js';
 import { AdminCustomersPage } from './features/admin/pages/AdminCustomersPage.js';
+import { NotificationsPage } from './features/notifications/pages/NotificationsPage.js';
 import './App.css';
 import './Store.css';
 import './Brand.css';
@@ -115,6 +116,7 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<RequireAuth />}>
             <Route path="/account" element={<AccountPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/admin/products" element={<AdminProductsPage />} />

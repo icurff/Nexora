@@ -6,8 +6,11 @@ import type { ReactNode } from 'react';
 import { BrandLogo } from '../components/BrandLogo';
 import { useCart } from '../features/cart/hooks/useCart';
 import { useAuth } from '../features/auth/hooks/useAuth';
+import { NotificationBell } from '../features/notifications/components/NotificationBell';
+import { useNotificationStream } from '../features/notifications/hooks/useNotifications';
 
 export function StoreHeader() {
+  useNotificationStream();
   const [search, setSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
@@ -74,6 +77,7 @@ export function StoreHeader() {
                 <span className="action-count">{cartCount}</span>
               ) : null}
             </Link>
+            <NotificationBell />
             <Link className="account-action" to="/account">
               <UserRound />
               <span>Tài khoản</span>
@@ -103,6 +107,11 @@ export function StoreHeader() {
             <Link to="/account" onClick={() => setMobileOpen(false)}>
               Tài khoản của tôi
             </Link>
+            {user?.role === 'CUSTOMER' ? (
+              <Link to="/notifications" onClick={() => setMobileOpen(false)}>
+                Thông báo
+              </Link>
+            ) : null}
           </div>
         ) : null}
       </header>

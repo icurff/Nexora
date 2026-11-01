@@ -1,4 +1,9 @@
-import { ApiError, apiClient } from '../../../services/api-client';
+import {
+  ApiError,
+  apiClient,
+  refreshSessionData,
+} from '../../../services/api-client';
+import { storeAccessToken, storedAccessToken } from './access-token';
 
 export type AuthUser = {
   id: string;
@@ -13,25 +18,7 @@ export type AuthUser = {
 
 export type SessionResponse = { accessToken: string; user: AuthUser };
 
-const ACCESS_TOKEN_KEY = 'nexora_access_token';
-let refreshRequest: Promise<SessionResponse | null> | null = null;
-
-export function storedAccessToken(): string | null {
-  try {
-    return localStorage.getItem(ACCESS_TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function storeAccessToken(token: string | null) {
-  try {
-    if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
-    else localStorage.removeItem(ACCESS_TOKEN_KEY);
-  } catch {
-    // The in-memory session remains usable if browser storage is unavailable.
-  }
-}
+export { storeAccessToken, storedAccessToken } from './access-token';
 
 export async function login(email: string, password: string) {
   const response = await apiClient.post<SessionResponse>('/auth/login', {
@@ -97,16 +84,7 @@ export async function updateProfile(
 }
 
 export function refreshSession(): Promise<SessionResponse | null> {
-  if (!refreshRequest) {
-    refreshRequest = apiClient
-      .post<SessionResponse>('/auth/refresh')
-      .then((response) => response.data)
-      .catch(() => null)
-      .finally(() => {
-        refreshRequest = null;
-      });
-  }
-  return refreshRequest;
+  return refreshSessionData() as Promise<SessionResponse | null>;
 }
 
 export async function restoreSession(): Promise<SessionResponse | null> {

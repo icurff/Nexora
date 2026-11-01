@@ -9,9 +9,10 @@ import {
 } from './order.controller.js';
 import { OrderRepository } from './order.repository.js';
 import { OrderService } from './order.service.js';
+import { NotificationModule } from '../notification/notification.module.js';
 
 @Module({
-  imports: [AuthModule, CatalogModule],
+  imports: [AuthModule, CatalogModule, NotificationModule],
   controllers: [
     CartController,
     CustomerOrdersController,

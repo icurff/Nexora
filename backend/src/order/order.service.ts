@@ -21,6 +21,7 @@ import type {
   PlaceOrderDto,
 } from './order.dto.js';
 import { OrderRepository } from './order.repository.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 const SHIPPING_FEE = 30_000n;
 const INCLUDE = {
@@ -109,6 +110,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
     private readonly orders: OrderRepository,
     private readonly catalog: ProductService,
     private readonly addresses: UserAddressService,
+    private readonly notifications: NotificationService,
   ) {}
 
   onModuleInit() {
@@ -134,7 +136,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
       addressUpdatedAt: body.addressUpdatedAt,
       customerNote: body.customerNote ?? '',
     };
-    return this.idempotentTransaction(
+    const placed = await this.idempotentTransaction(
       userId,
       body.idempotencyKey,
       payload,
@@ -179,7 +181,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
         }
         const selections = cartItems.map((item) => ({
           cartItemId: item.id,
-          productId: item.productId ?? 0n,
+          productId: item.productId ?? item.variant?.productId ?? 0n,
           variantId: item.variantId,
           quantity: item.quantity,
         }));
@@ -235,6 +237,16 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
           include: INCLUDE,
         });
         await this.orders.event(order.id, tx);
+        const createdHistory = await tx.orderStatusHistory.findFirst({
+          where: { orderId: order.id },
+          orderBy: { id: 'desc' },
+        });
+        if (createdHistory)
+          await this.notifications.recordOrderChange(
+            tx,
+            order,
+            createdHistory.id,
+          );
         await this.orders.deletePurchasedCartItems(cartItemIds, tx);
         await this.orders.completeIdempotency(
           userId,
@@ -245,6 +257,8 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
         return view(order);
       },
     );
+    this.notifications.publishChanged(BigInt(placed.userId));
+    return placed;
   }
 
   async listCustomer(actor: AuthenticatedActor, query: OrderListQueryDto) {
@@ -356,7 +370,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
       expectedVersion: body.expectedVersion ?? '',
       reason,
     };
-    return this.idempotentTransaction(
+    const cancelled = await this.idempotentTransaction(
       actorId,
       body.idempotencyKey,
       payload,
@@ -411,7 +425,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
             null,
             tx,
           );
-          await this.orders.history(
+          const history = await this.orders.history(
             id,
             null,
             'PENDING',
@@ -419,13 +433,21 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
             'EXPIRED',
             tx,
           );
+          const updated = await this.orders.findOrder(id, tx);
+          if (updated)
+            await this.notifications.recordOrderChange(
+              tx,
+              updated,
+              history.id,
+              'EXPIRED',
+            );
           await this.orders.completeIdempotency(
             actorId,
             body.idempotencyKey,
             { orderId: id.toString() },
             tx,
           );
-          return view((await this.orders.findOrder(id, tx))!);
+          return view(updated!);
         }
         await this.catalog.releaseOrderReservation(
           tx,
@@ -444,7 +466,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
           order.confirmedAt,
           tx,
         );
-        await this.orders.history(
+        const history = await this.orders.history(
           id,
           actorId,
           order.status,
@@ -452,15 +474,20 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
           reason,
           tx,
         );
+        const updated = await this.orders.findOrder(id, tx);
+        if (updated)
+          await this.notifications.recordOrderChange(tx, updated, history.id);
         await this.orders.completeIdempotency(
           actorId,
           body.idempotencyKey,
           { orderId: id.toString() },
           tx,
         );
-        return view((await this.orders.findOrder(id, tx))!);
+        return view(updated!);
       },
     );
+    this.notifications.publishChanged(BigInt(cancelled.userId));
+    return cancelled;
   }
 
   async confirm(
@@ -475,7 +502,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
       orderId: id.toString(),
       expectedVersion: body.expectedVersion,
     };
-    return this.idempotentTransaction(
+    const confirmed = await this.idempotentTransaction(
       actorId,
       body.idempotencyKey,
       payload,
@@ -523,7 +550,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
             null,
             tx,
           );
-          await this.orders.history(
+          const history = await this.orders.history(
             id,
             null,
             'PENDING',
@@ -531,13 +558,21 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
             'EXPIRED',
             tx,
           );
+          const updated = await this.orders.findOrder(id, tx);
+          if (updated)
+            await this.notifications.recordOrderChange(
+              tx,
+              updated,
+              history.id,
+              'EXPIRED',
+            );
           await this.orders.completeIdempotency(
             actorId,
             body.idempotencyKey,
             { orderId: id.toString() },
             tx,
           );
-          return view((await this.orders.findOrder(id, tx))!);
+          return view(updated!);
         }
         const now = checkTime;
         await this.orders.changeStatus(
@@ -549,7 +584,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
           now,
           tx,
         );
-        await this.orders.history(
+        const history = await this.orders.history(
           id,
           actorId,
           'PENDING',
@@ -557,15 +592,20 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
           null,
           tx,
         );
+        const updated = await this.orders.findOrder(id, tx);
+        if (updated)
+          await this.notifications.recordOrderChange(tx, updated, history.id);
         await this.orders.completeIdempotency(
           actorId,
           body.idempotencyKey,
           { orderId: id.toString() },
           tx,
         );
-        return view((await this.orders.findOrder(id, tx))!);
+        return view(updated!);
       },
     );
+    this.notifications.publishChanged(BigInt(confirmed.userId));
+    return confirmed;
   }
 
   private async idempotentTransaction(
@@ -622,43 +662,56 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
     try {
       const due = await this.orders.dueOrders(100);
       for (const { id } of due)
-        await this.prisma.transaction(async (tx) => {
-          await this.orders.lockOrder(id, tx);
-          const order = await this.orders.findOrder(id, tx);
-          if (
-            !order ||
-            order.status !== 'PENDING' ||
-            order.paymentStatus !== 'UNPAID'
-          )
-            return;
-          const now = await this.databaseNow(tx);
-          if (order.expiresAt > now) return;
-          await this.catalog.releaseOrderReservation(
-            tx,
-            order.items.map((item) => ({
-              productId: item.productId,
-              variantId: item.variantId,
-              quantity: item.quantity,
-            })),
-          );
-          await this.orders.changeStatus(
-            id,
-            'CANCELLED',
-            now,
-            now,
-            'EXPIRED',
-            null,
-            tx,
-          );
-          await this.orders.history(
-            id,
-            null,
-            'PENDING',
-            'CANCELLED',
-            'EXPIRED',
-            tx,
-          );
-        });
+        await this.prisma
+          .transaction(async (tx) => {
+            await this.orders.lockOrder(id, tx);
+            const order = await this.orders.findOrder(id, tx);
+            if (
+              !order ||
+              order.status !== 'PENDING' ||
+              order.paymentStatus !== 'UNPAID'
+            )
+              return;
+            const now = await this.databaseNow(tx);
+            if (order.expiresAt > now) return;
+            await this.catalog.releaseOrderReservation(
+              tx,
+              order.items.map((item) => ({
+                productId: item.productId,
+                variantId: item.variantId,
+                quantity: item.quantity,
+              })),
+            );
+            await this.orders.changeStatus(
+              id,
+              'CANCELLED',
+              now,
+              now,
+              'EXPIRED',
+              null,
+              tx,
+            );
+            const history = await this.orders.history(
+              id,
+              null,
+              'PENDING',
+              'CANCELLED',
+              'EXPIRED',
+              tx,
+            );
+            const updated = await this.orders.findOrder(id, tx);
+            if (updated)
+              await this.notifications.recordOrderChange(
+                tx,
+                updated,
+                history.id,
+                'EXPIRED',
+              );
+            return order.userId;
+          })
+          .then((userId) => {
+            if (userId) this.notifications.publishChanged(userId);
+          });
     } catch {
       /* A later sweep retries any orders left pending. */
     }

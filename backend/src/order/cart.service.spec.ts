@@ -5,7 +5,7 @@ import type { PrismaService } from '../database/prisma.service.js';
 
 function setup() {
   const prisma = {
-    cart: { upsert: vi.fn() },
+    cart: { upsert: vi.fn(), findUnique: vi.fn() },
     cartItem: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
@@ -14,7 +14,26 @@ function setup() {
       delete: vi.fn(),
     },
   };
-  const catalog = { cartVariant: vi.fn(), cartVariants: vi.fn(), cartProduct: vi.fn(), cartProducts: vi.fn() };
+  Object.assign(prisma, {
+    transaction: (
+      work: (tx: {
+        $queryRaw: () => Promise<unknown>;
+        cart: typeof prisma.cart;
+        cartItem: typeof prisma.cartItem;
+      }) => Promise<unknown>,
+    ) =>
+      work({
+        $queryRaw: vi.fn().mockResolvedValue([]),
+        cart: prisma.cart,
+        cartItem: prisma.cartItem,
+      }),
+  });
+  const catalog = {
+    cartVariant: vi.fn(),
+    cartVariants: vi.fn(),
+    cartProduct: vi.fn(),
+    cartProducts: vi.fn(),
+  };
   return {
     prisma,
     catalog,
@@ -28,26 +47,45 @@ function setup() {
 describe('CartService', () => {
   it('adds a product without a SKU as a product-level cart row', async () => {
     const { prisma, service, catalog } = setup();
-    prisma.cart.upsert
-      .mockResolvedValueOnce({ id: 4n })
-      .mockResolvedValueOnce({ id: 4n, items: [{ id: 7n, quantity: 2, variantId: null, productId: 11n }] });
+    prisma.cart.upsert.mockResolvedValueOnce({ id: 4n }).mockResolvedValueOnce({
+      id: 4n,
+      items: [{ id: 7n, quantity: 2, variantId: null, productId: 11n }],
+    });
     prisma.cartItem.findUnique.mockResolvedValue(null);
     catalog.cartProduct.mockResolvedValue({
-      id: '11', name: 'Túi vải', status: 'ACTIVE', priceVnd: '50000', available: 5,
-      category: { id: '2', name: 'Phụ kiện' }, image: null,
+      id: '11',
+      name: 'Túi vải',
+      status: 'ACTIVE',
+      priceVnd: '50000',
+      available: 5,
+      category: { id: '2', name: 'Phụ kiện' },
+      image: null,
     });
-    catalog.cartProducts.mockResolvedValue([{
-      id: '11', name: 'Túi vải', status: 'ACTIVE', priceVnd: '50000', available: 5,
-      category: { id: '2', name: 'Phụ kiện' }, image: null,
-    }]);
+    catalog.cartProducts.mockResolvedValue([
+      {
+        id: '11',
+        name: 'Túi vải',
+        status: 'ACTIVE',
+        priceVnd: '50000',
+        available: 5,
+        category: { id: '2', name: 'Phụ kiện' },
+        image: null,
+      },
+    ]);
     catalog.cartVariants.mockResolvedValue([]);
 
     const result = await service.add('12', { productId: '11' }, 2);
 
-    expect(prisma.cartItem.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      create: { cartId: 4n, productId: 11n, quantity: 2 },
-    }));
-    expect(result.items[0]).toMatchObject({ priceVnd: '50000', available: 5, variant: null });
+    expect(prisma.cartItem.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: { cartId: 4n, productId: 11n, quantity: 2 },
+      }),
+    );
+    expect(result.items[0]).toMatchObject({
+      priceVnd: '50000',
+      available: 5,
+      variant: null,
+    });
   });
 
   it('rejects an add that would exceed currently available stock', async () => {
@@ -61,14 +99,15 @@ describe('CartService', () => {
       available: 4,
     });
 
-    await expect(service.add('12', { variantId: '8' }, 2)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.add('12', { variantId: '8' }, 2),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.cartItem.upsert).not.toHaveBeenCalled();
   });
 
   it('rejects updates to a cart item that belongs to another account', async () => {
     const { prisma, service } = setup();
+    prisma.cart.findUnique.mockResolvedValue({ id: 4n });
     prisma.cartItem.findFirst.mockResolvedValue(null);
 
     await expect(service.setQuantity('12', '99', 1)).rejects.toBeInstanceOf(

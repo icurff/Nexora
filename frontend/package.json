@@ -17,6 +17,7 @@
     "axios": "^1.21.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "eventsource-parser": "^4.1.3",
     "lucide-react": "^1.64.0",
     "radix-ui": "^1.8.1",
     "react": "^19.2.8",

@@ -48,6 +48,7 @@ export class OrderRepository {
     return tx.cartItem.findMany({
       where: { cartId, id: { in: ids } },
       orderBy: { id: 'asc' },
+      include: { variant: { select: { productId: true } } },
     });
   }
 
