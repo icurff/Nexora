@@ -6,17 +6,15 @@ import {
   Bell,
   Check,
   ChevronRight,
-  House,
   LockKeyhole,
   LogOut,
   MapPin,
   Package,
   Pencil,
-  Plus,
   ShieldCheck,
   UserRound,
 } from 'lucide-react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { StoreFrame } from '../../../layouts/StoreLayout';
 import { PasswordField } from '../../auth/components/FormField';
 import { Notice } from '../../auth/components/Notice';
@@ -29,6 +27,7 @@ import {
 import { Button } from '../../../components/ui/button';
 import { demoOrders, formatVnd } from '../../catalog/demo-data.js';
 import '../../../Account.css';
+import { AddressBook } from '../components/AddressBook';
 
 type AccountSection = 'profile' | 'addresses' | 'orders' | 'security';
 
@@ -37,11 +36,13 @@ export default function AccountPage() {
   const changePasswordMutation = useChangePassword();
   const logoutMutation = useLogout();
   const navigate = useNavigate();
-  const [section, setSection] = useState<AccountSection>('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [section, setSection] = useState<AccountSection>(() =>
+    searchParams.get('section') === 'addresses' ? 'addresses' : 'profile',
+  );
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [saved, setSaved] = useState(false);
-  const [addingAddress, setAddingAddress] = useState(false);
   const [logoutError, setLogoutError] = useState('');
   const {
     register,
@@ -129,7 +130,11 @@ export default function AccountPage() {
                 <button
                   key={id}
                   className={section === id ? 'active' : ''}
-                  onClick={() => setSection(id)}
+                  onClick={() => {
+                    setSection(id);
+                    if (id === 'addresses') setSearchParams({ section: id });
+                    else setSearchParams({});
+                  }}
                 >
                   <Icon size={17} />
                   <span>{label}</span>
@@ -234,102 +239,7 @@ export default function AccountPage() {
                 </div>
               </div>
             ) : null}
-            {section === 'addresses' ? (
-              <div className="account-panel">
-                <div className="account-panel-title">
-                  <div>
-                    <span className="section-eyebrow">GIAO HÀNG NHANH HƠN</span>
-                    <h2>Sổ địa chỉ</h2>
-                    <p>Quản lý địa chỉ nhận hàng yêu thích của bạn.</p>
-                  </div>
-                  <button
-                    className="button-primary"
-                    onClick={() => setAddingAddress(!addingAddress)}
-                  >
-                    <Plus size={15} /> Thêm địa chỉ
-                  </button>
-                </div>
-                {addingAddress ? (
-                  <form
-                    className="address-add-form"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      setAddingAddress(false);
-                    }}
-                  >
-                    <h3>Thêm địa chỉ mới</h3>
-                    <label>
-                      Người nhận
-                      <input placeholder="Họ và tên" />
-                    </label>
-                    <label>
-                      Số điện thoại
-                      <input placeholder="090 000 0000" />
-                    </label>
-                    <label>
-                      Địa chỉ
-                      <input placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành" />
-                    </label>
-                    <div>
-                      <button
-                        type="button"
-                        className="button-secondary"
-                        onClick={() => setAddingAddress(false)}
-                      >
-                        Hủy
-                      </button>
-                      <button className="button-primary">
-                        Lưu địa chỉ demo
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="saved-address-grid">
-                    <article className="saved-address-card primary">
-                      <div className="saved-address-top">
-                        <span>
-                          <House size={16} /> Nhà riêng
-                        </span>
-                        <em>MẶC ĐỊNH</em>
-                      </div>
-                      <strong>{fullName || user.fullName}</strong>
-                      <p>
-                        090 123 4567
-                        <br />
-                        24 Nguyễn Thị Minh Khai, Phường Bến Nghé, Quận 1, TP. Hồ
-                        Chí Minh
-                      </p>
-                      <div>
-                        <button>
-                          <Pencil size={13} /> Sửa
-                        </button>
-                        <button>Xóa</button>
-                      </div>
-                    </article>
-                    <article className="saved-address-card">
-                      <div className="saved-address-top">
-                        <span>
-                          <MapPin size={16} /> Văn phòng
-                        </span>
-                      </div>
-                      <strong>{fullName || user.fullName}</strong>
-                      <p>
-                        090 123 4567
-                        <br />
-                        15 Điện Biên Phủ, Phường 15, Quận Bình Thạnh, TP. Hồ Chí
-                        Minh
-                      </p>
-                      <div>
-                        <button>
-                          <Pencil size={13} /> Sửa
-                        </button>
-                        <button>Đặt mặc định</button>
-                      </div>
-                    </article>
-                  </div>
-                )}
-              </div>
-            ) : null}
+            {section === 'addresses' ? <AddressBook /> : null}
             {section === 'orders' ? (
               <div className="account-panel">
                 <div className="account-panel-title">

@@ -8,14 +8,19 @@ import { SessionRepository } from './repositories/session.repository.js';
 import { PasswordResetService } from './services/password-reset.service.js';
 import { PasswordResetTokenRepository } from './repositories/password-reset-token.repository.js';
 import { NotificationModule } from '../notification/notification.module.js';
+import { UserAddressService } from './services/user-address.service.js';
+import { UserAddressRepository } from './repositories/user-address.repository.js';
+import { UserAddressController } from './user-address.controller.js';
 
 @Module({
   imports: [NotificationModule],
-  controllers: [AuthController],
+  controllers: [AuthController, UserAddressController],
   providers: [
     AuthService,
     PasswordResetService,
     PasswordResetTokenRepository,
+    UserAddressService,
+    UserAddressRepository,
     UserRepository,
     SessionRepository,
     AuthGuard,

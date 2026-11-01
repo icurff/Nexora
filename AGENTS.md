@@ -34,9 +34,9 @@ Last reviewed: 2026-11-01. Verify and update this table as the code evolves.
 
 | Component      | Status                                                                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `frontend`     | React/Vite/TypeScript; Auth, Admin Category/Product/SKU/inventory, public product listing/detail and Customer cart use backend APIs; checkout/orders remain unavailable/demo; `/admin` requires an authenticated Admin and checks backend authorization |
-| `backend`      | One NestJS modular monolith; AuthModule, CatalogModule public/admin Product/SKU/inventory APIs and OrderModule account-cart APIs; Supabase Storage upload adapter and Gmail SMTP reset email; cart concurrency and browser end-to-end remain unverified |
-| Database       | Prisma ORM/schema with PostgreSQL 17 in local Docker Compose; sync local schema explicitly with `npm run db:push`; no Prisma Migrate workflow |
+| `frontend`     | React/Vite/TypeScript; Auth, Account address book, checkout address selection, Admin Category/Product/SKU/inventory, public product listing/detail and Customer cart use backend APIs; order placement remains unavailable; `/admin` requires an authenticated Admin and checks backend authorization |
+| `backend`      | One NestJS modular monolith; AuthModule includes Customer address CRUD/default management; CatalogModule public/admin Product/SKU/inventory APIs and OrderModule account-cart APIs; Supabase Storage upload adapter and Gmail SMTP reset email; browser end-to-end remains unverified |
+| Database       | Prisma ORM/schema with PostgreSQL 17 in local Docker Compose; UserAddress schema synced to local `nexora` DB on 2026-11-01; no Prisma Migrate workflow |
 | Docker         | Compose runs frontend/backend/PostgreSQL with a named local database volume; Supabase Storage remains external; no healthcheck                   |
 | Other modules  | OrderModule currently supports account carts only; order placement, Payment, Tracking and rule-based Recommendation remain planned; browser upload remains server-authorized; Notification sends password reset email directly without email jobs/workers |
 | AI model       | Python/FastAPI integration is deferred; no application/container/database exists                                                            |
