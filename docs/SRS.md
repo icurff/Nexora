@@ -162,7 +162,7 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | FR-ORD-03 | Hệ thống hết hạn PENDING UNPAID sau 24 giờ; chặn xác nhận sau hạn, xử lý bù khi backend hoạt động lại; PENDING PAID không tự hết hạn                                                                                                                 |
 | FR-ORD-04 | Admin xác nhận hoặc hủy đơn chưa thanh toán trước giao; hủy có lý do; thao tác bị ràng buộc bởi trạng thái và thanh toán hiện tại                                                                                                                    |
 | FR-ORD-05 | Admin chuyển CONFIRMED sang SHIPPING; xuất on hand và kết thúc reservation của đơn đúng một lần                                                                                                                                                      |
-| FR-ORD-06 | Admin xác nhận giao thành công; đơn COD phải xác nhận thu tiền và cập nhật DELIVERED/PAID; đơn payOS đã PAID được cập nhật DELIVERED; ghi transaction theo dòng đơn đúng một lần                                                                     |
+| FR-ORD-06 | Admin xác nhận giao thành công; đơn COD phải xác nhận thu đủ tiền và cập nhật DELIVERED/PAID cùng paidAt; payOS chưa triển khai trong phạm vi COD hiện tại |
 | FR-ORD-07 | Admin ghi giao thất bại có lý do; được giao lại không xuất kho thêm. Chỉ đơn UNPAID mới được nhận hàng về để hủy/nhập lại tồn một lần                                                                                                                |
 | FR-INV-01 | Catalog theo dõi on hand/reserved/available từng SKU; reserved bằng tổng quantity dòng đơn PENDING/CONFIRMED; tạo đơn và giữ hàng cùng transaction, không âm hoặc bán vượt available                                                                 |
 | FR-INV-02 | Giai đoạn sau: Admin nhập/điều chỉnh tồn có lý do và lịch sử; không làm on hand thấp hơn reserved; không sửa số reserved bằng thao tác kiểm kê                                                       |
@@ -184,9 +184,9 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | FR-DATA-02  | Chuẩn bị xuất dữ liệu hành vi có version để phía AI dùng sau; giữ event type, thời gian, item, định danh nội bộ; không xuất dữ liệu liên hệ/giao hàng                                             |
 | FR-DATA-03  | Kiểm tra category mới nhất mỗi item, quota theo root và ba schema CSV theo mục 8.3; chặn import khi trùng khóa, thiếu tham chiếu, sai quota hoặc checksum                                         |
 | FR-DATA-04  | Chuyển một dòng CSV thành một Product và một SKU mặc định; lưu ID/mã nguồn và thống kê lịch sử riêng, upload placeholder qua module ảnh Catalog lên Supabase Storage và gắn nhãn dữ liệu minh họa |
-| FR-EMAIL-01 | Tạo email khi đặt COD và khi đơn COD được xác nhận/hủy/hết hạn; gửi bất đồng bộ, chống gửi trùng theo sự kiện và thử gửi lại lỗi tạm thời |
+| FR-EMAIL-01 | Tạo email khi đặt hoặc khi trạng thái đơn COD thay đổi; gửi bất đồng bộ, chống gửi trùng theo lịch sử trạng thái và thử gửi lại lỗi tạm thời |
 | FR-EMAIL-02 | Email lỗi/không sẵn sàng không rollback hoặc chặn nghiệp vụ đơn; lưu trạng thái gửi và mã lỗi đã lọc trong job vận hành |
-| FR-NOTIF-01 | Customer xem thông báo bền vững khi tạo/xác nhận/hủy/hết hạn đơn COD; có danh sách, số chưa đọc, đánh dấu đã đọc và cập nhật realtime; chỉ đọc/sửa thông báo của mình |
+| FR-NOTIF-01 | Customer xem thông báo bền vững khi tạo/xác nhận/giao/hủy đơn COD; có danh sách, số chưa đọc, đánh dấu đã đọc và cập nhật realtime; chỉ đọc/sửa thông báo của mình |
 | FR-LOC-01   | Frontend tải danh mục tỉnh/thành và đơn vị cấp xã từ JSON tiếng Việt online; mã chỉ dùng cho dropdown, không nhập danh mục vào DB |
 | FR-OPS-01   | Có cấu hình mẫu, Prisma schema, seed và hướng dẫn local; dữ liệu/ảnh bền vững khi khởi động lại; không tự đồng bộ schema hoặc reset dữ liệu khi start                                         |
 
@@ -332,7 +332,7 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 
 ### UC-14C — Nhận thông báo đơn hàng trong web
 
-- **Tác nhân:** Customer sở hữu đơn. **Kích hoạt:** đơn COD được tạo, xác nhận, hủy hoặc hết hạn.
+- **Tác nhân:** Customer sở hữu đơn. **Kích hoạt:** đơn COD được tạo hoặc thay đổi trạng thái.
 - **Luồng:** ghi thông báo cùng transaction đổi trạng thái → SSE báo cho các phiên Customer → chuông cập nhật số chưa đọc và danh sách → Customer mở thông báo để xem đơn hoặc đánh dấu đã đọc.
 - **Ngoại lệ:** mất kết nối SSE thì tải lại từ API khi kết nối lại/tab hoạt động; lỗi cập nhật realtime không rollback đơn. API chỉ trả thông báo thuộc Customer hiện tại.
 - **Sau:** trạng thái đọc được lưu trong PostgreSQL và đồng bộ giữa các tab. **Nghiệm thu:** TC-55.
@@ -374,9 +374,9 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 ### UC-20 — Giao thành công và xác nhận thanh toán
 
 - **Tác nhân:** Admin. **Trước:** SHIPPING.
-- **Luồng:** xác nhận đã giao; với COD, xác nhận đã thu đủ tiền → cập nhật PAID/paidAt và ghi transaction; với payOS, kiểm tra PAID đã xác minh rồi cập nhật DELIVERED mà không ghi transaction lần nữa → ghi lịch sử.
-- **Ngoại lệ:** COD chưa thu hoặc payOS chưa PAID không đủ điều kiện hoàn tất; không hỗ trợ thanh toán một phần. Retry không thêm transaction hoặc doanh thu lần nữa.
-- **Sau:** tồn không thay đổi thêm; đơn kết thúc. **Nghiệm thu:** TC-23.
+- **Luồng:** xác nhận đã giao và thu đủ tiền COD → cập nhật DELIVERED/PAID, đặt paidAt = deliveredAt và ghi lịch sử trong cùng transaction.
+- **Ngoại lệ:** COD chưa xác nhận đã thu đủ không đủ điều kiện hoàn tất; không hỗ trợ thanh toán một phần. Retry không cập nhật lặp trạng thái.
+- **Sau:** tồn không thay đổi thêm; đơn kết thúc. Chưa ghi event tracking transaction. **Nghiệm thu:** TC-23.
 
 ### UC-21 — Giao thất bại và giao lại
 
@@ -497,8 +497,8 @@ Hết hàng là điều kiện suy ra từ tồn, không phải một trạng th
 | PENDING           | Hết hạn                  | Hệ thống          | UNPAID và thời gian server >= expiresAt                          | CANCELLED               | Reserved −q; lý do EXPIRED                      |
 | CONFIRMED         | Hủy                      | Admin             | UNPAID, có lý do, chưa giao                                      | CANCELLED               | Reserved −q                                     |
 | CONFIRMED         | Chuyển giao              | Admin             | Reservation đầy đủ                                               | SHIPPING                | On hand −q, Reserved −q                         |
-| SHIPPING          | Giao và thu COD          | Admin             | Phương thức COD; xác nhận giao và thu tiền                       | DELIVERED               | PAID; paidAt; transaction                       |
-| SHIPPING          | Giao thành công          | Admin             | Phương thức payOS; payment đã PAID                               | DELIVERED               | Giữ PAID; không ghi transaction trùng           |
+| SHIPPING          | Giao và thu COD          | Admin             | Phương thức COD; xác nhận đã thu đủ tiền                         | DELIVERED               | PAID; paidAt                                     |
+| SHIPPING          | Giao thành công          | Admin             | Phương thức payOS; payment đã PAID                               | DELIVERED               | PayOS thuộc phạm vi tương lai                    |
 | SHIPPING          | Giao thất bại            | Admin             | Có lý do                                                         | DELIVERY_FAILED         | Không hoàn tồn; trạng thái thanh toán không đổi |
 | DELIVERY_FAILED   | Giao lại                 | Admin             | Chưa xác nhận hàng về                                            | SHIPPING                | Không xuất lần nữa                              |
 | DELIVERY_FAILED   | Đã nhận đủ hàng về       | Admin             | UNPAID; xác nhận hàng nguyên vẹn                                 | CANCELLED               | On hand +q, đúng một lần                        |
@@ -871,7 +871,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-20 | Đơn đúng hạn/quá hạn, Admin xác nhận sau hạn, restart qua hạn                                                                                              | PENDING UNPAID hết hạn; PAID không tự hết hạn; không xác nhận PENDING UNPAID sau hạn; CONFIRMED không bị hủy theo 24 giờ                                                                                 |
 | TC-21 | Admin xác nhận/hủy PENDING và CONFIRMED; hủy SHIPPING hoặc thiếu lý do                                                                                     | Chuyển đúng bảng trạng thái; thao tác sai bị từ chối; không tác động tồn lặp                                                                                                                             |
 | TC-22 | Chuyển CONFIRMED đi giao, retry, thiếu reservation                                                                                                         | Xuất onHand/reserved một lần; thiếu dữ liệu không xuất một phần                                                                                                                                          |
-| TC-23 | Xác nhận giao COD chưa thu/đã thu và payOS đã trả; retry; thử với CANCELLED                                                                                | COD chỉ PAID khi thu; payOS giữ paidAt gốc; transaction mỗi dòng một lần; không hoàn tất đơn hủy                                                                                                         |
+| TC-23 | Xác nhận giao COD thiếu/đủ tiền; retry; thử với CANCELLED                                                                                                 | COD chỉ PAID khi xác nhận đã thu đủ; paidAt = deliveredAt; không hoàn tất đơn hủy; chưa ghi transaction tracking |
 | TC-24 | Giao thất bại rồi giao lại nhiều lần                                                                                                                       | Lý do bắt buộc; lịch sử đầy đủ; không nhập/xuất kho hoặc thu thêm phí ship                                                                                                                               |
 | TC-25 | Nhận toàn bộ hàng về, retry; thử hoàn trước khi nhận                                                                                                       | Hoàn đủ một lần rồi CANCELLED/UNPAID; chỉ thất bại chưa làm tăng tồn                                                                                                                                     |
 | TC-26 | Tạo Product ACTIVE đủ nội dung/ảnh, SKU có hoặc không; mua và quản lý tồn trực tiếp khi không có SKU; tạo SKU, chuyển tồn sang SKU, sửa giá, xóa SKU cuối | Product không SKU mua được theo giá/tồn Product; Product có SKU dùng giá/tồn SKU; chuyển sang SKU chặn khi còn tồn Product; thiếu/sai dữ liệu bị từ chối; tồn 0 hợp lệ; không xóa SKU còn tồn/đang giữ; snapshot đơn giữ nguyên |
@@ -903,7 +903,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-52 | Tìm tên, lọc options/giá/còn hàng nhiều ngành và danh mục cha trong PostgreSQL                                                                             | Các điều kiện khớp cùng SKU, gồm danh mục con; kết quả search/stock/payment dùng database chung; không cần ES/Redis                                                                                      |
 | TC-53 | Upload Admin qua backend/Catalog/Supabase Storage; giả imageAssetId hoặc URL hoặc gọi route seed từ client                                                             | Metadata/liên kết trong database chung, kiểm tra asset metadata trong transaction; URL public HTTPS hợp lệ, chặn vượt quyền, không lộ secret hoặc giữ file gốc                                   |
 | TC-54 | Storage nhận upload nhưng phản hồi/ghi metadata bị gián đoạn; thay/gỡ ảnh | Upload tiếp theo tạo path mới; có thể tồn tại object mồ côi; upsert:false không ghi đè object; gỡ liên kết không xóa asset Storage |
-| TC-55 | Tạo/xác nhận/hủy/hết hạn COD; retry cùng sự kiện; mất/kết nối lại SSE; Customer truy cập ID người khác; đánh dấu đọc ở nhiều tab | Một thông báo web và email job/event; trạng thái đọc lưu bền vững; reconnect đồng bộ từ API; không lộ thông báo người khác; lỗi SSE không ảnh hưởng đơn |
+| TC-55 | Tạo/xác nhận/giao/hủy/hết hạn COD; retry cùng lịch sử; mất/kết nối lại SSE; Customer truy cập ID người khác; đánh dấu đọc ở nhiều tab | Một thông báo web và email job theo mỗi thay đổi trạng thái; trạng thái đọc lưu bền vững; reconnect đồng bộ từ API; không lộ thông báo người khác; lỗi SSE không ảnh hưởng đơn |
 
 Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, triển khai trong backend theo task 063–067; chúng chưa có code trong snapshot hiện tại. Không cần chờ hoặc khởi tạo Python/FastAPI để làm các chức năng này. Nghiên cứu/model serving thật ở task 073–077 nằm ngoài nghiệm thu bản web local.
 

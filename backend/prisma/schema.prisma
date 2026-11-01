@@ -264,7 +264,11 @@ model Order {
   createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   confirmedAt     DateTime?           @map("confirmed_at") @db.Timestamptz(6)
+  firstShippedAt  DateTime?           @map("first_shipped_at") @db.Timestamptz(6)
+  deliveredAt     DateTime?           @map("delivered_at") @db.Timestamptz(6)
+  paidAt          DateTime?           @map("paid_at") @db.Timestamptz(6)
   cancelledAt     DateTime?           @map("cancelled_at") @db.Timestamptz(6)
+  returnedAt      DateTime?           @map("returned_at") @db.Timestamptz(6)
   cancelReason    String?             @map("cancel_reason") @db.VarChar(500)
   user            User                @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   items           OrderItem[]

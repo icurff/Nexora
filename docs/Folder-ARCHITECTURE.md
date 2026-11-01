@@ -102,7 +102,7 @@ AuthModule, DatabaseModule, CatalogModule và OrderModule đã có. OrderModule 
 | Auth                      | Tài khoản, phiên, hồ sơ, sổ địa chỉ nhận hàng dạng text, password reset                     |
 | Catalog                   | Danh mục, Product/SKU, ảnh/Supabase Storage và tồn hiện tại; không lưu lịch sử biến động tồn |
 | Order                     | Giỏ, COD checkout trực tiếp, tạo đơn, snapshot, vòng đời đơn và idempotency |
-| Payment                   | payOS link/webhook và quy tắc COD; phối hợp Order trong cùng backend |
+| Payment                   | Provider COD cập nhật PAID/paidAt cùng transaction Order; payOS link/webhook chưa triển khai |
 | Notification              | Email reset gửi trực tiếp qua Gmail SMTP; email đơn COD dùng outbox/worker retry; hộp thông báo Customer lưu PostgreSQL và đồng bộ SSE |
 | Tracking / Recommendation | Event website, export không PII và gợi ý theo quy tắc khi triển khai |
 

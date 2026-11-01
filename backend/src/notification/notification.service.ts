@@ -8,7 +8,11 @@ import type { AuthenticatedActor } from '../shared/decorators/current-actor.deco
 import { NotificationRepository } from './notification.repository.js';
 import { NotificationStream } from './notification.stream.js';
 
-const messageFor = (status: string, orderId: bigint) => {
+const messageFor = (
+  status: string,
+  orderId: bigint,
+  reason?: string | null,
+) => {
   if (status === 'PENDING')
     return {
       type: 'ORDER_CREATED',
@@ -20,6 +24,30 @@ const messageFor = (status: string, orderId: bigint) => {
       type: 'ORDER_CONFIRMED',
       title: 'Đơn hàng đã được xác nhận',
       body: `Đơn hàng #${orderId} đang được chuẩn bị.`,
+    };
+  if (status === 'SHIPPING')
+    return {
+      type: 'ORDER_SHIPPING',
+      title: 'Đơn hàng đang được giao',
+      body: `Đơn hàng #${orderId} đã được bàn giao cho khâu giao hàng.`,
+    };
+  if (status === 'DELIVERED')
+    return {
+      type: 'ORDER_DELIVERED',
+      title: 'Đơn hàng đã giao thành công',
+      body: `Đơn hàng #${orderId} đã giao và thu COD thành công.`,
+    };
+  if (status === 'DELIVERY_FAILED')
+    return {
+      type: 'ORDER_DELIVERY_FAILED',
+      title: 'Giao hàng chưa thành công',
+      body: reason || `Đơn hàng #${orderId} chưa giao được.`,
+    };
+  if (status === 'CANCELLED' && reason?.startsWith('Đã nhận đủ hàng'))
+    return {
+      type: 'ORDER_RETURNED',
+      title: 'Đơn hàng đã được nhận lại',
+      body: `Đơn hàng #${orderId} đã được nhận lại và hủy.`,
     };
   if (status === 'EXPIRED')
     return {
@@ -71,6 +99,7 @@ export class NotificationService {
     const notice = messageFor(
       reason === 'EXPIRED' ? 'EXPIRED' : order.status,
       order.id,
+      reason,
     );
     const eventKey = `order-history:${historyId}`;
     const payload = {
@@ -79,7 +108,7 @@ export class NotificationService {
       paymentStatus: order.paymentStatus,
       totalAmount: order.totalAmount.toString(),
       createdAt: order.createdAt.toISOString(),
-      reason: reason === 'EXPIRED' ? 'EXPIRED' : null,
+      reason: reason ?? null,
       items: order.items.map(({ productName, sku, quantity, unitPrice }) => ({
         productName,
         sku,

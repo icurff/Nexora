@@ -42,7 +42,16 @@ export class PlaceOrderDto {
 export class OrderListQueryDto {
   @IsOptional() @IsInt() @Type(() => Number) @Min(1) page = 1;
   @IsOptional() @IsInt() @Type(() => Number) @Min(1) @Max(100) pageSize = 20;
-  @IsOptional() @IsIn(['PENDING', 'CONFIRMED', 'CANCELLED']) status?: string;
+  @IsOptional()
+  @IsIn([
+    'PENDING',
+    'CONFIRMED',
+    'SHIPPING',
+    'DELIVERY_FAILED',
+    'DELIVERED',
+    'CANCELLED',
+  ])
+  status?: string;
 }
 
 export class CancelOrderDto {
@@ -54,4 +63,12 @@ export class CancelOrderDto {
 export class ConfirmOrderDto {
   @IsUUID() idempotencyKey!: string;
   @IsString() @Matches(/^(0|[1-9]\d*)$/) expectedVersion!: string;
+}
+
+export class OrderLifecycleDto {
+  @IsUUID() idempotencyKey!: string;
+  @IsString() @Matches(/^(0|[1-9]\d*)$/) expectedVersion!: string;
+  @IsOptional() @IsIn([true]) codCollected?: true;
+  @IsOptional() @IsIn([true]) allItemsReceived?: true;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(500) reason?: string;
 }

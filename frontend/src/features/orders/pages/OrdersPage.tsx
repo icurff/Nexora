@@ -9,6 +9,9 @@ import { getOrders } from '../services/order-api.js';
 const labels: Record<string, string> = {
   PENDING: 'Chờ xác nhận',
   CONFIRMED: 'Đã xác nhận',
+  SHIPPING: 'Đang giao',
+  DELIVERY_FAILED: 'Giao thất bại',
+  DELIVERED: 'Đã giao',
   CANCELLED: 'Đã hủy',
 };
 function date(value: string) {
@@ -22,9 +25,10 @@ function date(value: string) {
 export function OrdersPage() {
   const { user } = useAuth();
   const [filter, setFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
   const query = useQuery({
-    queryKey: ['orders', user?.id, filter],
-    queryFn: () => getOrders(filter === 'ALL' ? undefined : filter),
+    queryKey: ['orders', user?.id, filter, page],
+    queryFn: () => getOrders(filter === 'ALL' ? undefined : filter, page),
     enabled: Boolean(user?.role === 'CUSTOMER'),
     retry: false,
   });
@@ -47,12 +51,18 @@ export function OrdersPage() {
           ['ALL', 'Tất cả'],
           ['PENDING', 'Chờ xác nhận'],
           ['CONFIRMED', 'Đã xác nhận'],
+          ['SHIPPING', 'Đang giao'],
+          ['DELIVERY_FAILED', 'Giao thất bại'],
+          ['DELIVERED', 'Đã giao'],
           ['CANCELLED', 'Đã hủy'],
         ].map(([value, label]) => (
           <button
             key={value}
             className={filter === value ? 'active' : ''}
-            onClick={() => setFilter(value)}
+            onClick={() => {
+              setFilter(value);
+              setPage(1);
+            }}
           >
             {label}
           </button>
@@ -119,6 +129,22 @@ export function OrdersPage() {
           </article>
         ))}
       </div>
+      {query.data && query.data.total > 20 ? (
+        <nav className="order-tabs" aria-label="Phân trang đơn hàng">
+          <button disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            Trước
+          </button>
+          <span>
+            Trang {page} / {Math.ceil(query.data.total / 20)}
+          </span>
+          <button
+            disabled={page * 20 >= query.data.total}
+            onClick={() => setPage(page + 1)}
+          >
+            Sau
+          </button>
+        </nav>
+      ) : null}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
   CancelOrderDto,
   OrderListQueryDto,
   PlaceOrderDto,
+  OrderLifecycleDto,
 } from './order.dto.js';
 import { OrderService } from './order.service.js';
 
@@ -86,5 +87,45 @@ export class AdminOrdersController {
     @Body() body: CancelOrderDto,
   ) {
     return this.orders.cancel(actor, id, body, true);
+  }
+
+  @Post(':id/ship') ship(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param('id') id: string,
+    @Body() body: OrderLifecycleDto,
+  ) {
+    return this.orders.lifecycle(actor, id, 'SHIP', body);
+  }
+
+  @Post(':id/deliver') deliver(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param('id') id: string,
+    @Body() body: OrderLifecycleDto,
+  ) {
+    return this.orders.lifecycle(actor, id, 'DELIVER', body);
+  }
+
+  @Post(':id/delivery-fail') deliveryFail(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param('id') id: string,
+    @Body() body: OrderLifecycleDto,
+  ) {
+    return this.orders.lifecycle(actor, id, 'DELIVERY_FAIL', body);
+  }
+
+  @Post(':id/retry-delivery') retryDelivery(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param('id') id: string,
+    @Body() body: OrderLifecycleDto,
+  ) {
+    return this.orders.lifecycle(actor, id, 'RETRY_DELIVERY', body);
+  }
+
+  @Post(':id/receive-return') receiveReturn(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param('id') id: string,
+    @Body() body: OrderLifecycleDto,
+  ) {
+    return this.orders.lifecycle(actor, id, 'RECEIVE_RETURN', body);
   }
 }

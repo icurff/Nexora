@@ -531,7 +531,7 @@ CHECK cùng dòng:
 
 - `subtotal > 0`, `shipping_fee = 30000`, `total_amount = subtotal + shipping_fee`, version >= 0.
 - `expires_at = created_at + interval '24 hours'`; tất cả thời điểm thực hiện nếu có không trước created_at. Chỉ PENDING UNPAID hết hạn; đơn PAID không tự hết hạn.
-- DELIVERED bắt buộc PAID và có delivered_at/paid_at. Với COD, paid_at = delivered_at; với PAYOS, paid_at là thời điểm webhook được xác minh và có thể trước delivered_at. PENDING/CONFIRMED/SHIPPING có thể PAID khi payment_method = PAYOS.
+- DELIVERED bắt buộc PAID và có delivered_at/paid_at. Với COD, paid_at = delivered_at; payOS/webhook thuộc phạm vi tương lai. COD hiện chưa ghi event tracking `transaction`.
 - COD PAID chỉ khi DELIVERED; PAYOS PAID chỉ khi xác minh webhook thành công và payment reference có giá trị. CANCELLED bắt buộc UNPAID.
 - COD bắt buộc các cột `payos_*` NULL; PAYOS bắt buộc `payos_order_code`, cho phép link ID/URL NULL nếu khởi tạo liên kết lỗi; `payos_reference` chỉ có khi PAID.
 - CANCELLED có cancelled_at, cancel_reason_code và cancel_reason không rỗng; trạng thái khác các cột hủy NULL.
@@ -867,7 +867,7 @@ Khóa Product rồi SKU rồi Inventory, đọc reserved mới nhất, tính on_
 
 - Lưu client ID, API key và checksum key trong secret/config backend; không lưu trong database, frontend hoặc log.
 - Tạo payment link phía backend theo `payos_order_code`, `total_amount`, VND, return URL, cancel URL và thời hạn không vượt `orders.expires_at`. Một đơn chỉ có một liên kết đang dùng; retry trả/tạo lại liên kết cho cùng đơn, không tạo thêm đơn hoặc cộng giữ hàng.
-- Webhook kiểm tra chữ ký theo tài liệu payOS, sau đó đối chiếu mã đơn, số tiền, currency, phương thức PAYOS và trạng thái UNPAID. Kết quả thanh toán ghi payment_status, paid_at, payos_reference và transaction events trong cùng transaction.
+- Webhook kiểm tra chữ ký theo tài liệu payOS, sau đó đối chiếu mã đơn, số tiền, currency, phương thức PAYOS và trạng thái UNPAID. Khi triển khai tương lai, kết quả payOS ghi payment_status, paid_at, payos_reference và transaction events trong cùng transaction. COD hiện chỉ cập nhật PAID/paid_at khi Admin xác nhận thu tiền; Tracking chưa triển khai.
 - Chữ ký sai, số tiền/mã đơn không khớp, webhook đến đơn đã hủy/hết hạn hoặc trạng thái không phù hợp không được đánh dấu PAID; lưu cảnh báo để đối soát thủ công. Không cung cấp refund trong phiên bản này.
 - Return/cancel URL chỉ phục vụ điều hướng giao diện; frontend đọc trạng thái đơn từ API. Webhook lặp cho giao dịch đã thành công phản hồi 2xx nhưng không cập nhật doanh thu/event lần nữa.
 

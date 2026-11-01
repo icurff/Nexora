@@ -349,6 +349,116 @@ export class ProductService {
     }
   }
 
+  async dispatchOrder(
+    tx: TransactionClient,
+    lines: Array<{
+      productId: bigint;
+      variantId: bigint | null;
+      quantity: number;
+    }>,
+  ) {
+    await this.lockOrderInventory(tx, lines);
+    for (const line of lines) {
+      const current = line.variantId
+        ? await tx.inventory.findUnique({
+            where: { variantId: line.variantId },
+          })
+        : await tx.productInventory.findUnique({
+            where: { productId: line.productId },
+          });
+      if (
+        !current ||
+        current.reserved < line.quantity ||
+        current.onHand < line.quantity
+      )
+        throw new ConflictException({ code: 'ORDER_RESERVATION_MISMATCH' });
+      if (line.variantId) {
+        await tx.inventory.update({
+          where: { variantId: line.variantId },
+          data: {
+            onHand: { decrement: line.quantity },
+            reserved: { decrement: line.quantity },
+            version: { increment: 1n },
+          },
+        });
+      } else {
+        await tx.productInventory.update({
+          where: { productId: line.productId },
+          data: {
+            onHand: { decrement: line.quantity },
+            reserved: { decrement: line.quantity },
+            version: { increment: 1n },
+          },
+        });
+      }
+    }
+  }
+
+  async receiveReturnedOrder(
+    tx: TransactionClient,
+    lines: Array<{
+      productId: bigint;
+      variantId: bigint | null;
+      quantity: number;
+    }>,
+  ) {
+    await this.lockOrderInventory(tx, lines);
+    for (const line of lines) {
+      const current = line.variantId
+        ? await tx.inventory.findUnique({
+            where: { variantId: line.variantId },
+          })
+        : await tx.productInventory.findUnique({
+            where: { productId: line.productId },
+          });
+      if (!current || current.onHand + line.quantity > 2_147_483_647)
+        throw new ConflictException({ code: 'RETURN_STOCK_INVALID' });
+      if (line.variantId) {
+        await tx.inventory.update({
+          where: { variantId: line.variantId },
+          data: {
+            onHand: { increment: line.quantity },
+            version: { increment: 1n },
+          },
+        });
+      } else {
+        await tx.productInventory.update({
+          where: { productId: line.productId },
+          data: {
+            onHand: { increment: line.quantity },
+            version: { increment: 1n },
+          },
+        });
+      }
+    }
+  }
+
+  private async lockOrderInventory(
+    tx: TransactionClient,
+    lines: Array<{
+      productId: bigint;
+      variantId: bigint | null;
+      quantity: number;
+    }>,
+  ) {
+    const productIds = [...new Set(lines.map((line) => line.productId))].sort(
+      (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+    );
+    const variantIds = [
+      ...new Set(
+        lines.flatMap((line) => (line.variantId ? [line.variantId] : [])),
+      ),
+    ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    for (const id of productIds)
+      await tx.$queryRaw`SELECT id FROM products WHERE id = ${id} FOR UPDATE`;
+    for (const id of variantIds)
+      await tx.$queryRaw`SELECT id FROM product_variants WHERE id = ${id} FOR UPDATE`;
+    for (const id of productIds)
+      await tx.$queryRaw`SELECT product_id FROM product_inventory WHERE product_id = ${id} FOR UPDATE`;
+    for (const id of variantIds)
+      await tx.$queryRaw`SELECT variant_id FROM inventory WHERE variant_id = ${id} FOR UPDATE`;
+  }
+
   async cartVariant(id: string) {
     if (!/^[1-9]\d*$/.test(id)) return null;
     const variant = await this.repository.cartVariant(BigInt(id));
