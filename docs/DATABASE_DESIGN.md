@@ -146,7 +146,9 @@ Thiết kế gồm **29 bảng nghiệp vụ** và image_assets bổ sung cho up
 | Cột                    | Kiểu         | Null/default | Ý nghĩa                                      |
 | ---------------------- | ------------ | ------------ | -------------------------------------------- |
 | email                  | varchar(254) | NN, UQ       | Email trim/lowercase, bất biến qua API hồ sơ |
-| password_hash          | varchar(255) | NN           | Hash bcrypt; mật khẩu mới tối thiểu 6 ký tự, không kiểm tra 72 byte; không lưu mật khẩu rõ |
+| password_hash          | varchar(255) | NULL         | Hash bcrypt nếu tài khoản dùng mật khẩu; Google-only để NULL và có thể đặt mật khẩu qua khôi phục email |
+| google_subject         | varchar(255) | NULL, UQ     | Subject ổn định đã xác minh từ Google OIDC; không lưu access/ID token của Google |
+| avatar_url             | varchar(2048) | NULL        | Ảnh hồ sơ Google lưu lúc tạo tài khoản bằng Google; đăng nhập/liên kết sau không tự ghi đè |
 | full_name              | varchar(100) | NN           | Tên hồ sơ                                    |
 | phone                  | varchar(16)  | NULL         | Tối đa 15 chữ số và dấu `+`                  |
 | role                   | varchar(16)  | NN, CUSTOMER | CUSTOMER / ADMIN                             |

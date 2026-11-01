@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -23,13 +24,14 @@ import { RolesGuard } from '../shared/guards/roles.guard.js';
 import { PasswordResetRequestDto } from './dto/password-reset-request.dto.js';
 import { PasswordResetDto } from './dto/password-reset.dto.js';
 import { PasswordResetService } from './services/password-reset.service.js';
+import { GoogleOAuthService } from './services/google-oauth.service.js';
 
-const refreshCookie = (req: Request) => {
+const cookieValue = (req: Request, name: string) => {
   const value = req.headers.cookie
     ?.split(';')
     .map((v) => v.trim())
-    .find((v) => v.startsWith('nexora_refresh='))
-    ?.slice('nexora_refresh='.length);
+    .find((v) => v.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
   if (!value) return undefined;
   try {
     return decodeURIComponent(value);
@@ -43,6 +45,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly passwordReset: PasswordResetService,
+    private readonly google: GoogleOAuthService,
   ) {}
   @Post('register') register(@Body() body: RegisterDto) {
     return this.auth.register(body);
@@ -55,12 +58,65 @@ export class AuthController {
     res.setHeader('Set-Cookie', this.auth.cookie(result.refreshToken));
     return { accessToken: result.accessToken, user: result.user };
   }
+  @Get('google') googleStart(
+    @Query('returnTo') returnTo: string | undefined,
+    @Res() res: Response,
+  ) {
+    try {
+      const flow = this.google.begin(returnTo);
+      res.setHeader('Set-Cookie', [
+        this.google.stateCookie(flow.stateCookie),
+        this.google.returnToCookie(flow.returnToCookie),
+      ]);
+      return res.redirect(302, flow.url);
+    } catch {
+      return res.redirect(
+        302,
+        this.google.isConfigured()
+          ? this.google.failureUrl()
+          : this.google.configurationErrorUrl(),
+      );
+    }
+  }
+
+  @Get('google/callback') async googleCallback(
+    @Query() query: { code?: string; state?: string; error?: string },
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    try {
+      if (!query.code || !query.state || query.error)
+        throw new Error('Google authorization was not completed');
+      const result = await this.google.complete(
+        query.code,
+        query.state,
+        cookieValue(req, GoogleOAuthService.stateCookieName),
+        cookieValue(req, GoogleOAuthService.returnToCookieName),
+      );
+      const session = await this.auth.loginWithGoogle(result.profile);
+      res.setHeader('Set-Cookie', [
+        this.auth.cookie(session.refreshToken),
+        this.google.clearStateCookie(),
+        this.google.clearReturnToCookie(),
+      ]);
+      return res.redirect(302, this.google.successUrl(result.returnTo));
+    } catch {
+      res.setHeader('Set-Cookie', [
+        this.google.clearStateCookie(),
+        this.google.clearReturnToCookie(),
+      ]);
+      return res.redirect(302, this.google.failureUrl());
+    }
+  }
+
   @Post('refresh') @HttpCode(200) async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     try {
-      const result = await this.auth.refresh(refreshCookie(req));
+      const result = await this.auth.refresh(
+        cookieValue(req, 'nexora_refresh'),
+      );
       res.setHeader('Set-Cookie', this.auth.cookie(result.refreshToken));
       return { accessToken: result.accessToken, user: result.user };
     } catch (e) {
@@ -72,7 +128,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    await this.auth.logout(refreshCookie(req));
+    await this.auth.logout(cookieValue(req, 'nexora_refresh'));
     res.setHeader('Set-Cookie', this.auth.clearCookie());
   }
   @Get('session')

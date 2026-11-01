@@ -4,12 +4,14 @@ import {
   refreshSessionData,
 } from '../../../services/api-client';
 import { storeAccessToken, storedAccessToken } from './access-token';
+import { API_BASE_URL } from '../../../config/api';
 
 export type AuthUser = {
   id: string;
   email: string;
   fullName: string;
   phone: string | null;
+  avatarUrl: string | null;
   role: 'CUSTOMER' | 'ADMIN';
   status: 'ACTIVE' | 'LOCKED';
   createdAt: string;
@@ -26,6 +28,14 @@ export async function login(email: string, password: string) {
     password,
   });
   return response.data;
+}
+
+export function googleLoginUrl(returnTo: string) {
+  const url = new URL(API_BASE_URL, window.location.origin);
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/auth/google`;
+  url.search = '';
+  url.searchParams.set('returnTo', returnTo);
+  return url.toString();
 }
 
 export async function register(input: {

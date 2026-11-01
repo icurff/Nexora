@@ -10,7 +10,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthLayout, AuthHeading } from '../../../layouts/AuthLayout';
 import { FormField, PasswordField } from '../components/FormField';
 import { Notice } from '../components/Notice';
-import { errorMessage } from '../services/auth-api';
+import { errorMessage, googleLoginUrl } from '../services/auth-api';
 import { useAuth } from '../hooks/useAuth';
 import { useLogin } from '../hooks/useAuthMutations';
 import { Button } from '../../../components/ui/button';
@@ -79,6 +79,15 @@ export default function LoginPage() {
         {params.get('loggedOut') === '1' ? (
           <Notice tone="success">Bạn đã đăng xuất thành công.</Notice>
         ) : null}
+        {params.get('googleError') === 'configuration' ? (
+          <Notice>
+            Đăng nhập Google chưa được cấu hình. Vui lòng kiểm tra cấu hình
+            OAuth của hệ thống.
+          </Notice>
+        ) : null}
+        {params.get('googleError') === '1' ? (
+          <Notice>Không thể đăng nhập bằng Google. Vui lòng thử lại.</Notice>
+        ) : null}
         {error ? (
           <Notice>
             {errorMessage(error, 'Không thể đăng nhập. Vui lòng thử lại.')}
@@ -130,6 +139,21 @@ export default function LoginPage() {
             )}
           </Button>
         </form>
+        <div className="auth-divider" aria-hidden="true">
+          <span>hoặc</span>
+        </div>
+        <Button
+          className="google-login-button"
+          type="button"
+          variant="outline"
+          onClick={() => window.location.assign(googleLoginUrl(destination))}
+          disabled={status === 'loading'}
+        >
+          <span className="google-login-mark" aria-hidden="true">
+            G
+          </span>
+          Tiếp tục với Google
+        </Button>
         <div className="form-switch">
           Chưa có tài khoản? <Link to="/register">Tạo tài khoản</Link>
         </div>

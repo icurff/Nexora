@@ -14,6 +14,7 @@ const customerView = (user: {
   email: string;
   fullName: string;
   phone: string | null;
+  avatarUrl?: string | null;
   role?: string;
   status: string;
   lockedAt: Date | null;
@@ -25,6 +26,7 @@ const customerView = (user: {
   email: user.email,
   fullName: user.fullName,
   phone: user.phone,
+  avatarUrl: user.avatarUrl ?? null,
   role: user.role === 'ADMIN' ? ('ADMIN' as const) : ('CUSTOMER' as const),
   status: user.status,
   lockedAt: user.lockedAt?.toISOString() ?? null,

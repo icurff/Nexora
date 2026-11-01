@@ -4,7 +4,9 @@ export type UserStatus = 'ACTIVE' | 'LOCKED';
 export interface User {
   id: string;
   email: string;
-  passwordHash: string;
+  passwordHash: string | null;
+  googleSubject: string | null;
+  avatarUrl: string | null;
   fullName: string;
   phone: string | null;
   role: UserRole;
