@@ -103,7 +103,7 @@ Tiền tối đa mỗi trường là `99,999,999,999,999` VND. Giá trị này n
 | Nhóm             | Bảng                                                                                  | Mục đích                                                           |
 | ---------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | Tài khoản        | `users`, `auth_sessions`, `password_reset_tokens`                                     | Danh tính, quyền, phiên đăng nhập, token khôi phục mật khẩu        |
-| Địa chỉ          | `location_datasets`, `provinces`, `wards`, `user_addresses`                           | Địa giới có phiên bản, sổ địa chỉ                                  |
+| Địa chỉ          | `user_addresses`                                                                       | Sổ địa chỉ nhận hàng; tên địa giới lưu dưới dạng text               |
 | Catalog          | `categories`, `brands`, `products`, `product_variants`, `product_images`              | Sản phẩm, SKU, giá, ảnh và tổng tồn                                |
 | Nguồn catalog    | `catalog_datasets`, `retailrocket_category_mappings`                                  | Version/checksum artifact và category nguồn → root → danh mục seed |
 | Ngữ cảnh khách   | `visitors`, `tracking_sessions`                                                       | Nhận diện trình duyệt và phiên hành vi                             |
@@ -193,61 +193,24 @@ Migration `1_password_reset` tạo bảng này sau baseline `0_auth`.
 Index `(user_id, created_at DESC)` và `(expires_at)`. Chỉ cho dùng khi chưa hết hạn, chưa dùng và tài khoản còn hợp lệ. Token tiêu thụ, đổi hash mật khẩu và thu hồi toàn bộ `auth_sessions` phải cùng transaction. Khi phát hành token mới, token cũ của user bị xóa; token hết hạn/dùng rồi có thể được dọn khi user yêu cầu token mới.
 Gửi reset hiện gọi Gmail SMTP trực tiếp sau commit, không lưu job bền vững và không tự retry. Hai endpoint không tiết lộ tài khoản tồn tại; lỗi provider xóa token vừa cấp để khách yêu cầu lại. Task 015 vẫn dự kiến email_outbox/worker cho email nghiệp vụ và retry.
 
-### 3.4. `location_datasets`
+### 3.4. `user_addresses`
 
-| Cột         | Kiểu         | Null/default | Ý nghĩa                       |
-| ----------- | ------------ | ------------ | ----------------------------- |
-| version     | varchar(100) | NN, UQ       | Nhãn phiên bản dữ liệu        |
-| source_url  | text         | NN           | Nguồn đối chiếu               |
-| source_date | date         | NN           | Mốc dữ liệu nguồn             |
-| imported_at | timestamptz  | NN           | Thời điểm nhập                |
-| is_current  | boolean      | NN, false    | Bản đang dùng cho địa chỉ mới |
+| Cột             | Kiểu         | Null/default | Ý nghĩa                         |
+| --------------- | ------------ | ------------ | ------------------------------- |
+| id              | bigint       | PK           | Định danh địa chỉ               |
+| user_id         | bigint       | NN, FK users | Chủ địa chỉ                     |
+| recipient_name  | varchar(100) | NN           | Tên người nhận                  |
+| recipient_phone | varchar(16)  | NN           | Điện thoại người nhận           |
+| province_name   | varchar(150) | NN           | Tên tỉnh/thành được chọn        |
+| ward_name       | varchar(150) | NN           | Tên đơn vị cấp xã được chọn     |
+| address_line    | varchar(300) | NN           | Số nhà/đường/thôn/căn hộ        |
+| is_default      | boolean      | NN, false    | Địa chỉ mặc định                |
+| created_at      | timestamptz  | NN           | Thời điểm tạo                   |
+| updated_at      | timestamptz  | NN           | Thời điểm sửa                   |
 
-Partial unique index trên `(is_current) WHERE is_current = true` bảo đảm tối đa một bản hiện hành. Seed phải bảo đảm có một bản trước khi cho checkout. Cập nhật địa giới bằng bản mới; không ghi đè hoặc xóa bản cũ đang được tham chiếu.
+Index `(user_id, created_at, id)` hỗ trợ chọn địa chỉ cũ nhất. Mọi thao tác ghi khóa dòng `users` trước; địa chỉ đầu tiên tự mặc định; khi xóa mặc định, chọn địa chỉ còn lại cũ nhất theo `(created_at, id)`. Không lưu mã địa giới hoặc khóa ngoại tới danh mục.
 
-### 3.5. `provinces`
-
-| Cột        | Kiểu         | Null/default             | Ý nghĩa                        |
-| ---------- | ------------ | ------------------------ | ------------------------------ |
-| dataset_id | bigint       | NN, FK location_datasets | Phiên bản địa giới             |
-| code       | varchar(20)  | NN                       | Mã từ nguồn, giữ số 0 đầu      |
-| name       | varchar(150) | NN                       | Tên tỉnh/thành                 |
-| unit_type  | varchar(50)  | NN                       | Nhãn loại đơn vị từ nguồn      |
-| is_active  | boolean      | NN, true                 | Cho dùng trong bản dữ liệu này |
-
-UQ `(dataset_id, code)`. Không coi mã tỉnh là số nguyên hoặc ID toàn cục xuyên mọi phiên bản.
-
-### 3.6. `wards`
-
-| Cột         | Kiểu         | Null/default             | Ý nghĩa               |
-| ----------- | ------------ | ------------------------ | --------------------- |
-| dataset_id  | bigint       | NN, FK location_datasets | Phiên bản địa giới    |
-| province_id | bigint       | NN, FK provinces         | Tỉnh/thành cha        |
-| code        | varchar(20)  | NN                       | Mã đơn vị cấp xã      |
-| name        | varchar(150) | NN                       | Tên xã/phường/đặc khu |
-| unit_type   | varchar(50)  | NN                       | Loại đơn vị từ nguồn  |
-| is_active   | boolean      | NN, true                 | Có thể chọn           |
-
-UQ `(dataset_id, code)`; thêm UQ `provinces(id, dataset_id)` và FK ghép `wards(province_id, dataset_id)` để cha/con thuộc cùng phiên bản. Không có bảng huyện trong thiết kế này.
-
-### 3.7. `user_addresses`
-
-| Cột                    | Kiểu         | Null/default | Ý nghĩa                              |
-| ---------------------- | ------------ | ------------ | ------------------------------------ |
-| user_id                | bigint       | NN, FK users | Chủ địa chỉ                          |
-| recipient_name         | varchar(100) | NN           | Tên người nhận                       |
-| recipient_phone        | varchar(16)  | NN           | Điện thoại người nhận                |
-| ward_id                | bigint       | NN, FK wards | Suy ra tỉnh và phiên bản qua quan hệ |
-| address_line           | varchar(300) | NN           | Số nhà/đường/thôn/căn hộ             |
-| is_default             | boolean      | NN, false    | Địa chỉ mặc định                     |
-| created_at, updated_at | timestamptz  | NN           | Thời gian tạo/sửa                    |
-
-Partial UQ `(user_id) WHERE is_default = true`; index `(user_id, created_at, id)`. Không lưu thêm province_id vì có thể suy ra từ ward_id, tránh hai giá trị mâu thuẫn.
-
-Mọi thao tác địa chỉ khóa dòng user trước: địa chỉ đầu tiên tự mặc định; đổi mặc định bỏ cờ cũ rồi đặt cờ mới; xóa mặc định chọn dòng cũ nhất theo `(created_at, id)`. Partial UQ chỉ bảo đảm **tối đa một**; backend bảo đảm **có một khi sổ còn địa chỉ**.
-
-Địa chỉ thuộc bản địa giới cũ vẫn đọc được. Trước lần đặt mới, nếu không thuộc bản hiện hành/không còn hoạt động, yêu cầu khách chọn lại; không tự đoán mã thay thế. Sửa/xóa địa chỉ không sửa đơn đã đặt.
-
+Frontend đọc JSON tiếng Việt `vn_only_simplified_json_generated_data_vn_units.json` từ raw GitHub URL, dùng mã chỉ cho lựa chọn giao diện rồi gửi `FullName` làm text. API kiểm tra trường và quyền sở hữu nhưng không xác minh quan hệ tỉnh–xã. Địa chỉ giữ nguyên text khi nguồn thay đổi hoặc không truy cập được. Đơn hàng tương lai phải chụp riêng tên người nhận/địa chỉ lúc đặt.
 <a id="catalog"></a>
 
 ## 4. Catalog, SKU và ảnh
@@ -860,7 +823,7 @@ Các use case dưới đây dùng transaction trên database chung; provider c�
 
 Dùng transaction ngắn ở mức READ COMMITTED, khóa bản ghi khi thao tác cần tính đúng trạng thái hiện tại. `SELECT ... FOR UPDATE` giữ khóa ghi dòng đến hết transaction: [tài liệu khóa của PostgreSQL](https://www.postgresql.org/docs/current/explicit-locking.html).
 
-Thứ tự thống nhất khi một thao tác cần nhiều nhóm: advisory lock idempotency → users theo ID → visitors theo ID → carts theo ID → orders theo ID → categories/location_datasets khi cần → products theo ID → product_variants theo ID. Brand seed chỉ đọc sau khởi tạo, không phải nhóm khóa quản trị/runtime. Những nhóm không dùng thì bỏ qua. Mọi đường ghi catalog/stock/checkout phải theo cùng thứ tự, không có nhánh khóa SKU rồi quay lại khóa product/order.
+Thứ tự thống nhất khi một thao tác cần nhiều nhóm: advisory lock idempotency → users theo ID → visitors theo ID → carts theo ID → orders theo ID → categories khi cần → products theo ID → product_variants theo ID. Brand seed chỉ đọc sau khởi tạo, không phải nhóm khóa quản trị/runtime. Những nhóm không dùng thì bỏ qua. Mọi đường ghi catalog/stock/checkout phải theo cùng thứ tự, không có nhánh khóa SKU rồi quay lại khóa product/order.
 
 Lock products khi checkout và khi sửa trạng thái/ảnh/SKU để không đặt đơn bằng snapshot nửa cũ nửa mới. Master dữ liệu ngừng dùng và thay bản địa giới cũng dùng cùng quy ước lock hoặc lock chia sẻ phù hợp khi đọc xác thực. Tất cả thao tác địa chỉ/khóa tài khoản/đổi mật khẩu trước hết khóa user, tránh tài khoản bị khóa giữa kiểm tra và commit.
 
@@ -963,7 +926,7 @@ Bản đầu không phân vùng event, không thêm GIN cho mọi JSONB, không 
 ### 11.2. Seed có thể chạy lại
 
 1. Seed Admin bằng cấu hình local, lưu hash; không ghi mật khẩu thật vào tài liệu/repository.
-2. Nhập một location_dataset đầy đủ, provinces/wards rồi mới đánh is_current; không để bản dở dang thành hiện hành.
+2. Không nhập địa giới vào database; giao diện lấy dữ liệu JSON tỉnh/xã từ nguồn online đã chọn.
 3. Đọc/validate toàn bộ ba CSV và manifest trước ghi: schema 14/3/4 cột, count 500/23/1664 của snapshot đầu, ID duy nhất, category/root/name tham chiếu đúng, số nguyên/boolean hợp lệ, checksum và quota đúng. root của Product suy từ danh mục seed; không đòi category nguồn cấp item mà CSV không có. Tái xuất từ clean phải dùng latest category một dòng/item và kiểm tra cây như SRS 8.3.1.
 4. Đọc/kiểm tra placeholder bằng stream/buffer giới hạn, gọi provider module Catalog trong backend với idempotency key ổn định; upload Supabase Storage; ghi metadata sau phản hồi thành công trước transaction nhập lô. Không gọi network khi giữ khóa DB hoặc lưu file gốc. Upload thất bại thì chưa nhập catalog. Giữ asset khi rollback để seed lại dùng cùng ID; không tự dọn trong bản đầu.
 5. Khóa tác vụ seed catalog để không chạy hai importer đồng thời. Trong một transaction, tạo/đối chiếu catalog_datasets; cùng version khác hash thì từ chối. Nhập categories theo `(seed_dataset_id, seed_category_id)`, parent_id NULL cho danh mục mới; giữ cây danh mục đã có. Product seed dùng options `{}` và cấu hình `{"options": {}}`. Nhập mappings qua ID nội bộ và nhãn brand metadata seed theo name_key. Không ép ID CSV vào identity và không gán provenance lên danh mục Admin trùng tên; xung đột phải báo để xử lý.
@@ -972,7 +935,7 @@ Bản đầu không phân vùng event, không thêm GIN cho mọi JSONB, không 
 8. Với Product đã import, không tái dựng SKU mặc định theo options rỗng nếu Admin đã sửa biến thể; không ghi đè mô tả/tập mã/options, giá, tồn, category/cấu hình/cây, ảnh, trạng thái hoặc thêm INITIAL. Seed chỉ tạo Product chưa có và các bản ghi nguồn còn thiếu khi nhất quán; provenance bất biến sai thì dừng để sửa chủ động. Kiểm tra counts và tham chiếu của bộ seed rồi commit toàn lô. Lỗi giữa chừng rollback dataset/category/mapping/Product/SKU/ledger mới.
 9. Không import hàng triệu event RetailRocket vào interaction_events LIVE. source_interactions/source_users không sinh event hoặc đơn. Dataset training ở khu vực nguồn riêng; replay dùng DB test hoặc data_origin REPLAY.
 
-`location_datasets.version`, `catalog_datasets.version`, ID RetailRocket và các unique constraint giúp seed không nhân đôi. Manifest/CSV là artifact bất biến; bảng catalog_datasets chỉ lưu thông tin đối chiếu, không có bảng ETL/job. Sản phẩm Admin mới không có RetailRocket ID vẫn bán được và nhận recommendation theo quy tắc. Đổi sang một bộ catalog mới trong DB đang có giao dịch cần migration đối chiếu riêng; không tự reset database hoặc cập nhật mapping nguồn của Product cũ.
+`catalog_datasets.version`, ID RetailRocket và các unique constraint giúp seed không nhân đôi. Manifest/CSV là artifact bất biến; bảng catalog_datasets chỉ lưu thông tin đối chiếu, không có bảng ETL/job. Sản phẩm Admin mới không có RetailRocket ID vẫn bán được và nhận recommendation theo quy tắc. Đổi sang một bộ catalog mới trong DB đang có giao dịch cần migration đối chiếu riêng; không tự reset database hoặc cập nhật mapping nguồn của Product cũ.
 
 #### Ánh xạ CSV sang database
 

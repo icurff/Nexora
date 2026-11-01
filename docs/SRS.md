@@ -121,7 +121,7 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | FR-AUTH-05 | Xem/sửa họ tên và điện thoại hồ sơ; email chỉ đọc; không đổi mật khẩu qua API sửa hồ sơ                                                      |
 | FR-AUTH-06 | Guest yêu cầu khôi phục mật khẩu bằng email; phản hồi không tiết lộ email có tài khoản hay không; gửi liên kết một lần có hạn dùng qua email |
 | FR-AUTH-07 | Customer đặt mật khẩu mới bằng token reset hợp lệ; token hết hạn/đã dùng bị từ chối; thành công thu hồi mọi phiên                            |
-| FR-ADDR-01 | Xem/thêm/sửa/xóa địa chỉ của mình; chọn tỉnh và đơn vị cấp xã hợp lệ thuộc tỉnh                                                              |
+| FR-ADDR-01 | Customer xem/thêm/sửa/xóa địa chỉ của mình; frontend đọc danh mục tỉnh và xã từ JSON online và gửi tên dạng text |
 | FR-ADDR-02 | Quản lý tối đa một địa chỉ mặc định; địa chỉ đầu tiên mặc định; xóa mặc định thì chọn địa chỉ còn lại được tạo sớm nhất                      |
 | FR-ADDR-03 | Địa chỉ nhập tại checkout chỉ lưu vào sổ nếu khách chọn; mặc định không chọn; không tự sửa hồ sơ                                             |
 
@@ -185,7 +185,7 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | FR-DATA-04  | Chuyển một dòng CSV thành một Product và một SKU mặc định; lưu ID/mã nguồn và thống kê lịch sử riêng, upload placeholder qua module ảnh Catalog lên Supabase Storage và gắn nhãn dữ liệu minh họa |
 | FR-EMAIL-01 | Tạo thông báo email xác nhận đơn và thông báo khi trạng thái đơn/thanh toán thay đổi; gửi bất đồng bộ, chống gửi trùng theo sự kiện và thử gửi lại lỗi tạm thời                                   |
 | FR-EMAIL-02 | Email lỗi/không sẵn sàng không rollback hoặc chặn nghiệp vụ đơn; lưu trạng thái gửi để vận hành nhận biết và xử lý lại                                                                            |
-| FR-LOC-01   | Phục vụ địa giới từ snapshot local có nguồn/ngày phiên bản; kiểm tra quan hệ tỉnh–đơn vị cấp xã, giữ tên/mã tại lúc đặt trong snapshot đơn                                                        |
+| FR-LOC-01   | Frontend tải danh mục tỉnh/thành và đơn vị cấp xã từ JSON tiếng Việt online; mã chỉ dùng cho dropdown, không nhập danh mục vào DB |
 | FR-OPS-01   | Có cấu hình mẫu, Prisma schema, seed và hướng dẫn local; dữ liệu/ảnh bền vững khi khởi động lại; không tự đồng bộ schema hoặc reset dữ liệu khi start                                         |
 
 <a id="use-cases"></a>
@@ -251,8 +251,8 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 ### UC-06 — Quản lý sổ địa chỉ
 
 - **Tác nhân:** Customer. **Dữ liệu:** người nhận, điện thoại, tỉnh, đơn vị cấp xã, địa chỉ chi tiết, mặc định.
-- **Luồng chính:** thêm/sửa → tải lựa chọn địa giới local → đổi tỉnh thì bỏ lựa chọn cấp xã cũ → kiểm tra quan hệ → lưu; hoặc chọn mặc định/xóa địa chỉ của mình.
-- **Ngoại lệ:** địa giới không tồn tại/không thuộc tỉnh, trường thiếu hoặc địa chỉ không thuộc tài khoản: từ chối. Khi địa giới đã ngừng dùng, yêu cầu chọn lại trước checkout mới; không tự đổi đơn cũ.
+- **Luồng chính:** thêm/sửa → frontend tải JSON tỉnh/xã từ GitHub → đổi tỉnh thì bỏ lựa chọn xã cũ → gửi tên đã chọn cùng địa chỉ chi tiết; hoặc chọn mặc định/xóa địa chỉ của mình.
+- **Ngoại lệ:** JSON không tải được thì cho thử lại và giữ dữ liệu form; backend từ chối trường thiếu/sai độ dài hoặc địa chỉ không thuộc tài khoản. API không xác minh quan hệ tỉnh–xã; địa chỉ đã lưu vẫn xem/xóa được khi nguồn online lỗi.
 - **Sau:** tối đa một mặc định; địa chỉ đầu tiên mặc định; xóa mặc định chọn địa chỉ còn lại được tạo sớm nhất. **Nghiệm thu:** TC-06, TC-07.
 
 ### UC-07 — Duyệt, tìm kiếm và lọc
@@ -558,7 +558,7 @@ Client retry giữ event ID; thao tác mới thực sự tạo ID mới. Không 
 | Nhóm                               | Nội dung cần lưu                                                                                                                                       |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | User/Session                       | Danh tính, role, trạng thái, hash mật khẩu, phiên/thu hồi; không lưu mật khẩu rõ                                                                       |
-| Address/Location                   | Chủ địa chỉ, người nhận, thông tin địa giới local và phiên bản dữ liệu                                                                                 |
+| Address/Location                   | Sổ địa chỉ thuộc Auth, tên địa giới được lưu dạng text từ lựa chọn giao diện |
 | Product                            | Nội dung mô tả synthetic, variant_option_keys, trạng thái, category, brand metadata chỉ đọc nếu có, ID nguồn, phiên bản seed và thống kê lịch sử |
 | Category | Danh mục cha–con không chu trình; chỉ phân loại Product |
 | Catalog dataset / Category mapping | Version/checksum, danh mục seed gắn root, mapping category RetailRocket về root và danh mục seed                                                       |
@@ -680,12 +680,10 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | POST /auth/password-resets                                                       | Nhận token, mật khẩu mới/xác nhận; trả 204, thu hồi mọi phiên                                                     | Công khai; rate limit sẽ triển khai khi có Redis          |
 | GET, PATCH /me                                                                   | Xem/sửa trường hồ sơ cho phép                                                                                    | Chủ tài khoản                                           |
 | GET, POST /me/addresses                                                          | Xem/thêm địa chỉ                                                                                                 | Customer                                                |
-| PATCH, DELETE /me/addresses/:id                                                  | Sửa/xóa địa chỉ                                                                                                  | Chủ địa chỉ                                             |
-| PUT /me/addresses/:id/default                                                    | Đặt mặc định                                                                                                     | Chủ địa chỉ                                             |
+| PATCH, DELETE /me/addresses/:id                                                  | Sửa/xóa địa chỉ của mình                                                                                        | Customer                                                |
+| PUT /me/addresses/:id/default                                                   | Đặt địa chỉ mặc định                                                                                            | Customer                                                |
 | GET /products, /products/:id                                                     | Catalog và chi tiết                                                                                              | Công khai, chỉ dữ liệu được phép bán/hiển thị           |
 | GET /catalog/options                                                             | Cây danh mục và facet mã/nhãn/giá trị options theo categoryId/ngữ cảnh lọc; không có tùy chọn/API quản trị Brand | Công khai                                               |
-| GET /locations/provinces                                                         | Tỉnh/thành từ snapshot                                                                                           | Công khai                                               |
-| GET /locations/provinces/:code/wards                                             | Các đơn vị cấp xã trực thuộc                                                                                     | Công khai                                               |
 | GET /cart                                                                        | Đọc giỏ                                                                                                          | Customer hoạt động                                      |
 | POST /cart/items                                                                 | Thêm/cộng SKU                                                                                                    | Customer hoạt động                                      |
 | PATCH, DELETE /cart/items/:id                                                    | Sửa quantity/xóa                                                                                                 | Customer hoạt động                                      |
@@ -774,7 +772,7 @@ Lỗi: 400 thiếu file hoặc MIME không hỗ trợ; 401/403 chưa xác thực
 
 - Manifest 500 sản phẩm đóng băng ba CSV, version, SHA-256 từng file, định danh/checksum đầu vào clean, phiên bản notebook, seed ngẫu nhiên 42, quota từng root và danh sách ID đã chọn. Đây là artifact bổ sung cần chuẩn bị khi bàn giao; notebook hiện chỉ xuất ba CSV.
 - Seed lại chỉ bổ sung phần thiếu theo ID ổn định, không nhân đôi hoặc ghi đè chỉnh sửa Admin. Reset là thao tác chủ động riêng, không chạy khi start.
-- Snapshot địa giới có mã, tên, quan hệ và ngày/nguồn; cập nhật là thao tác chủ động, không đổi snapshot đơn cũ.
+- Sổ địa chỉ lưu tên tỉnh/xã dạng text; checkout tương lai chụp tên/mã địa giới tại thời điểm đặt vào snapshot đơn.
 - Tracking/export và gợi ý rule_based của website sẽ triển khai trong backend; model Python/FastAPI là tích hợp AI tương lai chưa có mã nguồn/container/database/contract. Web không phụ thuộc model để mua hàng.
 - Export hành vi ở mức công cụ nội bộ, không cần màn hình Admin: có phiên bản, mốc thời gian, event ID/type, item RetailRocket nếu có, SKU nội bộ và định danh khách/phiên. Loại dữ liệu liên hệ, địa chỉ, token, ghi chú và query tự do khỏi bản xuất mặc định.
 - Phía AI quyết định hỗ trợ user/item mới và catalog ứng viên khi tích hợp; không tự gán Customer mới vào visitor lịch sử RetailRocket.
@@ -835,7 +833,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-03 | Logout một phiên, phiên hết hạn, token cũ của Customer bị khóa                                                                                             | Phiên khác còn khi chỉ logout; không lộ cache/giỏ tài khoản; tài khoản khóa bị từ chối                                                                                                                   |
 | TC-04 | Đổi mật khẩu sai/đúng; dùng lại các phiên cũ                                                                                                               | Sai không đổi; đúng thu hồi mọi phiên, mật khẩu cũ không dùng được                                                                                                                                       |
 | TC-05 | Sửa tên/điện thoại rồi gửi thêm email/role hoặc user ID khác                                                                                               | Chỉ trường được phép thay đổi; không sửa email/quyền hoặc dữ liệu người khác                                                                                                                             |
-| TC-06 | Thêm/sửa/xóa địa chỉ, đổi tỉnh, địa giới sai quan hệ                                                                                                       | Kiểm tra server; đổi tỉnh phải chọn lại cấp xã; không truy cập địa chỉ người khác                                                                                                                        |
+| TC-06 | Thêm/sửa/xóa địa chỉ, đổi tỉnh, JSON nguồn lỗi, API ownership | Dropdown đổi tỉnh xóa xã; lỗi nguồn thử lại/giữ form; API kiểm tra chủ địa chỉ, không kiểm tra quan hệ tỉnh–xã |
 | TC-07 | Địa chỉ đầu tiên, đổi mặc định, xóa mặc định và sửa địa chỉ có đơn cũ                                                                                      | Tối đa một mặc định; chọn địa chỉ cũ nhất còn lại; snapshot đơn không đổi                                                                                                                                |
 | TC-08 | Lọc đen/M/còn hàng/giá; Product chỉ có đen/L và trắng/M                                                                                                    | Product không được khớp sai; tìm tên, sort và URL/phân trang đúng; rỗng không lỗi                                                                                                                        |
 | TC-09 | Chọn options khác thứ tự với áo color/size, điện thoại color/storage và sách options rỗng; tổ hợp không có/hết hàng/ngừng bán                              | Giá/ảnh/tình trạng đúng SKU; một SKU tự chọn; không thêm tổ hợp không tồn tại; view không tăng khi đổi lựa chọn                                                                                          |
@@ -867,7 +865,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | TC-35 | Guest login/logout, tài khoản khác trên cùng trình duyệt, sửa user ID client                                                                               | Không trộn lịch sử danh tính; session đúng; server không tin user ID client                                                                                                                              |
 | TC-36 | Gợi ý không có tín hiệu/không đủ ứng viên/SKU hết hàng/lỗi provider nội bộ                                                                                 | Nguồn rule_based, thứ tự ổn định, chỉ item bán được; ẩn khi rỗng, không chặn mua                                                                                                                         |
 | TC-37 | Seed 500 item, thay catalog qua Admin, seed lại, Product mới chưa có RR ID                                                                                 | Manifest cố định; không trùng/ghi đè; Product mới vẫn bán được; nguồn/category tách biệt                                                                                                                 |
-| TC-38 | Địa giới offline, cập nhật snapshot, export hành vi                                                                                                        | Chạy không gọi nguồn live; đơn cũ giữ tên/mã; export có version, không thông tin liên hệ                                                                                                                 |
+| TC-38 | Danh mục địa giới online, thay đổi nguồn và export hành vi | UI tải raw JSON; địa chỉ text đã lưu vẫn hiển thị; đơn cũ giữ snapshot; export không chứa PII |
 | TC-39 | Khởi chạy/restart với Supabase; DB/SSL/quyền lỗi, Storage lỗi hoặc thiếu artifact | Không /health; chẩn đoán qua API/log. DB và object đã commit giữ nguyên, URL ảnh có fallback; không báo upload thành công giả/seed giả, không tự reset project |
 | TC-40 | Gọi API sai quyền, origin sai, nhập script, upload bất thường, xem log/response                                                                            | Không vượt quyền, thực thi nội dung nhập hoặc lộ secret; validation server có hiệu lực                                                                                                                   |
 | TC-41 | Đi trọn luồng ở 390px/1366px, API lỗi, giỏ rỗng, click lặp                                                                                                 | UI dùng được, báo trạng thái rõ; không thông báo đặt thành công giả hoặc mất dữ liệu cần sửa                                                                                                             |

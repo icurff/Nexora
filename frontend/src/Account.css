@@ -1,4 +1,4 @@
-﻿/* Customer account */
+/* Customer account */
 .account-dashboard-heading { display: flex; align-items: flex-end; justify-content: space-between; margin: 8px 0 24px; }
 .account-dashboard-heading h1 { margin: 7px 0 6px; color: #182342; font-family: Georgia, serif; font-size: 34px; font-weight: 500; }
 .account-dashboard-heading p { color: #879189; font-size: 11px; }
@@ -53,7 +53,21 @@
 .saved-address-card p { min-height: 48px; margin: 8px 0 13px; color: #89948c; font-size: 8px; line-height: 1.7; }
 .saved-address-card > div:last-child { display: flex; gap: 13px; padding-top: 10px; border-top: 1px solid #eef1ed; }
 .saved-address-card > div:last-child button { display: inline-flex; align-items: center; gap: 4px; padding: 0; color: #748279; background: transparent; border: 0; font-size: 8px; }
+.saved-address-card > div:last-child button:disabled { opacity: .5; }
 .address-add-form { display: grid; gap: 13px; max-width: 500px; padding-top: 17px; }
+.address-add-form > label { position: relative; }
+.address-add-form .location-select { position: relative; }
+.address-add-form .location-options { position: absolute; z-index: 5; top: calc(100% + 3px); right: 0; left: 0; max-height: 230px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; background: white; border: 1px solid #dfe5de; border-radius: 5px; box-shadow: 0 8px 20px #263b2d1a; }
+.address-add-form .location-options [role="option"] { width: 100%; min-height: 32px; padding: 6px 8px; color: #59665e; background: transparent; border: 0; border-radius: 3px; font: inherit; font-size: 9px; text-align: left; }
+.address-add-form .location-options [role="option"]:hover,.address-add-form .location-options [role="option"].active { color: #405c49; background: #edf3ec; }
+.location-empty,.address-loading,.address-form-error { padding: 9px 0; color: #78877d; font-size: 9px; }
+.address-form-error { color: #ae554b; }
+.address-add-form .address-default-check { display: flex; align-items: center; flex-direction: row; gap: 7px; }
+.address-add-form .address-default-check input { width: 15px; height: 15px; }
+.address-empty { display: grid; justify-items: center; gap: 10px; padding: 45px 15px; color: #89958c; font-size: 10px; }
+.address-empty > svg { width: 26px; height: 26px; color: #78917f; }
+.address-empty .button-primary { min-height: 34px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 9px; }
+.address-add-form .button-primary:disabled { opacity: .6; cursor: wait; }
 .address-add-form h3 { color: #4a5d50; font-family: Georgia,serif; font-size: 16px; font-weight: 500; }
 .address-add-form > div { display: flex; justify-content: flex-end; gap: 8px; }
 .address-add-form .button-secondary { min-height: 34px; padding: 0 12px; font-size: 9px; }
