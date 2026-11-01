@@ -138,6 +138,17 @@ export class OrderRepository {
     });
   }
 
+  updateLifecycle(
+    id: bigint,
+    data: Prisma.OrderUpdateInput,
+    tx: TransactionClient,
+  ) {
+    return tx.order.update({
+      where: { id },
+      data: { ...data, version: { increment: 1n } },
+    });
+  }
+
   history(
     orderId: bigint,
     actorId: bigint | null,

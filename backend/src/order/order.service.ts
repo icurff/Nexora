@@ -19,9 +19,11 @@ import type {
   ConfirmOrderDto,
   OrderListQueryDto,
   PlaceOrderDto,
+  OrderLifecycleDto,
 } from './order.dto.js';
 import { OrderRepository } from './order.repository.js';
 import { NotificationService } from '../notification/notification.service.js';
+import { CodPaymentService } from '../payment/cod-payment.service.js';
 
 const SHIPPING_FEE = 30_000n;
 const INCLUDE = {
@@ -76,7 +78,11 @@ function view(
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
     confirmedAt: order.confirmedAt?.toISOString() ?? null,
+    firstShippedAt: order.firstShippedAt?.toISOString() ?? null,
+    deliveredAt: order.deliveredAt?.toISOString() ?? null,
+    paidAt: order.paidAt?.toISOString() ?? null,
     cancelledAt: order.cancelledAt?.toISOString() ?? null,
+    returnedAt: order.returnedAt?.toISOString() ?? null,
     cancelReason: order.cancelReason,
     items: order.items.map((item) => ({
       id: item.id.toString(),
@@ -111,6 +117,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
     private readonly catalog: ProductService,
     private readonly addresses: UserAddressService,
     private readonly notifications: NotificationService,
+    private readonly payments: CodPaymentService,
   ) {}
 
   onModuleInit() {
@@ -606,6 +613,149 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
     );
     this.notifications.publishChanged(BigInt(confirmed.userId));
     return confirmed;
+  }
+
+  async lifecycle(
+    actor: AuthenticatedActor,
+    idValue: string,
+    action:
+      | 'SHIP'
+      | 'DELIVER'
+      | 'DELIVERY_FAIL'
+      | 'RETRY_DELIVERY'
+      | 'RECEIVE_RETURN',
+    body: OrderLifecycleDto,
+  ) {
+    const id = this.parseId(idValue);
+    const actorId = BigInt(actor.userId);
+    const reason = body.reason?.trim() ?? '';
+    if (action === 'DELIVERY_FAIL' && !reason)
+      throw new BadRequestException({ code: 'DELIVERY_REASON_REQUIRED' });
+    if (action === 'DELIVER' && body.codCollected !== true)
+      throw new BadRequestException({
+        code: 'COD_COLLECTION_CONFIRMATION_REQUIRED',
+      });
+    if (action === 'RECEIVE_RETURN' && body.allItemsReceived !== true)
+      throw new BadRequestException({
+        code: 'RETURN_RECEIPT_CONFIRMATION_REQUIRED',
+      });
+    const payload = {
+      operation: action,
+      orderId: id.toString(),
+      expectedVersion: body.expectedVersion,
+      reason,
+      codCollected: body.codCollected === true,
+      allItemsReceived: body.allItemsReceived === true,
+    };
+    const result = await this.idempotentTransaction(
+      actorId,
+      body.idempotencyKey,
+      payload,
+      async (tx) => {
+        const prior = await this.priorOrder(
+          actorId,
+          body.idempotencyKey,
+          payload,
+          tx,
+        );
+        if (prior) return prior;
+        await this.orders.reserveIdempotency(
+          actorId,
+          body.idempotencyKey,
+          payload,
+          tx,
+        );
+        await this.orders.lockOrder(id, tx);
+        const order = await this.orders.findOrder(id, tx);
+        if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND' });
+        if (order.version.toString() !== body.expectedVersion)
+          throw new ConflictException({
+            code: 'ORDER_VERSION_CONFLICT',
+            currentVersion: order.version.toString(),
+          });
+
+        const allowed = {
+          SHIP: order.status === 'CONFIRMED',
+          DELIVER:
+            order.status === 'SHIPPING' &&
+            order.paymentMethod === 'COD' &&
+            order.paymentStatus === 'UNPAID',
+          DELIVERY_FAIL:
+            order.status === 'SHIPPING' &&
+            order.paymentMethod === 'COD' &&
+            order.paymentStatus === 'UNPAID',
+          RETRY_DELIVERY:
+            order.status === 'DELIVERY_FAILED' &&
+            order.paymentMethod === 'COD' &&
+            order.paymentStatus === 'UNPAID',
+          RECEIVE_RETURN:
+            order.status === 'DELIVERY_FAILED' &&
+            order.paymentMethod === 'COD' &&
+            order.paymentStatus === 'UNPAID',
+        }[action];
+        if (!allowed)
+          throw new ConflictException({ code: 'ORDER_ACTION_NOT_ALLOWED' });
+
+        const now = await this.databaseNow(tx);
+        const lines = order.items.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId,
+          quantity: item.quantity,
+        }));
+        let toStatus: string;
+        let historyReason: string | null = null;
+        const changes: Prisma.OrderUpdateInput = { updatedAt: now };
+        if (action === 'SHIP') {
+          await this.catalog.dispatchOrder(tx, lines);
+          toStatus = 'SHIPPING';
+          changes.firstShippedAt = order.firstShippedAt ?? now;
+        } else if (action === 'DELIVER') {
+          await this.payments.settleAtDelivery(tx, order, now);
+          toStatus = 'DELIVERED';
+          changes.deliveredAt = now;
+        } else if (action === 'DELIVERY_FAIL') {
+          toStatus = 'DELIVERY_FAILED';
+          historyReason = reason;
+        } else if (action === 'RETRY_DELIVERY') {
+          toStatus = 'SHIPPING';
+        } else {
+          await this.catalog.receiveReturnedOrder(tx, lines);
+          toStatus = 'CANCELLED';
+          historyReason =
+            'Đã nhận đủ hàng nguyên vẹn về kho sau giao thất bại.';
+          changes.cancelledAt = now;
+          changes.returnedAt = now;
+          changes.cancelReason = historyReason;
+        }
+        changes.status = toStatus;
+        await this.orders.updateLifecycle(id, changes, tx);
+        const history = await this.orders.history(
+          id,
+          actorId,
+          order.status,
+          toStatus,
+          historyReason,
+          tx,
+        );
+        const updated = await this.orders.findOrder(id, tx);
+        if (!updated) throw new NotFoundException({ code: 'ORDER_NOT_FOUND' });
+        await this.notifications.recordOrderChange(
+          tx,
+          updated,
+          history.id,
+          historyReason,
+        );
+        await this.orders.completeIdempotency(
+          actorId,
+          body.idempotencyKey,
+          { orderId: id.toString() },
+          tx,
+        );
+        return view(updated);
+      },
+    );
+    this.notifications.publishChanged(BigInt(result.userId));
+    return result;
   }
 
   private async idempotentTransaction(

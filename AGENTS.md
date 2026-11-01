@@ -30,15 +30,15 @@ Codex settings and agent roles are in `.codex/config.toml` and `.codex/agents/`.
 
 ## Current implementation
 
-Last reviewed: 2026-11-01. Verify and update this table as the code evolves.
+Last reviewed: 2026-11-02. Verify and update this table as the code evolves.
 
 | Component      | Status                                                                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `frontend`     | React/Vite/TypeScript; Auth, Account address book, COD checkout, Customer order list/detail, Admin order confirmation/cancellation, Category/Product/SKU/inventory, public catalog and cart use backend APIs; browser end-to-end remains unverified |
-| `backend`      | One NestJS modular monolith; AuthModule includes Customer address CRUD/default management and Google OAuth login; CatalogModule public/admin Product/SKU/inventory APIs; OrderModule supports cart, COD checkout, customer/admin order APIs, idempotency and expiration; Supabase Storage upload adapter and Gmail SMTP reset email |
-| Database       | Prisma ORM/schema with PostgreSQL 17 in local Docker Compose; UserAddress schema synced to local `nexora` DB on 2026-11-01; no Prisma Migrate workflow |
+| `backend`      | One NestJS modular monolith; AuthModule includes Customer address CRUD/default management and Google OAuth login; CatalogModule public/admin Product/SKU/inventory APIs; OrderModule supports cart, COD checkout and order lifecycle; PaymentModule settles COD transactionally; Supabase Storage upload adapter and Gmail SMTP order/reset email |
+| Database       | Prisma ORM/schema with PostgreSQL 17 in local Docker Compose; UserAddress and COD lifecycle timestamps synced to local `nexora` DB on 2026-11-02; no Prisma Migrate workflow |
 | Docker         | Compose runs frontend/backend/PostgreSQL with a named local database volume; Supabase Storage remains external; no healthcheck                   |
-| Other modules  | COD checkout and Admin confirmation/cancellation are implemented but DB/browser integration remains unverified; payOS, delivery, Tracking and rule-based Recommendation remain planned; no inventory movement history; Notification sends password reset email directly without email jobs/workers |
+| Other modules  | COD checkout and Admin delivery lifecycle are implemented but DB/browser/SMTP integration remains unverified; payOS, behavioral Tracking and rule-based Recommendation remain planned; COD does not write `transaction` tracking events; no inventory movement history |
 | AI model       | Python/FastAPI integration is deferred; no application/container/database exists                                                            |
 | Infrastructure | No Gateway, Saga, Kafka, Redis or Elasticsearch dependency in the current architecture                                                      |
 | CI             | GitHub Actions verifies and Docker-builds backend/frontend on pushes and pull requests to main                                              |

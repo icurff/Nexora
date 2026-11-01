@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaService } from '../../database/prisma.service.js';
 import { InventoryRepository } from './inventory.repository.js';
 import { InventoryService } from './inventory.service.js';
+import { ProductRepository } from '../products/product.repository.js';
+import { ProductService } from '../products/product.service.js';
 
 const runDatabaseTests = process.env.RUN_INVENTORY_DB_TESTS === '1';
 const actor = {
@@ -16,9 +18,11 @@ describe.skipIf(!runDatabaseTests)(
     const prisma = new PrismaService();
     const repository = new InventoryRepository(prisma);
     const service = new InventoryService(repository, prisma);
+    const products = new ProductService(new ProductRepository(prisma), prisma);
     const variantIds: bigint[] = [];
     const idempotencyKeys: string[] = [];
     let productId: bigint | undefined;
+    let noSkuProductId: bigint | undefined;
     let actorId: bigint;
 
     beforeAll(async () => {
@@ -65,6 +69,18 @@ describe.skipIf(!runDatabaseTests)(
         });
         variantIds.push(variant.id);
       }
+      const noSkuProduct = await prisma.product.create({
+        data: {
+          name: `No SKU lifecycle ${suffix}`,
+          nameKey: `no-sku-lifecycle-${suffix}`,
+          description: 'Temporary no-SKU lifecycle integration product.',
+          categoryId: category.id,
+          status: 'ACTIVE',
+          priceVnd: 100_000n,
+          inventory: { create: { onHand: 7, reserved: 1 } },
+        },
+      });
+      noSkuProductId = noSkuProduct.id;
     }, 30_000);
 
     afterAll(async () => {
@@ -77,6 +93,12 @@ describe.skipIf(!runDatabaseTests)(
         });
       }
       if (productId) await prisma.product.delete({ where: { id: productId } });
+      if (noSkuProductId) {
+        await prisma.productInventory.deleteMany({
+          where: { productId: noSkuProductId },
+        });
+        await prisma.product.delete({ where: { id: noSkuProductId } });
+      }
       if (idempotencyKeys.length && actorId!) {
         await prisma.inventoryAdjustmentRequest.deleteMany({
           where: { actorUserId: actorId, key: { in: idempotencyKeys } },
@@ -199,6 +221,48 @@ describe.skipIf(!runDatabaseTests)(
       ).rejects.toMatchObject({
         response: { code: 'INVENTORY_VERSION_CONFLICT' },
       });
+    }, 30_000);
+
+    it('dispatches SKU and no-SKU orders atomically under a concurrent retry, then receives the return once', async () => {
+      const [blackL] = variantIds;
+      const lines = [
+        { productId: productId!, variantId: blackL, quantity: 2 },
+        { productId: noSkuProductId!, variantId: null, quantity: 1 },
+      ];
+      const dispatch = () =>
+        prisma.transaction((tx) => products.dispatchOrder(tx, lines));
+      const attempts = await Promise.allSettled([dispatch(), dispatch()]);
+      expect(
+        attempts.filter((result) => result.status === 'fulfilled'),
+      ).toHaveLength(1);
+      expect(
+        attempts.filter((result) => result.status === 'rejected'),
+      ).toHaveLength(1);
+
+      expect(
+        await prisma.inventory.findUniqueOrThrow({
+          where: { variantId: blackL },
+        }),
+      ).toMatchObject({ onHand: 13, reserved: 0 });
+      expect(
+        await prisma.productInventory.findUniqueOrThrow({
+          where: { productId: noSkuProductId! },
+        }),
+      ).toMatchObject({ onHand: 6, reserved: 0 });
+
+      await prisma.transaction((tx) =>
+        products.receiveReturnedOrder(tx, lines),
+      );
+      expect(
+        await prisma.inventory.findUniqueOrThrow({
+          where: { variantId: blackL },
+        }),
+      ).toMatchObject({ onHand: 15, reserved: 0 });
+      expect(
+        await prisma.productInventory.findUniqueOrThrow({
+          where: { productId: noSkuProductId! },
+        }),
+      ).toMatchObject({ onHand: 7, reserved: 0 });
     }, 30_000);
   },
 );

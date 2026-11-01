@@ -9,6 +9,9 @@ import { useAuth } from '../../auth/hooks/useAuth.js';
 const labels: Record<string, string> = {
   PENDING: 'Chờ xác nhận',
   CONFIRMED: 'Đã xác nhận',
+  SHIPPING: 'Đang giao',
+  DELIVERY_FAILED: 'Giao thất bại',
+  DELIVERED: 'Đã giao thành công',
   CANCELLED: 'Đã hủy',
 };
 function date(value: string) {
@@ -79,7 +82,9 @@ export function OrderDetailPage() {
           <h1>Đơn hàng {order.id}</h1>
           <p>Đặt ngày {date(order.createdAt)}</p>
         </div>
-        <span className="order-status in-progress">
+        <span
+          className={`order-status ${['PENDING', 'CONFIRMED', 'SHIPPING', 'DELIVERY_FAILED'].includes(order.status) ? 'in-progress' : 'complete'}`}
+        >
           <i />
           {labels[order.status] ?? order.status}
         </span>
@@ -130,6 +135,20 @@ export function OrderDetailPage() {
             <span>Tổng thanh toán · COD</span>
             <strong>{formatVnd(order.totalAmount)}</strong>
           </div>
+          <div className="checkout-total-row">
+            <span>Trạng thái thanh toán</span>
+            <strong>
+              {order.paymentStatus === 'PAID'
+                ? 'Đã thanh toán'
+                : 'Chưa thanh toán'}
+            </strong>
+          </div>
+          {order.firstShippedAt ? (
+            <p>Bắt đầu giao: {date(order.firstShippedAt)}</p>
+          ) : null}
+          {order.deliveredAt ? (
+            <p>Giao thành công: {date(order.deliveredAt)}</p>
+          ) : null}
           {order.customerNote ? <p>Ghi chú: {order.customerNote}</p> : null}
           {order.cancelReason ? <p>Lý do hủy: {order.cancelReason}</p> : null}
           {order.status === 'PENDING' && order.paymentStatus === 'UNPAID' ? (

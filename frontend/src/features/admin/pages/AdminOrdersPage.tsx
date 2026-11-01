@@ -8,12 +8,81 @@ import {
   confirmAdminOrder,
   getAdminOrder,
   getAdminOrders,
+  transitionAdminOrder,
 } from '../../orders/services/order-api.js';
+import './AdminOrdersPage.css';
+
+type OrderAction =
+  | 'confirm'
+  | 'cancel'
+  | 'ship'
+  | 'deliver'
+  | 'delivery-fail'
+  | 'retry-delivery'
+  | 'receive-return';
 
 const labels: Record<string, string> = {
   PENDING: 'Chờ xác nhận',
   CONFIRMED: 'Đã xác nhận',
+  SHIPPING: 'Đang giao',
+  DELIVERY_FAILED: 'Giao thất bại',
+  DELIVERED: 'Đã giao',
   CANCELLED: 'Đã hủy',
+};
+const filters = [
+  ['ALL', 'Tất cả'],
+  ['PENDING', 'Chờ xác nhận'],
+  ['CONFIRMED', 'Đã xác nhận'],
+  ['SHIPPING', 'Đang giao'],
+  ['DELIVERY_FAILED', 'Giao thất bại'],
+  ['DELIVERED', 'Đã giao'],
+  ['CANCELLED', 'Đã hủy'],
+];
+const actionText: Record<
+  OrderAction,
+  { title: string; description: string; submit: string }
+> = {
+  confirm: {
+    title: 'Xác nhận đơn hàng',
+    description:
+      'Đơn sẽ được xác nhận và tiếp tục chờ bàn giao cho đơn vị giao hàng.',
+    submit: 'Xác nhận đơn',
+  },
+  cancel: {
+    title: 'Hủy đơn hàng',
+    description: 'Đơn sẽ bị hủy và lượng hàng đang giữ sẽ được giải phóng.',
+    submit: 'Xác nhận hủy đơn',
+  },
+  ship: {
+    title: 'Chuyển đơn đi giao',
+    description:
+      'Tồn kho sẽ được trừ ngay khi chuyển đơn sang trạng thái đang giao.',
+    submit: 'Chuyển đi giao',
+  },
+  deliver: {
+    title: 'Xác nhận giao thành công',
+    description:
+      'Xác nhận khách đã nhận hàng và thu đủ tiền COD. Đơn sẽ được đánh dấu đã thanh toán.',
+    submit: 'Đã giao và thu COD',
+  },
+  'delivery-fail': {
+    title: 'Ghi nhận giao thất bại',
+    description:
+      'Đơn sẽ được ghi nhận giao thất bại; hàng chưa được cộng lại kho.',
+    submit: 'Ghi nhận thất bại',
+  },
+  'retry-delivery': {
+    title: 'Xác nhận giao lại',
+    description:
+      'Đơn chuyển lại sang đang giao. Hệ thống không trừ tồn hoặc tính thêm phí giao hàng.',
+    submit: 'Xác nhận giao lại',
+  },
+  'receive-return': {
+    title: 'Nhận hàng hoàn về kho',
+    description:
+      'Chỉ xác nhận nếu đã nhận đủ toàn bộ hàng nguyên vẹn. Đơn sẽ bị hủy và hàng được cộng lại kho một lần.',
+    submit: 'Đã nhận đủ hàng',
+  },
 };
 function date(value: string) {
   return new Intl.DateTimeFormat('vi-VN', {
@@ -27,12 +96,15 @@ export function AdminOrdersPage() {
   const { id } = useParams();
   const client = useQueryClient();
   const [filter, setFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
   const [reason, setReason] = useState('');
+  const [deliveryReason, setDeliveryReason] = useState('');
+  const [pendingAction, setPendingAction] = useState<OrderAction | null>(null);
   const [error, setError] = useState('');
   const attemptRef = useRef<{ action: string; key: string } | null>(null);
   const list = useQuery({
-    queryKey: ['admin-orders', filter],
-    queryFn: () => getAdminOrders(filter === 'ALL' ? undefined : filter),
+    queryKey: ['admin-orders', filter, page],
+    queryFn: () => getAdminOrders(filter === 'ALL' ? undefined : filter, page),
     enabled: !id,
     retry: false,
   });
@@ -62,12 +134,15 @@ export function AdminOrdersPage() {
       ),
     onSuccess: async (order) => {
       finishAttempt();
+      setPendingAction(null);
       setError('');
       await client.setQueryData(['admin-order', id], order);
       await client.invalidateQueries({ queryKey: ['admin-orders'] });
     },
-    onError: () =>
-      setError('Không xác nhận được đơn. Tải lại để kiểm tra trạng thái.'),
+    onError: () => {
+      setPendingAction(null);
+      setError('Không xác nhận được đơn. Tải lại để kiểm tra trạng thái.');
+    },
   });
   const cancel = useMutation({
     mutationFn: () =>
@@ -79,13 +154,85 @@ export function AdminOrdersPage() {
       ),
     onSuccess: async (order) => {
       finishAttempt();
+      setPendingAction(null);
       setError('');
       await client.setQueryData(['admin-order', id], order);
       await client.invalidateQueries({ queryKey: ['admin-orders'] });
     },
-    onError: () =>
-      setError('Không hủy được đơn. Tải lại để kiểm tra trạng thái.'),
+    onError: () => {
+      setPendingAction(null);
+      setError('Không hủy được đơn. Tải lại để kiểm tra trạng thái.');
+    },
   });
+  const lifecycle = useMutation({
+    mutationFn: ({
+      action,
+      reason: actionReason,
+    }: {
+      action:
+        | 'ship'
+        | 'deliver'
+        | 'delivery-fail'
+        | 'retry-delivery'
+        | 'receive-return';
+      reason?: string;
+    }) =>
+      transitionAdminOrder(id!, action, {
+        idempotencyKey: beginAttempt(action),
+        expectedVersion: detail.data!.version,
+        ...(actionReason ? { reason: actionReason } : {}),
+        ...(action === 'deliver' ? { codCollected: true as const } : {}),
+        ...(action === 'receive-return'
+          ? { allItemsReceived: true as const }
+          : {}),
+      }),
+    onSuccess: async (order) => {
+      finishAttempt();
+      setPendingAction(null);
+      setError('');
+      setDeliveryReason('');
+      await client.setQueryData(['admin-order', id], order);
+      await client.invalidateQueries({ queryKey: ['admin-orders'] });
+    },
+    onError: async () => {
+      setError(
+        'Thao tác không thành công. Đơn có thể đã đổi trạng thái; đang tải lại.',
+      );
+      finishAttempt();
+      setPendingAction(null);
+      await detail.refetch();
+    },
+  });
+
+  const submitPendingAction = () => {
+    if (!pendingAction) return;
+    setError('');
+    if (pendingAction === 'confirm') {
+      beginAttempt('confirm');
+      confirm.mutate();
+    } else if (pendingAction === 'cancel') {
+      if (!reason.trim()) {
+        setError('Nhập lý do hủy đơn.');
+        return;
+      }
+      beginAttempt('cancel');
+      cancel.mutate();
+    } else if (pendingAction === 'delivery-fail') {
+      if (!deliveryReason.trim()) {
+        setError('Nhập lý do giao thất bại.');
+        return;
+      }
+      lifecycle.mutate({
+        action: pendingAction,
+        reason: deliveryReason.trim(),
+      });
+    } else {
+      lifecycle.mutate({ action: pendingAction });
+    }
+  };
+
+  const actionBusy =
+    confirm.isPending || cancel.isPending || lifecycle.isPending;
 
   if (!id)
     return (
@@ -103,16 +250,14 @@ export function AdminOrdersPage() {
           </div>
         </header>
         <div className="order-tabs">
-          {[
-            ['ALL', 'Tất cả'],
-            ['PENDING', 'Chờ xác nhận'],
-            ['CONFIRMED', 'Đã xác nhận'],
-            ['CANCELLED', 'Đã hủy'],
-          ].map(([value, label]) => (
+          {filters.map(([value, label]) => (
             <button
               key={value}
               className={filter === value ? 'active' : ''}
-              onClick={() => setFilter(value)}
+              onClick={() => {
+                setFilter(value);
+                setPage(1);
+              }}
             >
               {label}
             </button>
@@ -157,6 +302,22 @@ export function AdminOrdersPage() {
             </tbody>
           </table>
         </div>
+        {list.data && list.data.total > 20 ? (
+          <nav className="order-tabs" aria-label="Phân trang đơn hàng">
+            <button disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              Trước
+            </button>
+            <span>
+              Trang {page} / {Math.ceil(list.data.total / 20)}
+            </span>
+            <button
+              disabled={page * 20 >= list.data.total}
+              onClick={() => setPage(page + 1)}
+            >
+              Sau
+            </button>
+          </nav>
+        ) : null}
       </div>
     );
 
@@ -232,69 +393,179 @@ export function AdminOrdersPage() {
         </div>
         {order.customerNote ? <p>Ghi chú: {order.customerNote}</p> : null}
         {order.cancelReason ? <p>Lý do hủy: {order.cancelReason}</p> : null}
+        <div className="checkout-total-row">
+          <span>Thanh toán</span>
+          <strong>
+            {order.paymentStatus === 'PAID'
+              ? 'Đã thanh toán'
+              : 'Chưa thanh toán'}
+          </strong>
+        </div>
+        {order.firstShippedAt ? (
+          <p>Bắt đầu giao: {date(order.firstShippedAt)}</p>
+        ) : null}
+        {order.deliveredAt ? (
+          <p>Giao thành công: {date(order.deliveredAt)}</p>
+        ) : null}
         {order.status === 'PENDING' ? (
           <div className="checkout-actions">
             <button
               className="button-primary"
-              disabled={confirm.isPending}
-              onClick={() => {
-                setError('');
-                beginAttempt('confirm');
-                confirm.mutate();
-              }}
+              disabled={actionBusy}
+              onClick={() => setPendingAction('confirm')}
             >
               {confirm.isPending ? 'Đang xác nhận…' : 'Xác nhận đơn'}
             </button>
             <button
               className="button-secondary"
-              disabled={cancel.isPending}
-              onClick={() => {
-                if (!reason.trim()) {
-                  setError('Nhập lý do hủy đơn.');
-                  return;
-                }
-                setError('');
-                beginAttempt('cancel');
-                cancel.mutate();
-              }}
+              disabled={actionBusy}
+              onClick={() => setPendingAction('cancel')}
             >
               Hủy đơn
             </button>
-            <input
-              aria-label="Lý do hủy đơn"
-              placeholder="Lý do hủy bắt buộc"
-              value={reason}
-              maxLength={500}
-              onChange={(event) => setReason(event.target.value)}
-            />
           </div>
         ) : order.status === 'CONFIRMED' ? (
           <div className="checkout-actions">
             <button
               className="button-secondary"
-              disabled={cancel.isPending}
-              onClick={() => {
-                if (!reason.trim()) {
-                  setError('Nhập lý do hủy đơn.');
-                  return;
-                }
-                beginAttempt('cancel');
-                cancel.mutate();
-              }}
+              disabled={actionBusy}
+              onClick={() => setPendingAction('cancel')}
             >
               Hủy đơn đã xác nhận
             </button>
-            <input
-              aria-label="Lý do hủy đơn"
-              placeholder="Lý do hủy bắt buộc"
-              value={reason}
-              maxLength={500}
-              onChange={(event) => setReason(event.target.value)}
-            />
+          </div>
+        ) : null}
+        {order.status === 'CONFIRMED' ? (
+          <div className="checkout-actions">
+            <button
+              className="button-primary"
+              disabled={actionBusy}
+              onClick={() => setPendingAction('ship')}
+            >
+              Chuyển đi giao
+            </button>
+          </div>
+        ) : null}
+        {order.status === 'SHIPPING' ? (
+          <div className="checkout-actions">
+            <button
+              className="button-primary"
+              disabled={actionBusy}
+              onClick={() => setPendingAction('deliver')}
+            >
+              Đã giao và thu đủ COD
+            </button>
+            <button
+              className="button-secondary"
+              disabled={actionBusy}
+              onClick={() => setPendingAction('delivery-fail')}
+            >
+              Giao thất bại
+            </button>
+          </div>
+        ) : null}
+        {order.status === 'DELIVERY_FAILED' ? (
+          <div className="checkout-actions">
+            <button
+              className="button-primary"
+              disabled={actionBusy}
+              onClick={() => setPendingAction('retry-delivery')}
+            >
+              Giao lại
+            </button>
+            <button
+              className="button-secondary"
+              disabled={actionBusy}
+              onClick={() => setPendingAction('receive-return')}
+            >
+              Đã nhận đủ hàng về kho
+            </button>
           </div>
         ) : null}
         {error ? <p role="alert">{error}</p> : null}
       </section>
+      {pendingAction ? (
+        <div
+          className="order-dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !actionBusy) {
+              setPendingAction(null);
+              setError('');
+            }
+          }}
+        >
+          <form
+            className="order-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="order-action-title"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitPendingAction();
+            }}
+          >
+            <h2 id="order-action-title">{actionText[pendingAction].title}</h2>
+            <p>{actionText[pendingAction].description}</p>
+            {pendingAction === 'deliver' ? (
+              <p className="order-dialog-impact">
+                Số tiền COD cần thu:{' '}
+                <strong>{formatVnd(order.totalAmount)}</strong>
+              </p>
+            ) : null}
+            {pendingAction === 'cancel' || pendingAction === 'delivery-fail' ? (
+              <label htmlFor="order-action-reason">
+                {pendingAction === 'cancel'
+                  ? 'Lý do hủy đơn'
+                  : 'Lý do giao thất bại'}
+                <textarea
+                  id="order-action-reason"
+                  value={pendingAction === 'cancel' ? reason : deliveryReason}
+                  maxLength={500}
+                  required
+                  autoFocus
+                  onChange={(event) =>
+                    pendingAction === 'cancel'
+                      ? setReason(event.target.value)
+                      : setDeliveryReason(event.target.value)
+                  }
+                />
+              </label>
+            ) : null}
+            {pendingAction === 'receive-return' ? (
+              <label className="order-dialog-check">
+                <input type="checkbox" required />
+                Tôi xác nhận đã nhận đủ hàng nguyên vẹn về kho.
+              </label>
+            ) : null}
+            {pendingAction === 'deliver' ? (
+              <label className="order-dialog-check">
+                <input type="checkbox" required />
+                Tôi xác nhận đã giao hàng và thu đủ COD.
+              </label>
+            ) : null}
+            <div className="order-dialog-actions">
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={actionBusy}
+                onClick={() => {
+                  setPendingAction(null);
+                  setError('');
+                }}
+              >
+                Để sau
+              </button>
+              <button
+                type="submit"
+                className="button-primary"
+                disabled={actionBusy}
+              >
+                {actionBusy ? 'Đang xử lý…' : actionText[pendingAction].submit}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
       <section className="checkout-panel">
         <h2>Lịch sử xử lý</h2>
         {order.history.map((item, index) => (

@@ -60,6 +60,8 @@ export function useNotificationStream() {
         void client.invalidateQueries({
           queryKey: notificationKeys.all(user.id),
         });
+        void client.invalidateQueries({ queryKey: ['orders', user.id] });
+        void client.invalidateQueries({ queryKey: ['order'] });
       },
       setConnected,
       () => {
@@ -74,6 +76,10 @@ export function useNotificationStream() {
         void client.invalidateQueries({
           queryKey: notificationKeys.all(user.id),
         });
+      if (document.visibilityState === 'visible') {
+        void client.invalidateQueries({ queryKey: ['orders', user.id] });
+        void client.invalidateQueries({ queryKey: ['order'] });
+      }
     };
     window.addEventListener('online', refresh);
     document.addEventListener('visibilitychange', refresh);

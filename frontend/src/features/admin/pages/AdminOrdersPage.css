@@ -1,0 +1,103 @@
+.order-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(20 31 24 / 58%);
+}
+
+.order-dialog {
+  width: min(100%, 480px);
+  max-height: min(90vh, 720px);
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid #e5e9e5;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgb(0 0 0 / 22%);
+}
+
+.order-dialog h2 {
+  margin: 0 0 10px;
+  color: #25382b;
+  font-size: 20px;
+}
+
+.order-dialog p {
+  margin: 0 0 14px;
+  color: #647166;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.order-dialog .order-dialog-impact {
+  padding: 12px;
+  border-radius: 7px;
+  background: #f3f7f3;
+  color: #314638;
+}
+
+.order-dialog > label:not(.order-dialog-check) {
+  display: grid;
+  gap: 7px;
+  margin-top: 16px;
+  color: #45564a;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.order-dialog textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px 12px;
+  border: 1px solid #ccd6ce;
+  border-radius: 7px;
+  color: #26382b;
+  font: inherit;
+  resize: vertical;
+}
+
+.order-dialog-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 16px 0 0;
+  color: #3f5044;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.order-dialog-check input {
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  accent-color: #315f3e;
+}
+
+.order-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.order-dialog-actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+@media (max-width: 480px) {
+  .order-dialog {
+    padding: 20px;
+  }
+
+  .order-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .order-dialog-actions button {
+    width: 100%;
+  }
+}

@@ -38,7 +38,11 @@ export type Order = {
   createdAt: string;
   updatedAt: string;
   confirmedAt: string | null;
+  firstShippedAt: string | null;
+  deliveredAt: string | null;
+  paidAt: string | null;
   cancelledAt: string | null;
+  returnedAt: string | null;
   cancelReason: string | null;
   items: OrderItem[];
   history: Array<{
@@ -91,7 +95,7 @@ export function placeOrder(input: {
       ).data,
   );
 }
-export function getOrders(status?: string) {
+export function getOrders(status?: string, page = 1, pageSize = 20) {
   return authorized(
     async (token) =>
       (
@@ -101,7 +105,7 @@ export function getOrders(status?: string) {
           pageSize: number;
           total: number;
         }>('/orders', {
-          params: status ? { status } : {},
+          params: { ...(status ? { status } : {}), page, pageSize },
           headers: headers(token),
         })
       ).data,
@@ -140,7 +144,7 @@ export function cancelOrder(
       ).data,
   );
 }
-export function getAdminOrders(status?: string) {
+export function getAdminOrders(status?: string, page = 1, pageSize = 20) {
   return authorized(
     async (token) =>
       (
@@ -152,7 +156,29 @@ export function getAdminOrders(status?: string) {
           pageSize: number;
           total: number;
         }>('/admin/orders', {
-          params: status ? { status } : {},
+          params: { ...(status ? { status } : {}), page, pageSize },
+          headers: headers(token),
+        })
+      ).data,
+  );
+}
+
+export function transitionAdminOrder(
+  id: string,
+  action:
+    'ship' | 'deliver' | 'delivery-fail' | 'retry-delivery' | 'receive-return',
+  input: {
+    idempotencyKey: string;
+    expectedVersion: string;
+    reason?: string;
+    codCollected?: true;
+    allItemsReceived?: true;
+  },
+) {
+  return authorized(
+    async (token) =>
+      (
+        await apiClient.post<Order>(`/admin/orders/${id}/${action}`, input, {
           headers: headers(token),
         })
       ).data,
