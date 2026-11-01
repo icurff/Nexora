@@ -111,7 +111,7 @@ Tiền tối đa mỗi trường là `99,999,999,999,999` VND. Giá trị này n
 | Đơn và kho       | `orders`, `order_items`, `order_status_history`, `order_notes`       | Snapshot và vòng đời đơn                                            |
 | Gợi ý và event   | `recommendation_requests`, `recommendation_items`, `interaction_events`               | Kết quả gợi ý theo thứ tự và hành vi                               |
 | Kiểm toán        | `admin_audit_logs`                                                                    | Ai thay đổi dữ liệu quản trị, lúc nào                              |
-| Thông báo        | `email_outbox`                                                                        | Hàng đợi và trạng thái gửi email thông báo đơn hàng                |
+| Thông báo        | `email_outbox`, `user_notifications`                                                  | Hàng đợi email và hộp thông báo Customer                            |
 
 Thiết kế gồm **29 bảng nghiệp vụ** và image_assets bổ sung cho upload, thuộc các module trong [Architecture](Folder-ARCHITECTURE.md). Nhiều bảng là dữ liệu hệ thống, không tương ứng số màn hình quản trị. Địa giới/provenance được seed; visitor/session/history/event/idempotency/email job do backend ghi. Không nhập hàng triệu event RetailRocket vào dữ liệu vận hành. brands chỉ giữ nhãn metadata seed, không có CRUD Admin.
 
@@ -135,6 +135,7 @@ Thiết kế gồm **29 bảng nghiệp vụ** và image_assets bổ sung cho up
 | RecommendationRequest → RecommendationItem → Product              | 1–N, N–1   | Lưu đúng thứ tự đã trả về                                                              |
 | RecommendationItem → Event                                        | 1–N        | Impression/click tham chiếu đúng item được gợi ý                                       |
 | Order/User → EmailOutbox                                          | 1–N        | Email thông báo gắn nguồn sự kiện; hàng đợi chống gửi lặp                              |
+| User/Order → UserNotification                                    | 1–N        | Thông báo đơn COD lưu bền vững theo chủ sở hữu                                         |
 
 <a id="accounts"></a>
 
@@ -191,7 +192,7 @@ Migration `1_password_reset` tạo bảng này sau baseline `0_auth`.
 | created_at | timestamptz | NN           | Thời điểm yêu cầu                                                   |
 
 Index `(user_id, created_at DESC)` và `(expires_at)`. Chỉ cho dùng khi chưa hết hạn, chưa dùng và tài khoản còn hợp lệ. Token tiêu thụ, đổi hash mật khẩu và thu hồi toàn bộ `auth_sessions` phải cùng transaction. Khi phát hành token mới, token cũ của user bị xóa; token hết hạn/dùng rồi có thể được dọn khi user yêu cầu token mới.
-Gửi reset hiện gọi Gmail SMTP trực tiếp sau commit, không lưu job bền vững và không tự retry. Hai endpoint không tiết lộ tài khoản tồn tại; lỗi provider xóa token vừa cấp để khách yêu cầu lại. Task 015 vẫn dự kiến email_outbox/worker cho email nghiệp vụ và retry.
+Gửi reset hiện gọi Gmail SMTP trực tiếp sau commit, không lưu job bền vững và không tự retry. Hai endpoint không tiết lộ tài khoản tồn tại; lỗi provider xóa token vừa cấp để khách yêu cầu lại. Task 015 đã bổ sung email_outbox/worker cho email đơn COD; token reset không nằm trong payload job.
 
 ### 3.4. `user_addresses`
 
@@ -770,11 +771,34 @@ Hàng đợi dùng cho email xác nhận/thay đổi trạng thái đơn; email 
 | status          | varchar(16)  | NN, PENDING     | PENDING / SENT / FAILED                                              |
 | attempts        | integer      | NN, 0           | Số lần thử gửi                                                       |
 | available_at    | timestamptz  | NN              | Thời điểm worker được phép thử tiếp                                  |
+| lease_token     | uuid         | NULL            | Token nhận việc hiện tại, chặn worker cũ ghi đè kết quả              |
+| lease_until     | timestamptz  | NULL            | Hạn lease để worker khác phục hồi job sau restart                    |
 | sent_at         | timestamptz  | NULL            | Thời điểm gửi thành công                                             |
+| finished_at     | timestamptz  | NULL            | Thời điểm trạng thái SENT/FAILED kết thúc                            |
 | last_error_code | varchar(80)  | NULL            | Mã lỗi đã lọc, không lưu nội dung chứa bí mật                        |
 | created_at      | timestamptz  | NN              | Thời điểm xếp hàng                                                   |
 
 UQ event_key bảo đảm một email cho mỗi loại sự kiện; CHECK attempts >= 0, payload là object và trạng thái phù hợp với sent_at. Index `(status, available_at, id)` cho worker và `(order_id, created_at)` cho tra cứu vận hành. Ghi hàng đợi cùng transaction đổi trạng thái/tạo đơn; worker gửi ngoài transaction, cập nhật trạng thái và retry lỗi tạm thời với backoff, giới hạn số lần. Recipient là PII, chỉ role backend được đọc; không đưa vào event tracking/audit. Giữ hàng gửi tối đa 90 ngày rồi xóa theo chính sách dọn dẹp.
+
+Worker nhận job trong transaction ngắn bằng `FOR UPDATE SKIP LOCKED`, gửi bên ngoài transaction và cập nhật theo lease token. Mặc định quét 5 giây, lease 60 giây, timeout gửi 30 giây, tối đa 5 lần với backoff 30 giây, 2/10/30 phút. Cấu hình provider thiếu khiến job FAILED; job PENDING giữ lại qua restart. SMTP có thể đã nhận thư trước khi backend mất kết nối nên không đảm bảo giao đúng một lần.
+
+### 8.6. `user_notifications`
+
+Lưu thông báo Customer về đơn COD. Mỗi lần tạo hoặc đổi trạng thái đơn tạo một event key dựa trên ID `order_status_history`; chỉ ghi từ thời điểm triển khai, không backfill lịch sử.
+
+| Cột       | Kiểu         | Null/default | Ý nghĩa |
+|-----------|--------------|--------------|---------|
+| id        | bigint       | NN, PK       | ID thông báo, serialize thành chuỗi |
+| user_id   | bigint       | NN, FK users | Customer sở hữu thông báo |
+| order_id  | bigint       | NN, FK orders | Đơn liên quan |
+| event_key | varchar(160) | NN           | Khóa sự kiện dùng cùng email job |
+| type      | varchar(40)  | NN           | ORDER_CREATED/CONFIRMED/CANCELLED/EXPIRED |
+| title     | varchar(160) | NN           | Tiêu đề hiển thị |
+| body      | varchar(500) | NN           | Nội dung ngắn, không chứa ghi chú riêng |
+| created_at| timestamptz  | NN           | Thời điểm tạo |
+| read_at   | timestamptz  | NULL         | Thời điểm Customer đánh dấu đã đọc |
+
+Unique `(user_id, event_key)` chống tạo trùng; index `(user_id, created_at DESC, id DESC)` cho danh sách và `(user_id, read_at)` cho số chưa đọc. Cùng transaction Order ghi `user_notifications` và `email_outbox`; API luôn lấy chủ sở hữu từ phiên đăng nhập. SSE chỉ phát tín hiệu đồng bộ, PostgreSQL vẫn là nguồn dữ liệu. Chưa đặt thời hạn xóa thông báo.
 
 <a id="transactions"></a>
 

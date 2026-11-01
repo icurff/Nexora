@@ -54,6 +54,50 @@ export class GmailEmailProvider {
     }
   }
 
+  async sendOrderStatus(to: string, payload: {
+    orderId: string; status: string; paymentStatus: string; totalAmount: string;
+    createdAt: string; reason: string | null;
+    items: Array<{ productName: string; sku: string | null; quantity: number; unitPrice: string }>;
+  }): Promise<
+    | { sent: true }
+    | { sent: false; retryable: boolean; errorCode: string }
+  > {
+    if (!this.transporter || !this.frontendUrl)
+      return { sent: false, retryable: false, errorCode: 'provider_not_configured' };
+    const statusLabels: Record<string, string> = {
+      PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận', CANCELLED: 'Đã hủy', EXPIRED: 'Đã hết hạn',
+    };
+    const status = payload.reason === 'EXPIRED' ? 'Đã hết hạn' : statusLabels[payload.status] ?? payload.status;
+    const orderUrl = new URL(`/orders/${encodeURIComponent(payload.orderId)}`, this.frontendUrl).toString();
+    const money = (value: string) => `${new Intl.NumberFormat('vi-VN').format(Number(value))} ₫`;
+    const rows = payload.items.map((item) => `${item.productName}${item.sku ? ` (${item.sku})` : ''} × ${item.quantity} — ${money(item.unitPrice)}`).join('\n');
+    const text = `Nexora cập nhật đơn hàng #${payload.orderId}\nTrạng thái: ${status}\nTổng thanh toán COD: ${money(payload.totalAmount)}\n${payload.status === 'PENDING' ? `\nSản phẩm:\n${rows}\n` : ''}\nXem đơn hàng: ${orderUrl}`;
+    const html = `<p>Nexora cập nhật đơn hàng <strong>#${this.escapeHtml(payload.orderId)}</strong>.</p><p>Trạng thái: ${this.escapeHtml(status)}<br>Tổng thanh toán COD: ${this.escapeHtml(money(payload.totalAmount))}</p>${payload.status === 'PENDING' ? `<ul>${payload.items.map((item) => `<li>${this.escapeHtml(item.productName)}${item.sku ? ` (${this.escapeHtml(item.sku)})` : ''} × ${item.quantity} — ${this.escapeHtml(money(item.unitPrice))}</li>`).join('')}</ul>` : ''}<p><a href="${this.escapeHtml(orderUrl)}">Xem đơn hàng</a></p>`;
+    try {
+      await this.transporter.sendMail({
+        from: { name: 'Nexora', address: this.gmailUser }, to,
+        subject: `Nexora · Đơn hàng #${payload.orderId}: ${status}`,
+        text, html,
+      });
+      return { sent: true };
+    } catch (error) {
+      const code = error instanceof Error && 'code' in error ? String(error.code) : 'provider_error';
+      this.logger.warn(`Gmail SMTP order email failed (${code})`);
+      const responseCode =
+        error instanceof Error && 'responseCode' in error
+          ? Number(error.responseCode)
+          : undefined;
+      const retryable =
+        responseCode === undefined || responseCode < 500 ||
+        ['ETIMEDOUT', 'ECONNECTION', 'ECONNRESET', 'ESOCKET', 'EDNS'].includes(code);
+      return {
+        sent: false,
+        retryable,
+        errorCode: /^[A-Z0-9_-]{1,80}$/.test(code) ? code : 'provider_error',
+      };
+    }
+  }
+
   private parseFrontendUrl(value?: string): URL | null {
     if (!value?.trim()) return null;
     try {

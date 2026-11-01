@@ -17,7 +17,6 @@ import {
   UserRound,
 } from 'lucide-react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { StoreFrame } from '../../../layouts/StoreLayout';
 import { PasswordField } from '../../auth/components/FormField';
 import { Notice } from '../../auth/components/Notice';
 import { errorMessage, fieldError } from '../../auth/services/auth-api';
@@ -135,7 +134,6 @@ export default function AccountPage() {
     ];
 
   return (
-    <StoreFrame>
       <div className="page-container account-dashboard page-section">
         <div className="breadcrumbs">
           <Link to="/">Trang chủ</Link>
@@ -188,6 +186,13 @@ export default function AccountPage() {
                   <ChevronRight size={14} />
                 </button>
               ))}
+              {user.role === 'CUSTOMER' ? (
+                <Link className="account-nav-notifications" to="/notifications">
+                  <Bell size={17} />
+                  <span>Thông báo</span>
+                  <ChevronRight size={14} />
+                </Link>
+              ) : null}
               {user.role === 'ADMIN' ? (
                 <Link className="account-admin-link" to="/admin">
                   <ShieldCheck size={17} />
@@ -476,7 +481,6 @@ export default function AccountPage() {
           </section>
         </div>
       </div>
-    </StoreFrame>
   );
 }
 

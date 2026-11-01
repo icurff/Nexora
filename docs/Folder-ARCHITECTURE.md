@@ -103,7 +103,7 @@ AuthModule, DatabaseModule, CatalogModule và OrderModule đã có. OrderModule 
 | Catalog                   | Danh mục, Product/SKU, ảnh/Supabase Storage và tồn hiện tại; không lưu lịch sử biến động tồn |
 | Order                     | Giỏ, COD checkout trực tiếp, tạo đơn, snapshot, vòng đời đơn và idempotency |
 | Payment                   | payOS link/webhook và quy tắc COD; phối hợp Order trong cùng backend |
-| Notification              | Gửi email khôi phục mật khẩu trực tiếp qua Gmail SMTP; email job bền vững/worker retry thuộc task 015 chưa triển khai |
+| Notification              | Email reset gửi trực tiếp qua Gmail SMTP; email đơn COD dùng outbox/worker retry; hộp thông báo Customer lưu PostgreSQL và đồng bộ SSE |
 | Tracking / Recommendation | Event website, export không PII và gợi ý theo quy tắc khi triển khai |
 
 Controller xử lý HTTP và DTO; service chứa nghiệp vụ; UserRepository/SessionRepository dùng Prisma Client để truy cập dữ liệu Auth. SQL khóa hàng tham số hóa nằm trong repository; service không chứa SQL. Provider ngoài có adapter riêng. Module giao tiếp bằng lời gọi provider trong tiến trình. Khi một use case cần nhiều module, truyền cùng Prisma.TransactionClient để tất cả ghi chung một transaction. Không import vòng hoặc tạo database/ứng dụng riêng cho từng module.
@@ -128,7 +128,7 @@ Lifecycle cập nhật đơn, reserved, history, business event và idempotency 
 
 Không gọi network khi đang giữ khóa DB. Tạo payOS link cho đơn đã commit; lỗi link giữ đơn UNPAID, cho retry trên chính đơn. Webhook phải xác minh chữ ký/mã đơn/số tiền, sau đó khóa đơn và ghi PAID/event nguyên tử; webhook lặp không tạo hiệu ứng lặp. Browser return/cancel chỉ đọc trạng thái. Cạnh tranh payment/hủy dùng cùng khóa đơn và kiểm tra trạng thái mới nhất.
 
-Task 016 gửi email reset mật khẩu trực tiếp qua Gmail SMTP sau khi commit token; provider lỗi thì xóa token vừa cấp để khách yêu cầu lại. Cấu hình cần `GMAIL_USER` và `GMAIL_APP_PASSWORD`; tài khoản Gmail phải bật Xác minh 2 bước để tạo App Password. Đây chưa phải hàng đợi bền vững, không tự retry khi backend dừng. Task 015 sẽ bổ sung email_outbox/job và worker retry cho email nghiệp vụ. Không cần broker hoặc inbox giữa module. Tracking nghiệp vụ ghi event trong cùng transaction; email không đi vào dữ liệu export AI. Lỗi gửi email hoặc recommendation sau commit không làm mất nghiệp vụ.
+Email reset mật khẩu vẫn gửi trực tiếp sau khi commit token; provider lỗi thì xóa token vừa cấp để khách yêu cầu lại. Email đơn COD được ghi vào `email_outbox` cùng transaction tạo/đổi trạng thái, sau commit worker gửi Gmail SMTP, retry lỗi tạm thời và dọn SENT/FAILED sau 90 ngày. `user_notifications` được ghi cùng transaction; REST đọc theo đúng Customer và SSE chỉ báo cần đồng bộ. Realtime dùng bộ phát trong tiến trình hiện tại; PostgreSQL là dữ liệu bền vững khi reconnect. Không cần broker hoặc inbox giữa module. Email không đi vào dữ liệu tracking/export AI.
 
 <a id="image-upload"></a>
 

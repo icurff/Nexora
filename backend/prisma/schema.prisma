@@ -31,6 +31,8 @@ model User {
   orderStatusChanges   OrderStatusHistory[]
   cart                Cart?
   addresses           UserAddress[]
+  notifications       UserNotification[]
+  emailOutbox         EmailOutbox[]
 
   @@map("users")
 }
@@ -266,10 +268,57 @@ model Order {
   items           OrderItem[]
   history         OrderStatusHistory[]
   events          OrderEvent[]
+  notifications   UserNotification[]
+  emailOutbox     EmailOutbox[]
 
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)], map: "orders_user_created_idx")
   @@index([status, expiresAt], map: "orders_status_expires_idx")
   @@map("orders")
+}
+
+model UserNotification {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  orderId   BigInt   @map("order_id")
+  eventKey  String   @map("event_key") @db.VarChar(160)
+  type      String   @db.VarChar(40)
+  title     String   @db.VarChar(160)
+  body      String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([userId, eventKey], map: "user_notifications_user_event_key")
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)], map: "user_notifications_user_created_idx")
+  @@index([userId, readAt], map: "user_notifications_user_read_idx")
+  @@map("user_notifications")
+}
+
+model EmailOutbox {
+  id             BigInt   @id @default(autoincrement())
+  eventKey       String   @unique @map("event_key") @db.VarChar(160)
+  userId         BigInt?  @map("user_id")
+  orderId        BigInt?  @map("order_id")
+  recipientEmail String   @map("recipient_email") @db.VarChar(254)
+  templateKey    String   @map("template_key") @db.VarChar(80)
+  payload        Json     @default("{}")
+  status         String   @default("PENDING") @db.VarChar(16)
+  attempts       Int      @default(0)
+  availableAt    DateTime @default(now()) @map("available_at") @db.Timestamptz(6)
+  leaseToken     String?  @map("lease_token") @db.Uuid
+  leaseUntil     DateTime? @map("lease_until") @db.Timestamptz(6)
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+  lastErrorCode  String?  @map("last_error_code") @db.VarChar(80)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  order          Order?   @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([status, availableAt, id], map: "email_outbox_status_available_idx")
+  @@index([leaseUntil], map: "email_outbox_lease_until_idx")
+  @@index([orderId, createdAt], map: "email_outbox_order_created_idx")
+  @@map("email_outbox")
 }
 
 model OrderItem {
