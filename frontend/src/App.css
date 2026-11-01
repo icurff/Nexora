@@ -168,6 +168,37 @@
   flex-direction: column;
   gap: 17px;
 }
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 12px;
+  color: #8993a8;
+  font-size: 11px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  height: 1px;
+  flex: 1;
+  content: '';
+  background: #e6e9f0;
+}
+.google-login-button {
+  width: 100%;
+  min-height: 46px;
+  gap: 10px;
+  border-color: #dce2ed;
+  color: #343e58;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+.google-login-mark {
+  color: #4285f4;
+  font-size: 18px;
+  font-weight: 750;
+}
 .field {
   min-width: 0;
   display: flex;

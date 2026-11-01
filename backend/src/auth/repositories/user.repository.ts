@@ -34,11 +34,54 @@ export class UserRepository {
     }
   }
 
+  async createGoogleCustomer(data: {
+    email: string;
+    fullName: string;
+    googleSubject: string;
+    avatarUrl: string | null;
+    transaction: TransactionClient;
+  }) {
+    const { transaction, ...user } = data;
+    return toUser(
+      await transaction.user.create({
+        data: {
+          ...user,
+          passwordHash: null,
+          role: 'CUSTOMER',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+  }
+
   async findById(id: string, transaction?: TransactionClient) {
     const row = await (transaction ?? this.prisma).user.findUnique({
       where: { id: BigInt(id) },
     });
     return row ? toUser(row) : null;
+  }
+
+  async findByGoogleSubject(
+    googleSubject: string,
+    transaction?: TransactionClient,
+  ) {
+    const row = await (transaction ?? this.prisma).user.findUnique({
+      where: { googleSubject },
+    });
+    return row ? toUser(row) : null;
+  }
+
+  async linkGoogleSubject(
+    id: string,
+    googleSubject: string,
+    transaction: TransactionClient,
+  ) {
+    return toUser(
+      await transaction.user.update({
+        where: { id: BigInt(id) },
+        data: { googleSubject, updatedAt: new Date() },
+      }),
+    );
   }
 
   async listCustomers(input: {

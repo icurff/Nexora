@@ -43,6 +43,7 @@ import { AdminInventoryPage } from './features/catalog/pages/AdminInventoryPage.
 import { AdminOrdersPage } from './features/admin/pages/AdminOrdersPage.js';
 import { AdminCustomersPage } from './features/admin/pages/AdminCustomersPage.js';
 import { NotificationsPage } from './features/notifications/pages/NotificationsPage.js';
+import GoogleCallbackPage from './features/auth/pages/GoogleCallbackPage.js';
 import './App.css';
 import './Store.css';
 import './Brand.css';
@@ -114,6 +115,10 @@ export default function App() {
           </Route>
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route
+            path="/auth/google/callback"
+            element={<GoogleCallbackPage />}
+          />
           <Route element={<RequireAuth />}>
             <Route path="/account" element={<AccountPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />

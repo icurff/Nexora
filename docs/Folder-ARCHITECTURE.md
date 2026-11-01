@@ -16,7 +16,7 @@ Nexora dùng modular monolith: các nghiệp vụ nằm trong cùng tiến trìn
 | ----------- | ----------------------------------------------------------------------------------------------------------- |
 | Frontend    | React/Vite/TypeScript; Auth, Account address book và chọn địa chỉ checkout dùng API; danh sách/detail sản phẩm và giỏ Customer dùng API; checkout đặt hàng/orders chưa khả dụng, các trang catalog khác còn fixture |
 | Backend     | NestJS, AuthModule address/profile/session APIs, CatalogModule public/admin Product/SKU/inventory APIs và OrderModule cart/COD checkout/order APIs; upload ảnh/video lên Supabase Storage; checkout integration chưa kiểm chứng |
-| Auth        | Đăng ký Customer, login/refresh/logout/session, đổi/khôi phục mật khẩu, thu hồi phiên và CRUD sổ địa chỉ; địa chỉ lưu tên tỉnh/xã dạng text |
+| Auth        | Đăng ký Customer, login email/Google OAuth, refresh/logout/session, đổi/khôi phục mật khẩu, thu hồi phiên và CRUD sổ địa chỉ; OAuth callback cần Client ID/Secret và redirect URI cấu hình |
 | Persistence | Prisma ORM/repositories và `schema.prisma`; PostgreSQL 17 local trong Compose, đồng bộ schema thủ công bằng `npm run db:push` |
 | Docker      | Compose chạy frontend/backend/PostgreSQL local với named volume; Supabase Storage vẫn ở ngoài, không healthcheck |
 | CI          | Kiểm tra và Docker build cho hai ứng dụng frontend/backend                                                  |

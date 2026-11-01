@@ -8,6 +8,7 @@
 .account-sidebar { overflow: hidden; }
 .account-sidebar-profile { display: grid; grid-template-columns: 42px minmax(0,1fr); align-items: center; gap: 0 10px; padding: 18px 15px; border-bottom: 1px solid #edf0ec; }
 .account-large-avatar { width: 39px; height: 39px; display: grid; grid-row: span 2; place-items: center; color: #4b62ce; background: #eef1ff; border-radius: 50%; font-size: 11px; font-weight: 700; }
+.account-large-avatar-image { object-fit: cover; }
 .account-sidebar-profile strong,.account-sidebar-profile small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-sidebar-profile strong { color: #303b55; font-size: 10px; }
 .account-sidebar-profile small { margin-top: 4px; color: #9aa39c; font-size: 8px; }

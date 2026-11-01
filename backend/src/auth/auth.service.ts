@@ -7,7 +7,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service.js';
-import { UserRepository, EmailAlreadyExistsError } from './repositories/user.repository.js';
+import { Prisma } from '../generated/prisma/client.js';
+import {
+  UserRepository,
+  EmailAlreadyExistsError,
+} from './repositories/user.repository.js';
 import { SessionRepository } from './repositories/session.repository.js';
 import { PasswordResetTokenRepository } from './repositories/password-reset-token.repository.js';
 import bcrypt from 'bcrypt';
@@ -24,6 +28,7 @@ const userView = (u: User) => ({
   email: u.email,
   fullName: u.fullName,
   phone: u.phone,
+  avatarUrl: u.avatarUrl,
   role: u.role,
   status: u.status,
   createdAt: u.createdAt.toISOString(),
@@ -95,13 +100,21 @@ export class AuthService {
       payload.tokenUse !== use ||
       typeof payload.sub !== 'string' ||
       typeof payload.sid !== 'string' ||
-      !this.validId(payload.sub) || !this.validId(payload.sid)
+      !this.validId(payload.sub) ||
+      !this.validId(payload.sid)
     )
       throw new UnauthorizedException();
-    return { ...payload, sub: payload.sub, sid: payload.sid, version: payload.version };
+    return {
+      ...payload,
+      sub: payload.sub,
+      sid: payload.sid,
+      version: payload.version,
+    };
   }
   private validId(value: string): boolean {
-    return /^[1-9][0-9]{0,18}$/.test(value) && BigInt(value) <= 9223372036854775807n;
+    return (
+      /^[1-9][0-9]{0,18}$/.test(value) && BigInt(value) <= 9223372036854775807n
+    );
   }
 
   async register(dto: RegisterDto) {
@@ -109,16 +122,20 @@ export class AuthService {
     const email = dto.email.trim().toLowerCase();
     if (!fullName || dto.password !== dto.confirmPassword)
       throw new BadRequestException({
-        code: 'VALIDATION_FAILED', message: 'Invalid registration data',
+        code: 'VALIDATION_FAILED',
+        message: 'Invalid registration data',
         fieldErrors: { confirmPassword: ['Passwords must match'] },
       });
     const passwordHash = await bcrypt.hash(dto.password, 6);
     try {
-      return userView(await this.users.createCustomer({ email, passwordHash, fullName }));
+      return userView(
+        await this.users.createCustomer({ email, passwordHash, fullName }),
+      );
     } catch (error) {
       if (error instanceof EmailAlreadyExistsError)
         throw new ConflictException({
-          code: 'EMAIL_ALREADY_EXISTS', message: 'Email is already registered',
+          code: 'EMAIL_ALREADY_EXISTS',
+          message: 'Email is already registered',
           fieldErrors: { email: ['Email is already registered'] },
         });
       throw error;
@@ -127,18 +144,136 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     return this.prisma.transaction(async (transaction) => {
-      const user = await this.users.findByEmailForUpdate(dto.email, transaction);
-      if (!user || !(await bcrypt.compare(dto.password, user.passwordHash)))
-        throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email or password is incorrect' });
-      if (user.status !== 'ACTIVE')
-        throw new ForbiddenException({ code: 'ACCOUNT_LOCKED', message: 'Account is locked' });
-      const session = await this.sessions.create(
-        user.id, randomBytes(32).toString('hex'), new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), transaction,
+      const user = await this.users.findByEmailForUpdate(
+        dto.email,
+        transaction,
       );
-      const refreshToken = await this.jwt(user.id, session.id, 'refresh', 0, '7d');
-      await this.sessions.rotate(session.id, 0, hashRefreshToken(refreshToken), transaction);
-      return { accessToken: await this.jwt(user.id, session.id, 'access'), refreshToken, user: userView(user) };
+      if (
+        !user ||
+        !user.passwordHash ||
+        !(await bcrypt.compare(dto.password, user.passwordHash))
+      )
+        throw new UnauthorizedException({
+          code: 'INVALID_CREDENTIALS',
+          message: 'Email or password is incorrect',
+        });
+      if (user.status !== 'ACTIVE')
+        throw new ForbiddenException({
+          code: 'ACCOUNT_LOCKED',
+          message: 'Account is locked',
+        });
+      const session = await this.sessions.create(
+        user.id,
+        randomBytes(32).toString('hex'),
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        transaction,
+      );
+      const refreshToken = await this.jwt(
+        user.id,
+        session.id,
+        'refresh',
+        0,
+        '7d',
+      );
+      await this.sessions.rotate(
+        session.id,
+        0,
+        hashRefreshToken(refreshToken),
+        transaction,
+      );
+      return {
+        accessToken: await this.jwt(user.id, session.id, 'access'),
+        refreshToken,
+        user: userView(user),
+      };
     });
+  }
+
+  async loginWithGoogle(profile: {
+    subject: string;
+    email: string;
+    fullName: string;
+    avatarUrl: string | null;
+  }) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await this.prisma.transaction(async (transaction) => {
+          let user = await this.users.findByGoogleSubject(
+            profile.subject,
+            transaction,
+          );
+          if (user)
+            user = await this.users.findByIdForUpdate(user.id, transaction);
+          if (!user) {
+            user = await this.users.findByEmailForUpdate(
+              profile.email,
+              transaction,
+            );
+            if (user) {
+              if (user.googleSubject && user.googleSubject !== profile.subject)
+                throw new ConflictException({
+                  code: 'GOOGLE_ACCOUNT_ALREADY_LINKED',
+                  message: 'This email is linked to another Google account.',
+                });
+              if (!user.googleSubject)
+                user = await this.users.linkGoogleSubject(
+                  user.id,
+                  profile.subject,
+                  transaction,
+                );
+            } else {
+              user = await this.users.createGoogleCustomer({
+                email: profile.email,
+                fullName: profile.fullName,
+                googleSubject: profile.subject,
+                avatarUrl: profile.avatarUrl,
+                transaction,
+              });
+            }
+          }
+
+          if (user.status !== 'ACTIVE')
+            throw new ForbiddenException({
+              code: 'ACCOUNT_LOCKED',
+              message: 'Account is locked',
+            });
+
+          const session = await this.sessions.create(
+            user.id,
+            randomBytes(32).toString('hex'),
+            new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            transaction,
+          );
+          const refreshToken = await this.jwt(
+            user.id,
+            session.id,
+            'refresh',
+            0,
+            '7d',
+          );
+          await this.sessions.rotate(
+            session.id,
+            0,
+            hashRefreshToken(refreshToken),
+            transaction,
+          );
+          return {
+            accessToken: await this.jwt(user.id, session.id, 'access'),
+            refreshToken,
+            user: userView(user),
+          };
+        });
+      } catch (error) {
+        if (
+          attempt === 0 &&
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        )
+          continue;
+        throw error;
+      }
+    }
+    throw new ConflictException();
   }
 
   async refresh(token?: string) {
@@ -153,21 +288,54 @@ export class AuthService {
       // All session mutations lock the user before locking or updating sessions.
       const user = await this.users.findByIdForUpdate(payload.sub, transaction);
       if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException();
-      const session = await this.sessions.findOwnedForUpdate(payload.sid, user.id, transaction);
+      const session = await this.sessions.findOwnedForUpdate(
+        payload.sid,
+        user.id,
+        transaction,
+      );
       if (!session) throw new UnauthorizedException();
-      const valid = session.refreshTokenHash === hashRefreshToken(token) &&
-        session.refreshVersion === payload.version && !session.revokedAt && session.expiresAt > new Date();
+      const valid =
+        session.refreshTokenHash === hashRefreshToken(token) &&
+        session.refreshVersion === payload.version &&
+        !session.revokedAt &&
+        session.expiresAt > new Date();
       if (!valid) {
-        if (!session.revokedAt && typeof payload.version === 'number' && session.refreshVersion > payload.version)
-          await this.sessions.revoke(session.id, user.id, 'TOKEN_REUSE', transaction);
+        if (
+          !session.revokedAt &&
+          typeof payload.version === 'number' &&
+          session.refreshVersion > payload.version
+        )
+          await this.sessions.revoke(
+            session.id,
+            user.id,
+            'TOKEN_REUSE',
+            transaction,
+          );
         // Commit replay revocation before the HTTP layer returns 401.
         return null;
       }
       const version = session.refreshVersion + 1;
-      const next = await this.jwt(user.id, session.id, 'refresh', version,
-        Math.max(1, Math.floor((session.expiresAt.getTime() - Date.now()) / 1000)) + 's');
-      await this.sessions.rotate(session.id, version, hashRefreshToken(next), transaction);
-      return { accessToken: await this.jwt(user.id, session.id, 'access'), refreshToken: next, user: userView(user) };
+      const next = await this.jwt(
+        user.id,
+        session.id,
+        'refresh',
+        version,
+        Math.max(
+          1,
+          Math.floor((session.expiresAt.getTime() - Date.now()) / 1000),
+        ) + 's',
+      );
+      await this.sessions.rotate(
+        session.id,
+        version,
+        hashRefreshToken(next),
+        transaction,
+      );
+      return {
+        accessToken: await this.jwt(user.id, session.id, 'access'),
+        refreshToken: next,
+        user: userView(user),
+      };
     });
     if (!result) throw new UnauthorizedException();
     return result;
@@ -196,21 +364,38 @@ export class AuthService {
     }
     await this.prisma.transaction(async (transaction) => {
       const user = await this.users.findByIdForUpdate(payload.sub, transaction);
-      if (user) await this.sessions.revoke(payload.sid, user.id, 'LOGOUT', transaction);
+      if (user)
+        await this.sessions.revoke(payload.sid, user.id, 'LOGOUT', transaction);
     });
   }
 
   async changePassword(actor: Actor, dto: ChangePasswordDto) {
     if (dto.newPassword !== dto.confirmPassword)
       throw new BadRequestException({
-        code: 'VALIDATION_FAILED', message: 'Invalid password data',
+        code: 'VALIDATION_FAILED',
+        message: 'Invalid password data',
         fieldErrors: { confirmPassword: ['Passwords must match'] },
       });
     await this.prisma.transaction(async (transaction) => {
-      const user = await this.users.findByIdForUpdate(actor.userId, transaction);
-      if (!user || user.status !== 'ACTIVE' || !(await bcrypt.compare(dto.currentPassword, user.passwordHash)))
-        throw new UnauthorizedException({ code: 'CURRENT_PASSWORD_INVALID', message: 'Current password is incorrect' });
-      await this.users.updatePassword(user.id, await bcrypt.hash(dto.newPassword, 6), transaction);
+      const user = await this.users.findByIdForUpdate(
+        actor.userId,
+        transaction,
+      );
+      if (
+        !user ||
+        user.status !== 'ACTIVE' ||
+        !user.passwordHash ||
+        !(await bcrypt.compare(dto.currentPassword, user.passwordHash))
+      )
+        throw new UnauthorizedException({
+          code: 'CURRENT_PASSWORD_INVALID',
+          message: 'Current password is incorrect',
+        });
+      await this.users.updatePassword(
+        user.id,
+        await bcrypt.hash(dto.newPassword, 6),
+        transaction,
+      );
       await this.passwordResetTokens.deleteUnusedForUser(user.id, transaction);
       await this.sessions.revokeAll(user.id, 'PASSWORD_CHANGED', transaction);
     });

@@ -106,7 +106,7 @@ Tài khoản bị khóa bị từ chối các thao tác yêu cầu xác thực, 
 
 ## 3. Yêu cầu chức năng
 
-Hiện tại repository gồm frontend React/Vite và backend NestJS monolith với AuthModule, Prisma ORM và PostgreSQL local qua Compose. `schema.prisma` là source of truth; cập nhật schema bằng `npm run db:push` chỉ trên DB local, không dùng Prisma Migrate hoặc Supabase PostgreSQL. Supabase Storage giữ file ảnh/video. Supabase Auth không thay AuthModule hiện có. Auth đã có đăng ký/login/refresh/logout/session/đổi mật khẩu/khôi phục mật khẩu và guard Customer/Admin; UI quên/đặt mật khẩu đã gọi API thật. Trang `/admin` kiểm tra role Admin ở client và endpoint ADMIN-only ở backend. Các module nghiệp vụ khác bên dưới là yêu cầu chưa triển khai. Không có gateway hoặc broker. Model Python/FastAPI là tích hợp AI tương lai, chưa có mã nguồn/container/database. Xem [Architecture](Folder-ARCHITECTURE.md).
+Hiện tại repository gồm frontend React/Vite và backend NestJS monolith với AuthModule, Prisma ORM và PostgreSQL local qua Compose. `schema.prisma` là source of truth; cập nhật schema bằng `npm run db:push` chỉ trên DB local, không dùng Prisma Migrate hoặc Supabase PostgreSQL. Supabase Storage giữ file ảnh/video. Supabase Auth không thay AuthModule hiện có. Auth có đăng ký, login email/mật khẩu, Google OAuth redirect, refresh/logout/session, đổi mật khẩu, khôi phục mật khẩu và guard Customer/Admin; Google callback cần cấu hình Client ID/Secret và redirect URI trong Google Console, chưa kiểm chứng provider thật. Trang `/admin` kiểm tra role Admin ở client và endpoint ADMIN-only ở backend. Các module nghiệp vụ khác bên dưới là yêu cầu chưa triển khai. Không có gateway hoặc broker. Model Python/FastAPI là tích hợp AI tương lai, chưa có mã nguồn/container/database. Xem [Architecture](Folder-ARCHITECTURE.md).
 
 Transaction nghiệp vụ có thể bao gồm nhiều module trong database chung. Checkout và lifecycle cập nhật đơn, giỏ, tồn và business event nguyên tử, rollback toàn bộ khi lỗi. Lời gọi provider ngoài transaction; ghi job email bền vững cùng nghiệp vụ rồi gửi sau commit. Không dùng Saga hoặc HTTP/Kafka giữa module.
 
@@ -121,6 +121,7 @@ Transaction nghiệp vụ có thể bao gồm nhiều module trong database chun
 | FR-AUTH-05 | Xem/sửa họ tên và điện thoại hồ sơ; email chỉ đọc; không đổi mật khẩu qua API sửa hồ sơ                                                      |
 | FR-AUTH-06 | Guest yêu cầu khôi phục mật khẩu bằng email; phản hồi không tiết lộ email có tài khoản hay không; gửi liên kết một lần có hạn dùng qua email |
 | FR-AUTH-07 | Customer đặt mật khẩu mới bằng token reset hợp lệ; token hết hạn/đã dùng bị từ chối; thành công thu hồi mọi phiên                            |
+| FR-AUTH-08 | Guest đăng nhập Google bằng OAuth redirect; backend đối chiếu state theo cookie và xác minh OIDC issuer/audience/email; tạo Customer mới với email/tên/avatar Google hoặc liên kết email trùng mà không ghi đè hồ sơ; tài khoản khóa bị từ chối |
 | FR-ADDR-01 | Customer xem/thêm/sửa/xóa địa chỉ của mình; frontend đọc danh mục tỉnh và xã từ JSON online và gửi tên dạng text |
 | FR-ADDR-02 | Quản lý tối đa một địa chỉ mặc định; địa chỉ đầu tiên mặc định; xóa mặc định thì chọn địa chỉ còn lại được tạo sớm nhất                      |
 | FR-ADDR-03 | Địa chỉ nhập tại checkout chỉ lưu vào sổ nếu khách chọn; mặc định không chọn; không tự sửa hồ sơ                                             |
@@ -679,6 +680,7 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | POST /auth/register                                                              | Tạo Customer                                                                                                     | Guest                                                   |
 | POST /auth/login                                                                 | Đăng nhập và thiết lập phiên                                                                                     | Guest                                                   |
+| GET /auth/google, /auth/google/callback                                         | Bắt đầu OAuth redirect và nhận authorization code; callback thiết lập phiên, đặt refresh cookie và redirect về frontend | Guest; Google OAuth callback                            |
 | POST /auth/refresh                                                               | Gia hạn phiên theo refresh token hợp lệ                                                                          | Chủ phiên                                               |
 | POST /auth/logout                                                                | Thu hồi phiên hiện tại                                                                                           | Chủ phiên; xử lý được phiên đã hết                      |
 | GET /auth/session                                                                | Lấy thông tin Customer/Admin của phiên hiện tại                                                                  | Chủ phiên                                               |
@@ -848,6 +850,7 @@ Không yêu cầu kiểm thử tải nhiều người. Các ca hai request đồ
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TC-01 | Đăng ký hợp lệ, email khác hoa/thường, thiếu trường, sai xác nhận                                                                                          | Chỉ tạo một Customer/email; không gửi email xác minh; chuyển đăng nhập; lỗi không tạo user dở dang                                                                                                       |
 | TC-02 | Đăng nhập đúng/sai/khóa trên hai trình duyệt                                                                                                               | Đúng tạo hai phiên độc lập; sai lỗi chung; khóa không đăng nhập được                                                                                                                                     |
+| TC-56 | Google OAuth thành công/từ chối, state không khớp cookie, token/email chưa xác minh, email trùng/đã liên kết, tài khoản khóa và returnTo ngoài site | Chỉ token Google hợp lệ mới tạo phiên; tạo Customer mới với avatar Google; nối đúng email nhưng không ghi đè avatar/hồ sơ hiện có; giữ nguyên role; tài khoản khóa bị từ chối; callback lỗi về login; chỉ điều hướng tới đường dẫn nội bộ an toàn; URL không chứa token |
 | TC-03 | Logout một phiên, phiên hết hạn, token cũ của Customer bị khóa                                                                                             | Phiên khác còn khi chỉ logout; không lộ cache/giỏ tài khoản; tài khoản khóa bị từ chối                                                                                                                   |
 | TC-04 | Đổi mật khẩu sai/đúng; dùng lại các phiên cũ                                                                                                               | Sai không đổi; đúng thu hồi mọi phiên, mật khẩu cũ không dùng được                                                                                                                                       |
 | TC-05 | Sửa tên/điện thoại rồi gửi thêm email/role hoặc user ID khác                                                                                               | Chỉ trường được phép thay đổi; không sửa email/quyền hoặc dữ liệu người khác                                                                                                                             |
@@ -913,6 +916,7 @@ Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, 
 | BREQ-01          | FR-AUTH-03               | UC-03                             | TC-03                             |
 | BREQ-01          | FR-AUTH-04               | UC-04                             | TC-04                             |
 | BREQ-01          | FR-AUTH-05               | UC-05                             | TC-05                             |
+| BREQ-01          | FR-AUTH-08               | UC-02                             | TC-56                            |
 | BREQ-11          | FR-AUTH-06, FR-AUTH-07   | UC-04A, UC-04B                    | TC-49                             |
 | BREQ-11          | FR-EMAIL-01, FR-EMAIL-02 | UC-14B                            | TC-50                             |
 | BREQ-12          | FR-NOTIF-01              | UC-14C                            | TC-55                             |
@@ -1007,7 +1011,7 @@ Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, 
 
 ### 10.1. Giới hạn đã thống nhất
 
-- Không wishlist, xác minh email, đổi email, SMS, social login hoặc Keycloak. Email khôi phục mật khẩu và thông báo đơn hàng thuộc phạm vi.
+- Không wishlist, xác minh email, đổi email, SMS hoặc Keycloak. Google OAuth đăng nhập thuộc phạm vi; các provider social khác không thuộc phạm vi. Email khôi phục mật khẩu và thông báo đơn hàng thuộc phạm vi.
 - Không bảng/quản trị Color, Size, SizeGroup hoặc EAV tổng quát; cấu hình lựa chọn SKU nằm trong form Product, không phụ thuộc Category, giá trị nằm tại SKU. Thông số chung được viết trong mô tả Product; không có trường Attributes riêng. Khách chọn options có sẵn, không tự gõ khi mua. Chưa lọc khoảng số trên lựa chọn SKU hoặc tự chuyển đổi đơn vị.
 - Không voucher, đánh giá, cổng thanh toán ngoài payOS, hoàn tiền, đối soát COD, hãng/mã vận đơn, giao một phần, đổi trả sau nhận hàng, hàng hỏng hoặc mua lại. Đơn payOS đã thanh toán không được hủy trong phạm vi này.
 - Không sửa đơn trực tiếp, không yêu cầu hủy sau xác nhận từ Customer, không giới hạn số đơn chờ.
@@ -1056,6 +1060,7 @@ Nếu yêu cầu mới thay đổi quyền, thời hạn, tồn, tiền, event h
 | --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | 2.3       | 27/10/2026 | Đồng bộ env và Docker hiện hành; chỉ giữ yêu cầu/contract của backend monolith và Supabase, bỏ lịch sử cấu hình đã được thay thế |
 | 2.4 | 29/10/2026 | Đồng bộ Prisma repositories/Migrate; mật khẩu mới tối thiểu 6 ký tự, giữ bcrypt và bỏ kiểm tra giới hạn 72 byte |
+| 2.6 | 02/11/2026 | Bổ sung Google OAuth redirect login, callback backend/frontend, liên kết tài khoản theo email đã xác minh và TC-56; lưu avatar Google khi tạo user mới |
 | 2.5 | 29/10/2026 | Bỏ API tra cứu ảnh riêng; đồng bộ hợp đồng upload và TC-54 để thử lại POST cùng key/file khi chưa rõ kết quả |
 | 2.6 | 30/10/2026 | Bổ sung trạng thái API Category đã triển khai và bỏ yêu cầu xử lý cạnh tranh cây danh mục trong TC-27 |
 | 2.7 | 01/11/2026 | Bỏ Attributes riêng của Product; thông tin chung dùng mô tả, Category chỉ phân loại. |

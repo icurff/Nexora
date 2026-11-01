@@ -13,6 +13,7 @@ import { UserAddressRepository } from './repositories/user-address.repository.js
 import { UserAddressController } from './user-address.controller.js';
 import { CustomerManagementController } from './customer-management.controller.js';
 import { CustomerManagementService } from './services/customer-management.service.js';
+import { GoogleOAuthService } from './services/google-oauth.service.js';
 
 @Module({
   imports: [NotificationModule],
@@ -23,6 +24,7 @@ import { CustomerManagementService } from './services/customer-management.servic
   ],
   providers: [
     AuthService,
+    GoogleOAuthService,
     PasswordResetService,
     PasswordResetTokenRepository,
     UserAddressService,
