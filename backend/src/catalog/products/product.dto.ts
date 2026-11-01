@@ -30,6 +30,12 @@ export class VariantInputDto {
   @Min(1)
   @Max(Number.MAX_SAFE_INTEGER)
   priceVnd!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(2_147_483_647)
+  onHand?: number;
 }
 
 export class ProductOptionDto {
@@ -95,13 +101,24 @@ export class CreateProductDto {
   @IsNotEmpty()
   categoryId!: string;
 
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
+  priceVnd?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(2_147_483_647)
+  onHand?: number;
+
   @IsDefined()
   @ValidateNested()
   @Type(() => ProductOptionConfigDto)
   optionConfig!: ProductOptionConfigDto;
 
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => VariantInputDto)
   variants!: VariantInputDto[];
@@ -135,8 +152,21 @@ export class UpdateProductDto {
   categoryId?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
+  priceVnd?: number;
+
+  @IsOptional()
   @IsIn(['ACTIVE', 'INACTIVE'])
   status?: 'ACTIVE' | 'INACTIVE';
+}
+
+export class SetProductStockDto {
+  @IsInt()
+  @Min(0)
+  @Max(2_147_483_647)
+  onHand!: number;
 }
 
 export class UpdateVariantDto {

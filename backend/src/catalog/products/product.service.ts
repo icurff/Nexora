@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+﻿import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService, type TransactionClient } from '../../database/prisma.service.js';
@@ -7,10 +7,12 @@ import { ProductRepository } from './product.repository.js';
 
 const include = {
   category: { select: { id: true, name: true, parentId: true } },
+  inventory: true,
   variants: { where: { deletedAt: null }, orderBy: { id: 'asc' as const }, include: { inventory: true } },
   images: { orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }], include: { imageAsset: true } },
 } satisfies Prisma.ProductInclude;
 type ProductDetails = Prisma.ProductGetPayload<{ include: typeof include }>;
+type CartVariantRow = NonNullable<Awaited<ReturnType<ProductRepository['cartVariant']>>>;
 
 function storedOptionConfig(config: ProductOptionConfigDto): Prisma.InputJsonObject {
   return {
@@ -47,6 +49,8 @@ function response(product: ProductDetails) {
     id: product.id.toString(), name: product.name, description: product.description,
     category: { id: product.category.id.toString(), name: product.category.name },
     categoryId: product.categoryId.toString(), status: product.status,
+    priceVnd: product.priceVnd?.toString() ?? null,
+    onHand: product.inventory?.onHand ?? 0,
     optionConfig: optionConfigResponse(product.optionConfig),
     createdAt: product.createdAt.toISOString(), updatedAt: product.updatedAt.toISOString(),
     variants: product.variants.map(v => ({ id: v.id.toString(), sku: v.sku, options: v.options, priceVnd: v.priceVnd.toString() })),
@@ -57,6 +61,201 @@ function response(product: ProductDetails) {
 @Injectable()
 export class ProductService {
   constructor(private readonly repository: ProductRepository, private readonly prisma: PrismaService) {}
+
+  async cartVariant(id: string) {
+    if (!/^[1-9]\d*$/.test(id)) return null;
+    const variant = await this.repository.cartVariant(BigInt(id));
+    if (!variant) return null;
+    return this.mapCartVariant(variant);
+  }
+
+  async cartProduct(id: string) {
+    if (!/^[1-9]\d*$/.test(id)) return null;
+    const product = await this.repository.cartProduct(BigInt(id));
+    if (!product) return null;
+    const image = product.images
+      .filter((row) => row.imageAsset.contentType.startsWith('image/'))
+      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.sortOrder - b.sortOrder)[0];
+    return {
+      id: product.id.toString(), name: product.name, status: product.status,
+      priceVnd: product.priceVnd?.toString() ?? null,
+      hasSkus: product.variants.length > 0,
+      available: Math.max(0, (product.inventory?.onHand ?? 0) - (product.inventory?.reserved ?? 0)),
+      category: { id: product.category.id.toString(), name: product.category.name },
+      image: image ? { url: image.imageAsset.publicUrl, altText: image.altText } : null,
+    };
+  }
+
+  async cartProducts(ids: string[]) {
+    const products = await Promise.all(ids.map((id) => this.cartProduct(id)));
+    return products.filter((product) => product !== null);
+  }
+
+  private mapCartVariant(variant: CartVariantRow) {
+    const images = [...variant.images, ...variant.product.images]
+      .filter((image) => image.imageAsset.contentType.startsWith('image/'))
+      .map((image) => ({
+        url: image.imageAsset.publicUrl,
+        altText: image.altText,
+        isPrimary: image.isPrimary,
+        variantSpecific: image.variantId === variant.id,
+        sortOrder: image.sortOrder,
+      }));
+    return {
+      id: variant.id.toString(),
+      sku: variant.sku,
+      options: variant.options as Record<string, string>,
+      optionLabels: Object.fromEntries(
+        optionConfigResponse(variant.product.optionConfig).options.map(
+          (option) => [option.code, option.label],
+        ),
+      ),
+      priceVnd: variant.priceVnd.toString(),
+      deleted: Boolean(variant.deletedAt),
+      available: Math.max(
+        0,
+        (variant.inventory?.onHand ?? 0) - (variant.inventory?.reserved ?? 0),
+      ),
+      product: {
+        id: variant.product.id.toString(),
+        name: variant.product.name,
+        status: variant.product.status,
+        category: {
+          id: variant.product.category.id.toString(),
+          name: variant.product.category.name,
+        },
+      },
+      image:
+        images.find((image) => image.variantSpecific && image.isPrimary) ??
+        images.find((image) => image.variantSpecific) ??
+        images.find((image) => !image.variantSpecific && image.isPrimary) ??
+        images.find((image) => !image.variantSpecific) ??
+        null,
+    };
+  }
+
+  async cartVariants(ids: string[]) {
+    const validIds = ids
+      .filter((id) => /^[1-9]\d*$/.test(id))
+      .map((id) => BigInt(id));
+    if (!validIds.length) return [];
+    const rows = await this.repository.cartVariants(validIds);
+    return rows.map((row) => this.mapCartVariant(row));
+  }
+
+  async publicList(page = 1, pageSize = 20) {
+    const [products, total] = await Promise.all([
+      this.repository.publicList((page - 1) * pageSize, pageSize),
+      this.repository.publicCount(),
+    ]);
+    return {
+      items: products.map((product) => {
+        const sellable = product.variants.filter(
+          (variant) => !variant.deletedAt,
+        );
+        const priceVnd = sellable.reduce<bigint | null>(
+          (lowest, variant) =>
+            lowest === null || variant.priceVnd < lowest
+              ? variant.priceVnd
+              : lowest,
+          null,
+        );
+        const images = product.images.map((image) => ({
+          id: image.id.toString(),
+          variantId: image.variantId?.toString() ?? null,
+          altText: image.altText,
+          sortOrder: image.sortOrder,
+          isPrimary: image.isPrimary,
+          contentType: image.imageAsset.contentType,
+          url: image.imageAsset.publicUrl,
+        }));
+        return {
+          id: product.id.toString(),
+          name: product.name,
+          description: product.description,
+          category: {
+            id: product.category.id.toString(),
+            name: product.category.name,
+          },
+          priceVnd: (priceVnd ?? product.priceVnd)?.toString() ?? null,
+          available: sellable.length ? sellable.reduce(
+            (sum, variant) =>
+              sum +
+              Math.max(
+                0,
+                (variant.inventory?.onHand ?? 0) -
+                  (variant.inventory?.reserved ?? 0),
+              ),
+            0,
+          ) : Math.max(0, (product.inventory?.onHand ?? 0) - (product.inventory?.reserved ?? 0)),
+          image:
+            images.find(
+              (image) => image.isPrimary && image.variantId === null,
+            ) ??
+            images.find((image) => image.variantId === null) ??
+            images.find((image) => image.contentType.startsWith('image/')) ??
+            null,
+        };
+      }),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  async publicGet(id: string) {
+    if (!/^[1-9]\d*$/.test(id))
+      throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND' });
+    const product = await this.repository.byId(BigInt(id));
+    if (!product || product.status !== 'ACTIVE')
+      throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND' });
+    return {
+      id: product.id.toString(),
+      name: product.name,
+      description: product.description,
+      category: {
+        id: product.category.id.toString(),
+        name: product.category.name,
+      },
+      optionConfig: optionConfigResponse(product.optionConfig),
+      priceVnd: product.priceVnd?.toString() ?? null,
+      available: Math.max(0, (product.inventory?.onHand ?? 0) - (product.inventory?.reserved ?? 0)),
+      variants: product.variants
+        .filter((variant) => !variant.deletedAt)
+        .map((variant) => ({
+          id: variant.id.toString(),
+          sku: variant.sku,
+          options: variant.options,
+          priceVnd: variant.priceVnd.toString(),
+          available: Math.max(
+            0,
+            (variant.inventory?.onHand ?? 0) -
+              (variant.inventory?.reserved ?? 0),
+          ),
+          images: product.images
+            .filter((image) => image.variantId === variant.id)
+            .map((image) => ({
+              id: image.id.toString(),
+              altText: image.altText,
+              sortOrder: image.sortOrder,
+              isPrimary: image.isPrimary,
+              contentType: image.imageAsset.contentType,
+              url: image.imageAsset.publicUrl,
+            })),
+        })),
+      images: product.images
+        .filter((image) => image.variantId === null)
+        .map((image) => ({
+          id: image.id.toString(),
+          altText: image.altText,
+          sortOrder: image.sortOrder,
+          isPrimary: image.isPrimary,
+          contentType: image.imageAsset.contentType,
+          url: image.imageAsset.publicUrl,
+        })),
+    };
+  }
 
   async list(query: ProductListQueryDto) {
     const where: Prisma.ProductWhereInput = {};
@@ -81,9 +280,11 @@ export class ProductService {
 
   async create(input: CreateProductDto) {
     return this.prisma.transaction(async tx => {
+      if (!input.variants.length && (!input.priceVnd || input.priceVnd <= 0)) throw new BadRequestException({ code: 'PRODUCT_NEEDS_PRICE' });
+      if (input.variants.length && input.onHand !== undefined) throw new BadRequestException({ code: 'PRODUCT_STOCK_REQUIRES_NO_SKU' });
       const category = await this.assertCategory(parseId(input.categoryId, 'INVALID_CATEGORY_ID'), tx);
       this.assertVariantSet(input.variants, storedOptionConfig(input.optionConfig)); const mediaTypes = await this.assertAssetsExist(input.images, tx); this.assertPrimaryImage(input.images, mediaTypes);
-      const product = await tx.product.create({ data: { name: input.name, nameKey: normalized(input.name), description: input.description, categoryId: category.id, status: 'ACTIVE', optionConfig: storedOptionConfig(input.optionConfig) } });
+      const product = await tx.product.create({ data: { name: input.name, nameKey: normalized(input.name), description: input.description, categoryId: category.id, status: 'ACTIVE', optionConfig: storedOptionConfig(input.optionConfig), priceVnd: input.priceVnd === undefined ? null : BigInt(input.priceVnd), ...(!input.variants.length ? { inventory: { create: { onHand: input.onHand ?? 0 } } } : {}) } });
       for (const variant of input.variants) await this.createVariant(product.id, variant, tx);
       await this.createImageLinks(product.id, input.images, tx);
       return response(await tx.product.findUniqueOrThrow({ where: { id: product.id }, include }));
@@ -98,10 +299,11 @@ export class ProductService {
       if (!current) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND' });
       const categoryId = input.categoryId ? parseId(input.categoryId, 'INVALID_CATEGORY_ID') : current.categoryId;
       if (categoryId !== current.categoryId) await this.assertCategory(categoryId, tx);
-      if (input.status === 'ACTIVE') this.assertSellable(current.variants, current.images);
+      if (input.status === 'ACTIVE') this.assertSellable(current.images);
+      if (!current.variants.length && input.priceVnd === undefined && current.priceVnd === null) throw new BadRequestException({ code: 'PRODUCT_NEEDS_PRICE' });
       return response(await tx.product.update({ where: { id: productId }, data: {
         ...(input.name !== undefined ? { name: input.name, nameKey: normalized(input.name) } : {}),
-        ...(input.description !== undefined ? { description: input.description } : {}), ...(input.categoryId ? { categoryId } : {}), ...(input.status ? { status: input.status } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}), ...(input.categoryId ? { categoryId } : {}), ...(input.status ? { status: input.status } : {}), ...(input.priceVnd !== undefined ? { priceVnd: BigInt(input.priceVnd) } : {}),
       }, include }));
     });
   }
@@ -110,8 +312,22 @@ export class ProductService {
     return this.prisma.transaction(async tx => {
       const id = parseId(productId, 'INVALID_PRODUCT_ID'); await tx.$queryRaw`SELECT id FROM products WHERE id = ${id} FOR UPDATE`;
       const product = await tx.product.findUnique({ where: { id }, include }); if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND' });
+      if (!product.variants.length && (product.inventory?.onHand ?? 0) > 0) throw new ConflictException({ code: 'PRODUCT_STOCK_MUST_BE_ZERO_BEFORE_ADDING_SKU' });
       this.assertVariantSet([...product.variants.map(v => ({ options: v.options as Record<string, string> })), input], product.optionConfig);
       await this.createVariant(product.id, input, tx); return response(await tx.product.findUniqueOrThrow({ where: { id }, include }));
+    });
+  }
+
+  async setProductStock(idValue: string, onHand: number) {
+    const id = parseId(idValue, 'INVALID_PRODUCT_ID');
+    return this.prisma.transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM products WHERE id = ${id} FOR UPDATE`;
+      const product = await tx.product.findUnique({ where: { id }, include: { variants: { where: { deletedAt: null } }, inventory: true } });
+      if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND' });
+      if (product.variants.length) throw new ConflictException({ code: 'PRODUCT_HAS_SKUS' });
+      if (onHand < (product.inventory?.reserved ?? 0)) throw new ConflictException({ code: 'STOCK_BELOW_RESERVED' });
+      await tx.productInventory.upsert({ where: { productId: id }, create: { productId: id, onHand }, update: { onHand, version: { increment: 1n } } });
+      return response(await tx.product.findUniqueOrThrow({ where: { id }, include }));
     });
   }
 
@@ -138,8 +354,6 @@ export class ProductService {
       const stock = await this.repository.lockInventory(variantId, tx);
       if (stock?.reserved) throw new ConflictException({ code: 'SKU_HAS_RESERVED_STOCK' });
       if (stock?.onHand) throw new ConflictException({ code: 'SKU_HAS_ON_HAND_STOCK' });
-      const [count, product] = await Promise.all([tx.productVariant.count({ where: { productId: v.productId, deletedAt: null } }), tx.product.findUnique({ where: { id: v.productId } })]);
-      if (product?.status === 'ACTIVE' && count <= 1) throw new ConflictException({ code: 'PRODUCT_NEEDS_SKU' });
       await tx.productImage.updateMany({ where: { variantId }, data: { variantId: null } });
       await tx.productVariant.update({ where: { id: variantId }, data: { deletedAt: new Date() } }); return { deleted: true };
     });
@@ -206,8 +420,7 @@ export class ProductService {
     }
   }
 
-  private assertSellable(variants: ProductDetails['variants'], images: ProductDetails['images']) {
-    if (!variants.length) throw new BadRequestException({ code: 'PRODUCT_NEEDS_SKU' });
+  private assertSellable(images: ProductDetails['images']) {
     if (!images.length || !images.some(image => image.isPrimary && image.imageAsset.contentType.startsWith('image/'))) throw new BadRequestException({ code: 'PRODUCT_NEEDS_IMAGE' });
   }
   private async assertAssetsExist(images: ProductImageInputDto[], tx: TransactionClient) {
@@ -217,7 +430,7 @@ export class ProductService {
   }
   private assertPrimaryImage(images: ProductImageInputDto[], mediaTypes: Map<string, string>) { if (images.filter(i => i.isPrimary).length !== 1 || images.some(image => image.isPrimary && (image.variantId || !mediaTypes.get(image.imageAssetId)?.startsWith('image/')))) throw new BadRequestException({ code: 'PRODUCT_NEEDS_PRIMARY_IMAGE' }); }
   private async createVariant(productId: bigint, input: VariantInputDto, tx: TransactionClient) {
-    const v = await tx.productVariant.create({ data: { productId, sku: `NEW-${randomUUID()}`, options: input.options, priceVnd: BigInt(input.priceVnd), inventory: { create: { onHand: 0, reserved: 0 } } } });
+    const v = await tx.productVariant.create({ data: { productId, sku: `NEW-${randomUUID()}`, options: input.options, priceVnd: BigInt(input.priceVnd), inventory: { create: { onHand: input.onHand ?? 0, reserved: 0 } } } });
     await tx.productVariant.update({ where: { id: v.id }, data: { sku: `SKU-${v.id.toString().padStart(10, '0')}` } });
   }
   private async createImageLinks(productId: bigint, images: ProductImageInputDto[], tx: TransactionClient) {

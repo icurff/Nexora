@@ -1,24 +1,25 @@
 import { useState } from 'react';
-import {
-  Heart,
-  Menu,
-  Search,
-  ShoppingCart,
-  UserRound,
-  X,
-} from 'lucide-react';
+import { Heart, Menu, Search, ShoppingCart, UserRound, X } from 'lucide-react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useDemoCommerceStore } from '../context/demo-commerce-store';
 import type { ReactNode } from 'react';
 import { BrandLogo } from '../components/BrandLogo';
+import { useCart } from '../features/cart/hooks/useCart';
+import { useAuth } from '../features/auth/hooks/useAuth';
 
 export function StoreHeader() {
   const [search, setSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
-  const cartCount = useDemoCommerceStore((state) =>
-    state.cart.reduce((sum, item) => sum + item.quantity, 0),
-  );
+  const { user } = useAuth();
+  const cartQuery = useCart();
+  const cartCount =
+    user?.role === 'CUSTOMER'
+      ? (cartQuery.data?.items ?? []).reduce(
+          (sum, item) => sum + item.quantity,
+          0,
+        )
+      : 0;
   const wishlistCount = useDemoCommerceStore((state) => state.wishlist.length);
   function submitSearch(event: React.FormEvent) {
     event.preventDefault();

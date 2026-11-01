@@ -1,4 +1,4 @@
-# AI Agent Guide - Nexora
+﻿# AI Agent Guide - Nexora
 
 Read this file when starting work in this repository. Development rules are
 included below so Codex discovers them with the project instructions. Project
@@ -34,11 +34,11 @@ Last reviewed: 2026-11-01. Verify and update this table as the code evolves.
 
 | Component      | Status                                                                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `frontend`     | React/Vite/TypeScript; Auth, Admin Category, Product/SKU and per-SKU inventory management use backend APIs; public catalog/cart/checkout/orders still use local fixture data; `/admin` requires an authenticated Admin and checks backend authorization |
-| `backend`      | One NestJS modular monolith; AuthModule and CatalogModule Category/Product/SKU/inventory APIs plus Supabase Storage upload adapter, session-backed guards, Gmail SMTP reset email; inventory PostgreSQL concurrency and browser end-to-end remain unverified |
+| `frontend`     | React/Vite/TypeScript; Auth, Admin Category/Product/SKU/inventory, public product listing/detail and Customer cart use backend APIs; checkout/orders remain unavailable/demo; `/admin` requires an authenticated Admin and checks backend authorization |
+| `backend`      | One NestJS modular monolith; AuthModule, CatalogModule public/admin Product/SKU/inventory APIs and OrderModule account-cart APIs; Supabase Storage upload adapter and Gmail SMTP reset email; cart concurrency and browser end-to-end remain unverified |
 | Database       | Prisma ORM/schema with PostgreSQL 17 in local Docker Compose; sync local schema explicitly with `npm run db:push`; no Prisma Migrate workflow |
 | Docker         | Compose runs frontend/backend/PostgreSQL with a named local database volume; Supabase Storage remains external; no healthcheck                   |
-| Other modules  | Order, Payment, Tracking and rule-based Recommendation are planned inside backend; browser upload remains server-authorized; Notification currently only sends password reset email directly, without email jobs/workers |
+| Other modules  | OrderModule currently supports account carts only; order placement, Payment, Tracking and rule-based Recommendation remain planned; browser upload remains server-authorized; Notification sends password reset email directly without email jobs/workers |
 | AI model       | Python/FastAPI integration is deferred; no application/container/database exists                                                            |
 | Infrastructure | No Gateway, Saga, Kafka, Redis or Elasticsearch dependency in the current architecture                                                      |
 | CI             | GitHub Actions verifies and Docker-builds backend/frontend on pushes and pull requests to main                                              |
@@ -53,8 +53,12 @@ Product specifications belong in the product description; do not add a separate
 Product Attributes field. Each Product defines its own SKU option codes and labels,
 such as color and size; Category only classifies Products. SKU options distinguish
 prices and stock. The Product plan has only ACTIVE and INACTIVE. Admin creation
-must atomically persist a complete ACTIVE Product with valid content, SKU(s),
-initial inventory set to zero and links to image assets whose upload succeeded.
+must atomically persist a complete ACTIVE Product with valid content and links to
+image assets whose upload succeeded. SKU(s) are optional at creation; a Product
+without SKUs uses its Product-level price and inventory and remains purchasable.
+Products with SKUs use each SKU's price and inventory.
+Admin can enter initial stock while creating a no-SKU Product or for each new
+SKU; omitted initial stock defaults to zero.
 Admin manages stock through Catalog's per-SKU inventory page/API. Every color/size
 combination has its own inventory row. Do not add an image READY state, a DRAFT
 state, or a save-draft workflow.

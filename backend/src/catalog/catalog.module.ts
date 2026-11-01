@@ -3,7 +3,10 @@ import { AuthModule } from '../auth/auth.module.js';
 import { CategoryController } from './categories/category.controller.js';
 import { CategoryRepository } from './categories/category.repository.js';
 import { CategoryService } from './categories/category.service.js';
-import { ProductController } from './products/product.controller.js';
+import {
+  ProductController,
+  PublicProductController,
+} from './products/product.controller.js';
 import { ProductRepository } from './products/product.repository.js';
 import { ProductService } from './products/product.service.js';
 import { ImageUploadService } from './images/image-upload.service.js';
@@ -14,7 +17,12 @@ import { InventoryService } from './inventory/inventory.service.js';
 
 @Module({
   imports: [AuthModule],
-  controllers: [CategoryController, ProductController, InventoryController],
+  controllers: [
+    CategoryController,
+    ProductController,
+    PublicProductController,
+    InventoryController,
+  ],
   providers: [
     CategoryService,
     CategoryRepository,
@@ -25,5 +33,6 @@ import { InventoryService } from './inventory/inventory.service.js';
     InventoryService,
     InventoryRepository,
   ],
+  exports: [ProductService],
 })
 export class CatalogModule {}

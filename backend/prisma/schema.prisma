@@ -26,6 +26,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   uploadedImageAssets ImageAsset[]
   inventoryAdjustments InventoryAdjustmentRequest[]
+  cart                Cart?
   inventoryLedgerEntries InventoryLedger[]
 
   @@map("users")
@@ -87,15 +88,29 @@ model Product {
   categoryId  BigInt          @map("category_id")
   status      String          @default("ACTIVE") @db.VarChar(16)
   optionConfig Json           @default("{}") @map("option_config")
+    priceVnd    BigInt?         @map("price_vnd")
   createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   category    Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   variants    ProductVariant[]
   images      ProductImage[]
+    inventory   ProductInventory?
+    cartItems   CartItem[]
 
   @@index([categoryId, status, createdAt(sort: Desc)], map: "products_category_status_created_idx")
   @@index([status, createdAt(sort: Desc)], map: "products_status_created_idx")
   @@map("products")
+}
+
+model ProductInventory {
+  productId BigInt   @id @map("product_id")
+  onHand    Int      @default(0) @map("on_hand")
+  reserved  Int      @default(0)
+  version   BigInt   @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("product_inventory")
 }
 
 model ProductVariant {
@@ -110,6 +125,7 @@ model ProductVariant {
   product   Product         @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   inventory Inventory?
   images    ProductImage[]
+  cartItems CartItem[]
 
   @@index([productId, deletedAt], map: "product_variants_product_deleted_idx")
   @@map("product_variants")
@@ -190,4 +206,33 @@ model ProductImage {
   @@unique([productId, imageAssetId], map: "product_images_product_asset_key")
   @@index([productId, sortOrder], map: "product_images_product_sort_idx")
   @@map("product_images")
+}
+
+model Cart {
+  id        BigInt     @id @default(autoincrement())
+  userId    BigInt     @unique(map: "carts_user_id_key") @map("user_id")
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  items     CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        BigInt         @id @default(autoincrement())
+  cartId    BigInt         @map("cart_id")
+    variantId BigInt?        @map("variant_id")
+    productId BigInt?        @map("product_id")
+  quantity  Int
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+    variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+    product   Product?       @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([cartId, variantId], map: "cart_items_cart_variant_key")
+    @@unique([cartId, productId], map: "cart_items_cart_product_key")
+  @@index([variantId], map: "cart_items_variant_idx")
+  @@map("cart_items")
 }
