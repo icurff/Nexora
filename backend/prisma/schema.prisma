@@ -11,30 +11,32 @@ datasource db {
 }
 
 model User {
-  id                  BigInt               @id @default(autoincrement())
-  email               String               @unique @db.VarChar(254)
-  passwordHash        String?              @map("password_hash") @db.VarChar(255)
-  googleSubject       String?              @unique(map: "users_google_subject_key") @map("google_subject") @db.VarChar(255)
-  avatarUrl           String?              @map("avatar_url") @db.VarChar(2048)
-  fullName            String               @map("full_name") @db.VarChar(100)
-  phone               String?              @db.VarChar(16)
-  role                String               @default("CUSTOMER") @db.VarChar(16)
-  status              String               @default("ACTIVE") @db.VarChar(16)
-  lockedAt            DateTime?            @map("locked_at") @db.Timestamptz(6)
-  lockReason          String?              @map("lock_reason") @db.VarChar(500)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
-  sessions            AuthSession[]
-  passwordResetTokens PasswordResetToken[]
-  uploadedImageAssets ImageAsset[]
+  id                   BigInt                       @id @default(autoincrement())
+  email                String                       @unique @db.VarChar(254)
+  passwordHash         String?                      @map("password_hash") @db.VarChar(255)
+  googleSubject        String?                      @unique(map: "users_google_subject_key") @map("google_subject") @db.VarChar(255)
+  avatarUrl            String?                      @map("avatar_url") @db.VarChar(2048)
+  fullName             String                       @map("full_name") @db.VarChar(100)
+  phone                String?                      @db.VarChar(16)
+  role                 String                       @default("CUSTOMER") @db.VarChar(16)
+  status               String                       @default("ACTIVE") @db.VarChar(16)
+  lockedAt             DateTime?                    @map("locked_at") @db.Timestamptz(6)
+  lockReason           String?                      @map("lock_reason") @db.VarChar(500)
+  createdAt            DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  sessions             AuthSession[]
+  passwordResetTokens  PasswordResetToken[]
+  uploadedImageAssets  ImageAsset[]
   inventoryAdjustments InventoryAdjustmentRequest[]
   orderRequests        OrderIdempotencyRequest[]
   orders               Order[]
   orderStatusChanges   OrderStatusHistory[]
-  cart                Cart?
-  addresses           UserAddress[]
-  notifications       UserNotification[]
-  emailOutbox         EmailOutbox[]
+  cart                 Cart?
+  addresses            UserAddress[]
+  notifications        UserNotification[]
+  emailOutbox          EmailOutbox[]
+  trackingSessions     TrackingSession[]
+  interactionEvents    InteractionEvent[]
 
   @@map("users")
 }
@@ -87,40 +89,41 @@ model PasswordResetToken {
 }
 
 model Category {
-  id              BigInt     @id @default(autoincrement())
-  name            String     @db.VarChar(100)
-  nameKey         String     @unique(map: "categories_name_key_key") @default("") @map("name_key")
-  slug            String     @unique(map: "categories_slug_key") @db.VarChar(150)
-  parentId        BigInt?    @map("parent_id")
-  legacyOptionConfig Json     @default("{}") @map("option_config")
-  isActive        Boolean    @default(true) @map("is_active")
-  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  parent          Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  children        Category[] @relation("CategoryTree")
-  products        Product[]
+  id                 BigInt     @id @default(autoincrement())
+  name               String     @db.VarChar(100)
+  nameKey            String     @unique(map: "categories_name_key_key") @default("") @map("name_key")
+  slug               String     @unique(map: "categories_slug_key") @db.VarChar(150)
+  parentId           BigInt?    @map("parent_id")
+  legacyOptionConfig Json       @default("{}") @map("option_config")
+  isActive           Boolean    @default(true) @map("is_active")
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  parent             Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  children           Category[] @relation("CategoryTree")
+  products           Product[]
 
   @@index([parentId, isActive], map: "categories_parent_active_idx")
   @@map("categories")
 }
 
 model Product {
-  id          BigInt          @id @default(autoincrement())
-  name        String          @db.VarChar(200)
-  nameKey     String          @map("name_key") @db.VarChar(200)
-  description String          @db.Text
-  categoryId  BigInt          @map("category_id")
-  status      String          @default("ACTIVE") @db.VarChar(16)
-  optionConfig Json           @default("{}") @map("option_config")
-    priceVnd    BigInt?         @map("price_vnd")
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  category    Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  variants    ProductVariant[]
-  images      ProductImage[]
-    inventory   ProductInventory?
-    cartItems   CartItem[]
-  orderItems  OrderItem[]
+  id                BigInt             @id @default(autoincrement())
+  name              String             @db.VarChar(200)
+  nameKey           String             @map("name_key") @db.VarChar(200)
+  description       String             @db.Text
+  categoryId        BigInt             @map("category_id")
+  status            String             @default("ACTIVE") @db.VarChar(16)
+  optionConfig      Json               @default("{}") @map("option_config")
+  priceVnd          BigInt?            @map("price_vnd")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category          Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  variants          ProductVariant[]
+  images            ProductImage[]
+  inventory         ProductInventory?
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  interactionEvents InteractionEvent[]
 
   @@index([categoryId, status, createdAt(sort: Desc)], map: "products_category_status_created_idx")
   @@index([status, createdAt(sort: Desc)], map: "products_status_created_idx")
@@ -139,18 +142,18 @@ model ProductInventory {
 }
 
 model ProductVariant {
-  id        BigInt          @id @default(autoincrement())
-  productId BigInt          @map("product_id")
-  sku       String          @unique @db.VarChar(40)
-  options   Json            @default("{}")
-  priceVnd  BigInt          @map("price_vnd")
-  deletedAt DateTime?       @map("deleted_at") @db.Timestamptz(6)
-  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  product   Product         @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  inventory Inventory?
-  images    ProductImage[]
-  cartItems CartItem[]
+  id         BigInt         @id @default(autoincrement())
+  productId  BigInt         @map("product_id")
+  sku        String         @unique @db.VarChar(40)
+  options    Json           @default("{}")
+  priceVnd   BigInt         @map("price_vnd")
+  deletedAt  DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product    Product        @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  inventory  Inventory?
+  images     ProductImage[]
+  cartItems  CartItem[]
   orderItems OrderItem[]
 
   @@index([productId, deletedAt], map: "product_variants_product_deleted_idx")
@@ -182,33 +185,33 @@ model InventoryAdjustmentRequest {
 }
 
 model ImageAsset {
-  id              BigInt         @id @default(autoincrement())
-  uploadedById    BigInt         @map("uploaded_by_id")
-  bucket          String         @db.VarChar(100)
-  objectPath      String         @map("object_path") @db.VarChar(500)
-  contentType     String         @map("content_type") @db.VarChar(100)
-  contentLength   Int            @map("content_length")
-  publicUrl       String         @map("public_url") @db.VarChar(2048)
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  uploadedBy      User           @relation(fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  products        ProductImage[]
+  id            BigInt         @id @default(autoincrement())
+  uploadedById  BigInt         @map("uploaded_by_id")
+  bucket        String         @db.VarChar(100)
+  objectPath    String         @map("object_path") @db.VarChar(500)
+  contentType   String         @map("content_type") @db.VarChar(100)
+  contentLength Int            @map("content_length")
+  publicUrl     String         @map("public_url") @db.VarChar(2048)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  uploadedBy    User           @relation(fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  products      ProductImage[]
 
   @@unique([bucket, objectPath], map: "image_assets_bucket_path_key")
   @@map("image_assets")
 }
 
 model ProductImage {
-  id           BigInt         @id @default(autoincrement())
-  productId    BigInt         @map("product_id")
-  variantId    BigInt?        @map("variant_id")
-  imageAssetId BigInt         @map("image_asset_id")
-  altText      String         @default("") @map("alt_text") @db.VarChar(200)
-  sortOrder    Int            @default(0) @map("sort_order")
-  isPrimary    Boolean        @default(false) @map("is_primary")
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  product      Product        @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id           BigInt          @id @default(autoincrement())
+  productId    BigInt          @map("product_id")
+  variantId    BigInt?         @map("variant_id")
+  imageAssetId BigInt          @map("image_asset_id")
+  altText      String          @default("") @map("alt_text") @db.VarChar(200)
+  sortOrder    Int             @default(0) @map("sort_order")
+  isPrimary    Boolean         @default(false) @map("is_primary")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  product      Product         @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  imageAsset   ImageAsset     @relation(fields: [imageAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  imageAsset   ImageAsset      @relation(fields: [imageAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([productId, imageAssetId], map: "product_images_product_asset_key")
   @@index([productId, sortOrder], map: "product_images_product_sort_idx")
@@ -227,55 +230,55 @@ model Cart {
 }
 
 model CartItem {
-  id        BigInt         @id @default(autoincrement())
-  cartId    BigInt         @map("cart_id")
-    variantId BigInt?        @map("variant_id")
-    productId BigInt?        @map("product_id")
+  id        BigInt          @id @default(autoincrement())
+  cartId    BigInt          @map("cart_id")
+  variantId BigInt?         @map("variant_id")
+  productId BigInt?         @map("product_id")
   quantity  Int
-  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-    variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-    product   Product?       @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cart      Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  product   Product?        @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([cartId, variantId], map: "cart_items_cart_variant_key")
-    @@unique([cartId, productId], map: "cart_items_cart_product_key")
+  @@unique([cartId, productId], map: "cart_items_cart_product_key")
   @@index([variantId], map: "cart_items_variant_idx")
   @@map("cart_items")
 }
 
 model Order {
-  id              BigInt              @id @default(autoincrement())
-  userId          BigInt              @map("user_id")
-  status          String              @default("PENDING") @db.VarChar(16)
-  paymentMethod   String              @default("COD") @map("payment_method") @db.VarChar(16)
-  paymentStatus   String              @default("UNPAID") @map("payment_status") @db.VarChar(16)
-  subtotal        BigInt
-  shippingFee     BigInt              @map("shipping_fee")
-  totalAmount     BigInt              @map("total_amount")
-  recipientName   String              @map("recipient_name") @db.VarChar(100)
-  recipientPhone  String              @map("recipient_phone") @db.VarChar(16)
-  provinceName    String              @map("province_name") @db.VarChar(150)
-  wardName        String              @map("ward_name") @db.VarChar(150)
-  addressLine     String              @map("address_line") @db.VarChar(300)
-  customerNote    String?             @map("customer_note") @db.VarChar(1000)
-  expiresAt       DateTime            @map("expires_at") @db.Timestamptz(6)
-  version         BigInt              @default(1)
-  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
-  confirmedAt     DateTime?           @map("confirmed_at") @db.Timestamptz(6)
-  firstShippedAt  DateTime?           @map("first_shipped_at") @db.Timestamptz(6)
-  deliveredAt     DateTime?           @map("delivered_at") @db.Timestamptz(6)
-  paidAt          DateTime?           @map("paid_at") @db.Timestamptz(6)
-  cancelledAt     DateTime?           @map("cancelled_at") @db.Timestamptz(6)
-  returnedAt      DateTime?           @map("returned_at") @db.Timestamptz(6)
-  cancelReason    String?             @map("cancel_reason") @db.VarChar(500)
-  user            User                @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  items           OrderItem[]
-  history         OrderStatusHistory[]
-  events          OrderEvent[]
-  notifications   UserNotification[]
-  emailOutbox     EmailOutbox[]
+  id             BigInt               @id @default(autoincrement())
+  userId         BigInt               @map("user_id")
+  status         String               @default("PENDING") @db.VarChar(16)
+  paymentMethod  String               @default("COD") @map("payment_method") @db.VarChar(16)
+  paymentStatus  String               @default("UNPAID") @map("payment_status") @db.VarChar(16)
+  subtotal       BigInt
+  shippingFee    BigInt               @map("shipping_fee")
+  totalAmount    BigInt               @map("total_amount")
+  recipientName  String               @map("recipient_name") @db.VarChar(100)
+  recipientPhone String               @map("recipient_phone") @db.VarChar(16)
+  provinceName   String               @map("province_name") @db.VarChar(150)
+  wardName       String               @map("ward_name") @db.VarChar(150)
+  addressLine    String               @map("address_line") @db.VarChar(300)
+  customerNote   String?              @map("customer_note") @db.VarChar(1000)
+  expiresAt      DateTime             @map("expires_at") @db.Timestamptz(6)
+  version        BigInt               @default(1)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  confirmedAt    DateTime?            @map("confirmed_at") @db.Timestamptz(6)
+  firstShippedAt DateTime?            @map("first_shipped_at") @db.Timestamptz(6)
+  deliveredAt    DateTime?            @map("delivered_at") @db.Timestamptz(6)
+  paidAt         DateTime?            @map("paid_at") @db.Timestamptz(6)
+  cancelledAt    DateTime?            @map("cancelled_at") @db.Timestamptz(6)
+  returnedAt     DateTime?            @map("returned_at") @db.Timestamptz(6)
+  cancelReason   String?              @map("cancel_reason") @db.VarChar(500)
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  items          OrderItem[]
+  history        OrderStatusHistory[]
+  events         OrderEvent[]
+  notifications  UserNotification[]
+  emailOutbox    EmailOutbox[]
 
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)], map: "orders_user_created_idx")
   @@index([status, expiresAt], map: "orders_status_expires_idx")
@@ -283,17 +286,17 @@ model Order {
 }
 
 model UserNotification {
-  id        BigInt   @id @default(autoincrement())
-  userId    BigInt   @map("user_id")
-  orderId   BigInt   @map("order_id")
-  eventKey  String   @map("event_key") @db.VarChar(160)
-  type      String   @db.VarChar(40)
-  title     String   @db.VarChar(160)
-  body      String   @db.VarChar(500)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id        BigInt    @id @default(autoincrement())
+  userId    BigInt    @map("user_id")
+  orderId   BigInt    @map("order_id")
+  eventKey  String    @map("event_key") @db.VarChar(160)
+  type      String    @db.VarChar(40)
+  title     String    @db.VarChar(160)
+  body      String    @db.VarChar(500)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   readAt    DateTime? @map("read_at") @db.Timestamptz(6)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([userId, eventKey], map: "user_notifications_user_event_key")
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)], map: "user_notifications_user_created_idx")
@@ -302,24 +305,24 @@ model UserNotification {
 }
 
 model EmailOutbox {
-  id             BigInt   @id @default(autoincrement())
-  eventKey       String   @unique @map("event_key") @db.VarChar(160)
-  userId         BigInt?  @map("user_id")
-  orderId        BigInt?  @map("order_id")
-  recipientEmail String   @map("recipient_email") @db.VarChar(254)
-  templateKey    String   @map("template_key") @db.VarChar(80)
-  payload        Json     @default("{}")
-  status         String   @default("PENDING") @db.VarChar(16)
-  attempts       Int      @default(0)
-  availableAt    DateTime @default(now()) @map("available_at") @db.Timestamptz(6)
-  leaseToken     String?  @map("lease_token") @db.Uuid
+  id             BigInt    @id @default(autoincrement())
+  eventKey       String    @unique @map("event_key") @db.VarChar(160)
+  userId         BigInt?   @map("user_id")
+  orderId        BigInt?   @map("order_id")
+  recipientEmail String    @map("recipient_email") @db.VarChar(254)
+  templateKey    String    @map("template_key") @db.VarChar(80)
+  payload        Json      @default("{}")
+  status         String    @default("PENDING") @db.VarChar(16)
+  attempts       Int       @default(0)
+  availableAt    DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  leaseToken     String?   @map("lease_token") @db.Uuid
   leaseUntil     DateTime? @map("lease_until") @db.Timestamptz(6)
   sentAt         DateTime? @map("sent_at") @db.Timestamptz(6)
   finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
-  lastErrorCode  String?  @map("last_error_code") @db.VarChar(80)
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  user           User?    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  order          Order?   @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  lastErrorCode  String?   @map("last_error_code") @db.VarChar(80)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  order          Order?    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([status, availableAt, id], map: "email_outbox_status_available_idx")
   @@index([leaseUntil], map: "email_outbox_lease_until_idx")
@@ -328,19 +331,19 @@ model EmailOutbox {
 }
 
 model OrderItem {
-  id              BigInt         @id @default(autoincrement())
-  orderId         BigInt         @map("order_id")
-  productId       BigInt         @map("product_id")
-  variantId       BigInt?        @map("variant_id")
-  productName     String         @map("product_name_snapshot") @db.VarChar(200)
-  sku             String?        @map("sku_snapshot") @db.VarChar(40)
-  options          Json           @default("{}") @map("options_snapshot")
-  imageUrl         String?        @map("image_url_snapshot") @db.VarChar(2048)
-  unitPrice        BigInt         @map("unit_price")
-  quantity         Int
-  order            Order          @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  product          Product        @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  variant          ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id          BigInt          @id @default(autoincrement())
+  orderId     BigInt          @map("order_id")
+  productId   BigInt          @map("product_id")
+  variantId   BigInt?         @map("variant_id")
+  productName String          @map("product_name_snapshot") @db.VarChar(200)
+  sku         String?         @map("sku_snapshot") @db.VarChar(40)
+  options     Json            @default("{}") @map("options_snapshot")
+  imageUrl    String?         @map("image_url_snapshot") @db.VarChar(2048)
+  unitPrice   BigInt          @map("unit_price")
+  quantity    Int
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  product     Product         @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([orderId, id], map: "order_items_order_idx")
   @@index([productId], map: "order_items_product_idx")
@@ -375,14 +378,71 @@ model OrderEvent {
 }
 
 model OrderIdempotencyRequest {
-  id         BigInt   @id @default(autoincrement())
-  userId     BigInt   @map("user_id")
-  key        String   @db.VarChar(100)
-  payload    Json
-  response   Json?
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  key       String   @db.VarChar(100)
+  payload   Json
+  response  Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([userId, key], map: "order_idempotency_requests_user_key_key")
   @@map("order_idempotency_requests")
+}
+
+model Visitor {
+  id         BigInt   @id @default(autoincrement())
+  tokenHash  String   @unique(map: "visitors_token_hash_key") @map("token_hash") @db.Char(64)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  sessions TrackingSession[]
+
+  @@map("visitors")
+}
+
+model TrackingSession {
+  id         BigInt    @id @default(autoincrement())
+  visitorId  BigInt    @map("visitor_id")
+  userId     BigInt?   @map("user_id")
+  linkedAt   DateTime? @map("linked_at") @db.Timestamptz(6)
+  startedAt  DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  endedAt    DateTime? @map("ended_at") @db.Timestamptz(6)
+
+  visitor Visitor            @relation(fields: [visitorId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user    User?              @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  events  InteractionEvent[]
+
+  @@unique([id, visitorId], map: "tracking_sessions_id_visitor_id_key")
+  @@index([visitorId, lastSeenAt(sort: Desc)], map: "tracking_sessions_visitor_seen_idx")
+  @@index([userId, startedAt], map: "tracking_sessions_user_started_idx")
+  @@map("tracking_sessions")
+}
+
+model InteractionEvent {
+  id            BigInt @id @default(autoincrement())
+  eventId       String @unique(map: "interaction_events_event_id_key") @map("event_id") @db.VarChar(100)
+  eventType     String @map("event_type") @db.VarChar(30)
+  eventSource   String @map("event_source") @db.VarChar(16)
+  dataOrigin    String @default("LIVE") @map("data_origin") @db.VarChar(16)
+  schemaVersion Int    @default(1) @map("schema_version")
+
+  visitorId         BigInt? @map("visitor_id")
+  trackingSessionId BigInt? @map("tracking_session_id")
+  userId            BigInt? @map("user_id")
+  productId         BigInt? @map("product_id")
+
+  metadata   Json     @default("{}")
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  trackingSession TrackingSession? @relation(fields: [trackingSessionId, visitorId], references: [id, visitorId], onDelete: Restrict, onUpdate: NoAction)
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  product         Product?         @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([productId, occurredAt(sort: Desc)], map: "interaction_events_product_occurred_idx")
+  @@index([trackingSessionId, occurredAt, id], map: "interaction_events_session_occurred_idx")
+  @@index([userId, occurredAt(sort: Desc)], map: "interaction_events_user_occurred_idx")
+  @@map("interaction_events")
 }
