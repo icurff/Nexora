@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Check,
@@ -14,6 +14,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth.js';
 import { useAddCartItem } from '../../cart/hooks/useCart.js';
 import { formatVnd, getPublicProduct } from '../services/public-catalog-api.js';
+import { trackEvent } from '../../../services/tracking-api';
 
 type PendingAdd = { variantId?: string; productId?: string; quantity: number };
 
@@ -71,6 +72,21 @@ export function ProductDetailPage() {
       options.every(({ code }) => selection[code] === variant.options[code]),
     );
   }, [options, preferredVariantId, product, selection]);
+  // Log VIEW when show product successful
+  const trackedProductIds = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!product?.id || trackedProductIds.current.has(product.id)) {
+      return;
+    }
+
+    trackedProductIds.current.add(product.id);
+
+    void trackEvent({
+      eventType: 'view',
+      productId: product.id,
+    });
+  }, [product?.id]);
 
   const gallery = selectedVariant?.images.length
     ? selectedVariant.images
