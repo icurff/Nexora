@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { OrderModule } from './order/order.module.js';
 import { NotificationHttpModule } from './notification/notification-http.module.js';
+import { TrackingModule } from './tracking/tracking.module.js';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { NotificationHttpModule } from './notification/notification-http.module.
     CatalogModule,
     OrderModule,
     NotificationHttpModule,
+    TrackingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
