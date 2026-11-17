@@ -7,6 +7,7 @@ import { CatalogModule } from './catalog/catalog.module.js';
 import { OrderModule } from './order/order.module.js';
 import { NotificationHttpModule } from './notification/notification-http.module.js';
 import { TrackingModule } from './tracking/tracking.module.js';
+import { RecommendationModule } from './recommendation/recommendation.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { TrackingModule } from './tracking/tracking.module.js';
     OrderModule,
     NotificationHttpModule,
     TrackingModule,
+    RecommendationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
