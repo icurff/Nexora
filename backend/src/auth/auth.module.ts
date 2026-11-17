@@ -14,9 +14,10 @@ import { UserAddressController } from './user-address.controller.js';
 import { CustomerManagementController } from './customer-management.controller.js';
 import { CustomerManagementService } from './services/customer-management.service.js';
 import { GoogleOAuthService } from './services/google-oauth.service.js';
+import { TrackingIdentityModule } from '../tracking/tracking-identity.module.js';
 
 @Module({
-  imports: [NotificationModule],
+  imports: [NotificationModule, TrackingIdentityModule],
   controllers: [
     AuthController,
     UserAddressController,

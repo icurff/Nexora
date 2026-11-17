@@ -1,3 +1,4 @@
+
 import {
   Body,
   Controller,
@@ -25,6 +26,7 @@ import { PasswordResetRequestDto } from './dto/password-reset-request.dto.js';
 import { PasswordResetDto } from './dto/password-reset.dto.js';
 import { PasswordResetService } from './services/password-reset.service.js';
 import { GoogleOAuthService } from './services/google-oauth.service.js';
+import { TrackingIdentityService, TRACKING_VISITOR_COOKIE } from '../tracking/tracking-identity.service.js';
 
 const cookieValue = (req: Request, name: string) => {
   const value = req.headers.cookie
@@ -46,18 +48,43 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly passwordReset: PasswordResetService,
     private readonly google: GoogleOAuthService,
+    private readonly trackingIdentity: TrackingIdentityService,
   ) {}
   @Post('register') register(@Body() body: RegisterDto) {
     return this.auth.register(body);
   }
+
   @Post('login') @HttpCode(200) async login(
     @Body() body: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.auth.login(body);
-    res.setHeader('Set-Cookie', this.auth.cookie(result.refreshToken));
-    return { accessToken: result.accessToken, user: result.user };
+
+    // DACN-55: Tracking không được làm Login thất bại.
+    const cookies = [this.auth.cookie(result.refreshToken)];
+
+    try {
+      const tracking = await this.trackingIdentity.linkAfterLogin(
+        cookieValue(req, TRACKING_VISITOR_COOKIE),
+        result.user.id,
+      );
+
+      cookies.push(
+        this.trackingIdentity.visitorCookie(tracking.visitorToken),
+      );
+    } catch {
+      // Authentication vẫn thành công nếu Tracking lỗi.
+    }
+
+    res.setHeader('Set-Cookie', cookies);
+
+    return {
+      accessToken: result.accessToken,
+      user: result.user,
+    };
   }
+
   @Get('google') googleStart(
     @Query('returnTo') returnTo: string | undefined,
     @Res() res: Response,
@@ -94,10 +121,28 @@ export class AuthController {
         cookieValue(req, GoogleOAuthService.returnToCookieName),
       );
       const session = await this.auth.loginWithGoogle(result.profile);
+
+      // DACN-55: Liên kết Guest TrackingSession với Google User.
+      let trackingCookie: string | undefined;
+
+      try {
+        const tracking = await this.trackingIdentity.linkAfterLogin(
+          cookieValue(req, TRACKING_VISITOR_COOKIE),
+          session.user.id,
+        );
+
+        trackingCookie = this.trackingIdentity.visitorCookie(
+          tracking.visitorToken,
+        );
+      } catch {
+        // Tracking lỗi không ảnh hưởng Google Login.
+      }
+
       res.setHeader('Set-Cookie', [
         this.auth.cookie(session.refreshToken),
         this.google.clearStateCookie(),
         this.google.clearReturnToCookie(),
+        ...(trackingCookie ? [trackingCookie] : []),
       ]);
       return res.redirect(302, this.google.successUrl(result.returnTo));
     } catch {
@@ -124,13 +169,44 @@ export class AuthController {
       throw e;
     }
   }
-  @Post('logout') @HttpCode(204) async logout(
+
+  @Post('logout')
+  @HttpCode(204)
+  async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    await this.auth.logout(cookieValue(req, 'nexora_refresh'));
-    res.setHeader('Set-Cookie', this.auth.clearCookie());
+    // DACN-55: Xóa visitor cookie đúng cách khi Logout.
+    const clearVisitorCookie = this.trackingIdentity
+      .visitorCookie('')
+      .replace(/Max-Age=\d+/, 'Max-Age=0');
+
+    try {
+      await this.auth.logout(
+        cookieValue(req, 'nexora_refresh'),
+      );
+    } finally {
+      res.setHeader('Set-Cookie', [
+        this.auth.clearCookie(),
+        clearVisitorCookie,
+      ]);
+    }
+
+    try {
+      const newVisitorToken =
+        await this.trackingIdentity.rotateAfterLogout(
+          cookieValue(req, TRACKING_VISITOR_COOKIE),
+        );
+
+      res.setHeader('Set-Cookie', [
+        this.auth.clearCookie(),
+        this.trackingIdentity.visitorCookie(newVisitorToken),
+      ]);
+    } catch {
+      // Cookie cũ đã được xóa, không tái sử dụng visitor cũ.
+    }
   }
+
   @Get('session')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles('CUSTOMER', 'ADMIN')

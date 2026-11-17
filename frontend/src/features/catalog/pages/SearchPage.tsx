@@ -3,6 +3,7 @@ import { ChevronRight, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { demoProducts } from '../../catalog/demo-data.js';
 import { ProductGrid } from '../components/catalog-components.js';
+import { trackEvent } from '../../../services/tracking-api';
 
 export function SearchPage() {
   const [params] = useSearchParams();
@@ -37,9 +38,14 @@ export function SearchPage() {
         <form
           className="large-search"
           onSubmit={(event) => {
-            event.preventDefault();
-            setSubmitted(query.trim());
-          }}
+          event.preventDefault();
+          const keyword = query.trim();
+          setSubmitted(keyword);
+          void trackEvent({
+            eventType: 'search',
+            queryLength: keyword.length,
+          });
+        }}
         >
           <Search />
           <input
@@ -67,6 +73,11 @@ export function SearchPage() {
               onClick={() => {
                 setQuery(word);
                 setSubmitted(word);
+
+                void trackEvent({
+                  eventType: 'search',
+                  queryLength: word.length,
+                });
               }}
             >
               {word}
