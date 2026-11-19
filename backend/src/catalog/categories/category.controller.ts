@@ -13,6 +13,24 @@ import { Roles } from '../../shared/decorators/roles.decorator.js';
 import { CreateCategoryDto, UpdateCategoryDto } from './category.dto.js';
 import { CategoryService } from './category.service.js';
 
+@Controller('categories')
+export class PublicCategoryController {
+  constructor(private readonly categories: CategoryService) {}
+
+  @Get()
+  async list() {
+    const { items } = await this.categories.list();
+    return {
+      items: items.map(({ id, name, slug, parentId }) => ({
+        id,
+        name,
+        slug,
+        parentId,
+      })),
+    };
+  }
+}
+
 @Controller('admin/categories')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('ADMIN')

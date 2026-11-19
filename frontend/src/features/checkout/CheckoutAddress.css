@@ -9,7 +9,7 @@
   gap: 12px;
   padding: 14px 0;
   color: #89948d;
-  font-size: 10px;
+  font-size: var(--type-meta);
 }
 .checkout-order-line {
   display: flex;
@@ -64,7 +64,7 @@
 .checkout-no-address .button-secondary {
   min-height: 32px;
   padding: 0 11px;
-  font-size: 9px;
+  font-size: var(--type-meta);
   text-decoration: none;
 }
 .checkout-unavailable {

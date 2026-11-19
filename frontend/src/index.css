@@ -6,7 +6,13 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  font-family:
+  --type-meta: 0.875rem;
+  --type-small: 0.9375rem;
+  --type-label: 1rem;
+  --type-body: 1rem;
+  --leading-body: 1.5;
+  --type-admin-title: 1.875rem;
+  --font-ui:
     'Geist Variable',
     ui-sans-serif,
     system-ui,
@@ -14,6 +20,8 @@
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
+  --font-display: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-ui);
   color: #27324a;
   background: #f6f8fc;
   font-synthesis: none;
@@ -67,11 +75,17 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
 }
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
+h1, h2, h3, h4, h5, h6 { text-wrap: balance; }
+p { text-wrap: pretty; }
 button,
 a {
   -webkit-tap-highlight-color: transparent;

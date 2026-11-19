@@ -39,9 +39,9 @@ export class GmailEmailProvider {
       await this.transporter.sendMail({
         from: { name: 'Nexora', address: this.gmailUser },
         to,
-        subject: 'Đặt lại mật khẩu Nexora',
-        text: `Bạn đã yêu cầu đặt lại mật khẩu Nexora. Mở liên kết này trong vòng 30 phút: ${link.toString()}\n\nNếu bạn không yêu cầu, hãy bỏ qua email này.`,
-        html: `<p>Bạn đã yêu cầu đặt lại mật khẩu Nexora.</p><p><a href="${href}">Đặt lại mật khẩu</a></p><p>Liên kết có hiệu lực trong 30 phút. Nếu bạn không yêu cầu, hãy bỏ qua email này.</p>`,
+        subject: 'Reset your Nexora password',
+        text: `You requested a password reset for your Nexora account. Open this link within 30 minutes: ${link.toString()}\n\nIf you did not make this request, please ignore this email.`,
+        html: `<p>You requested a password reset for your Nexora account.</p><p><a href="${href}">Reset password</a></p><p>This link expires in 30 minutes. If you did not make this request, please ignore this email.</p>`,
       });
       return true;
     } catch (error) {
@@ -80,17 +80,17 @@ export class GmailEmailProvider {
         errorCode: 'provider_not_configured',
       };
     const statusLabels: Record<string, string> = {
-      PENDING: 'Chờ xác nhận',
-      CONFIRMED: 'Đã xác nhận',
-      SHIPPING: 'Đang giao',
-      DELIVERED: 'Đã giao thành công',
-      DELIVERY_FAILED: 'Giao hàng chưa thành công',
-      CANCELLED: 'Đã hủy',
-      EXPIRED: 'Đã hết hạn',
+      PENDING: 'Pending confirmation',
+      CONFIRMED: 'Confirmed',
+      SHIPPING: 'Shipping',
+      DELIVERED: 'Delivered',
+      DELIVERY_FAILED: 'Delivery unsuccessful',
+      CANCELLED: 'Cancelled',
+      EXPIRED: 'Expired',
     };
     const status =
       payload.reason === 'EXPIRED'
-        ? 'Đã hết hạn'
+        ? 'Expired'
         : (statusLabels[payload.status] ?? payload.status);
     const orderUrl = new URL(
       `/orders/${encodeURIComponent(payload.orderId)}`,
@@ -100,7 +100,7 @@ export class GmailEmailProvider {
       `${new Intl.NumberFormat('vi-VN').format(Number(value))} ₫`;
     const reason =
       payload.reason && payload.reason !== 'EXPIRED'
-        ? `\nLý do: ${payload.reason}`
+        ? `\nReason: ${payload.reason}`
         : '';
     const rows = payload.items
       .map(
@@ -108,15 +108,14 @@ export class GmailEmailProvider {
           `${item.productName}${item.sku ? ` (${item.sku})` : ''} × ${item.quantity} — ${money(item.unitPrice)}`,
       )
       .join('\n');
-    const payment =
-      payload.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán';
-    const text = `Nexora cập nhật đơn hàng #${payload.orderId}\nTrạng thái: ${status}\nThanh toán: ${payment}\nTổng thanh toán COD: ${money(payload.totalAmount)}${reason}\n${payload.status === 'PENDING' ? `\nSản phẩm:\n${rows}\n` : ''}\nXem đơn hàng: ${orderUrl}`;
-    const html = `<p>Nexora cập nhật đơn hàng <strong>#${this.escapeHtml(payload.orderId)}</strong>.</p><p>Trạng thái: ${this.escapeHtml(status)}<br>Thanh toán: ${payment}<br>Tổng thanh toán COD: ${this.escapeHtml(money(payload.totalAmount))}</p>${reason ? `<p>Lý do: ${this.escapeHtml(payload.reason!)}</p>` : ''}${payload.status === 'PENDING' ? `<ul>${payload.items.map((item) => `<li>${this.escapeHtml(item.productName)}${item.sku ? ` (${this.escapeHtml(item.sku)})` : ''} × ${item.quantity} — ${this.escapeHtml(money(item.unitPrice))}</li>`).join('')}</ul>` : ''}<p><a href="${this.escapeHtml(orderUrl)}">Xem đơn hàng</a></p>`;
+    const payment = payload.paymentStatus === 'PAID' ? 'Paid' : 'Unpaid';
+    const text = `Nexora order update #${payload.orderId}\nStatus: ${status}\nPayment: ${payment}\nCOD total: ${money(payload.totalAmount)}${reason}\n${payload.status === 'PENDING' ? `\nItems:\n${rows}\n` : ''}\nView order: ${orderUrl}`;
+    const html = `<p>Nexora order update <strong>#${this.escapeHtml(payload.orderId)}</strong>.</p><p>Status: ${this.escapeHtml(status)}<br>Payment: ${payment}<br>COD total: ${this.escapeHtml(money(payload.totalAmount))}</p>${reason ? `<p>Reason: ${this.escapeHtml(payload.reason!)}</p>` : ''}${payload.status === 'PENDING' ? `<ul>${payload.items.map((item) => `<li>${this.escapeHtml(item.productName)}${item.sku ? ` (${this.escapeHtml(item.sku)})` : ''} × ${item.quantity} — ${this.escapeHtml(money(item.unitPrice))}</li>`).join('')}</ul>` : ''}<p><a href="${this.escapeHtml(orderUrl)}">View order</a></p>`;
     try {
       await this.transporter.sendMail({
         from: { name: 'Nexora', address: this.gmailUser },
         to,
-        subject: `Nexora · Đơn hàng #${payload.orderId}: ${status}`,
+        subject: `Nexora · Order #${payload.orderId}: ${status}`,
         text,
         html,
       });

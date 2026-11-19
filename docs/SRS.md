@@ -252,10 +252,12 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 
 ### UC-06 — Quản lý sổ địa chỉ
 
-- **Tác nhân:** Customer. **Dữ liệu:** người nhận, điện thoại, tỉnh, đơn vị cấp xã, địa chỉ chi tiết, mặc định.
+- **Tác nhân:** Customer hoặc Admin dùng tài khoản cá nhân. **Dữ liệu:** người nhận, điện thoại, tỉnh, đơn vị cấp xã, địa chỉ chi tiết, mặc định.
 - **Luồng chính:** thêm/sửa → frontend tải JSON tỉnh/xã từ GitHub → đổi tỉnh thì bỏ lựa chọn xã cũ → gửi tên đã chọn cùng địa chỉ chi tiết; hoặc chọn mặc định/xóa địa chỉ của mình.
 - **Ngoại lệ:** JSON không tải được thì cho thử lại và giữ dữ liệu form; backend từ chối trường thiếu/sai độ dài hoặc địa chỉ không thuộc tài khoản. API không xác minh quan hệ tỉnh–xã; địa chỉ đã lưu vẫn xem/xóa được khi nguồn online lỗi.
 - **Sau:** tối đa một mặc định; địa chỉ đầu tiên mặc định; xóa mặc định chọn địa chỉ còn lại được tạo sớm nhất. **Nghiệm thu:** TC-06, TC-07.
+
+Admin cũng có thể sử dụng các luồng khách hàng bằng dữ liệu của chính tài khoản admin: hồ sơ, sổ địa chỉ, giỏ hàng, đặt hàng, đơn hàng và thông báo. Các API khách hàng vẫn kiểm tra quyền sở hữu; quyền quản trị các tài khoản và đơn hàng khác chỉ có ở các API admin.
 
 ### UC-07 — Duyệt, tìm kiếm và lọc
 
@@ -699,10 +701,10 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | PATCH, DELETE /cart/items/:id                                                    | Sửa quantity/xóa                                                                                                 | Customer hoạt động                                      |
 | POST /orders                                                                     | Tạo đơn COD nguyên tử, trả 201 với đơn; cùng key/payload trả kết quả đã lưu                                     | Customer hoạt động                                      |
 | GET /orders, GET /orders/:id, GET /orders/by-checkout-key/:key                   | Danh sách/chi tiết đơn cá nhân và khôi phục kết quả checkout theo idempotency key                                | Customer; chỉ đơn của mình                              |
-| GET /notifications?page=&pageSize=&unreadOnly=                                  | Danh sách thông báo phân trang và số chưa đọc                                                                     | Customer; chỉ của mình                                  |
-| GET /notifications/unread-count                                                  | Đếm thông báo chưa đọc                                                                                             | Customer; chỉ của mình                                  |
-| PATCH /notifications/:id/read, /notifications/read-all                          | Đánh dấu một hoặc tất cả thông báo đã đọc                                                                         | Customer; chỉ của mình                                  |
-| GET /notifications/stream                                                       | Nhận tín hiệu SSE để đồng bộ thông báo từ API                                                                      | Customer; phiên đang hoạt động                          |
+| GET /categories, GET /products?categoryId=                                       | Danh mục công khai và sản phẩm theo danh mục gồm danh mục con                                                    | Công khai                                                |
+| GET /wishlist, PUT /wishlist/:id, DELETE /wishlist/:id                          | Danh sách, thêm và bỏ sản phẩm yêu thích theo tài khoản                                                          | Người dùng đã đăng nhập                                 |
+| GET, POST /products/:id/reviews                                                  | Đọc đánh giá đã duyệt; tạo hoặc sửa đánh giá của chính mình, gửi lại trạng thái chờ duyệt                       | Công khai / người dùng đã đăng nhập                     |
+| GET /admin/reviews, PATCH /admin/reviews/:id                                     | Xem đánh giá và duyệt hoặc ẩn                                                                                    | Admin                                                   |
 | POST /orders/:id/cancel                                                         | Hủy đơn PENDING UNPAID nguyên tử; giải phóng reserved                                                           | Chủ đơn                                                 |
 | GET /admin/orders, GET /admin/orders/:id, POST /admin/orders/:id/confirm          | Xem đơn và xác nhận PENDING trước hạn                                                                           | Admin                                                   |
 | POST /admin/orders/:id/cancel                                                   | Hủy PENDING/CONFIRMED trước giao; lý do bắt buộc                                                                | Admin                                                   |
@@ -732,9 +734,11 @@ Prefix dự kiến `/api/v1`. Bảng dưới chỉ định thao tác và quyền
 | POST /events                                                                     | Nhận event frontend theo danh sách cho phép                                                                      | Guest/Customer; server gắn danh tính                    |
 | POST /recommendations                                                            | Gợi ý theo quy tắc, lấy ngữ cảnh được phép                                                                       | Guest/Customer                                          |
 
-POST /auth/password-reset-requests nhận email và trả phản hồi chung; POST /auth/password-resets xác nhận token cùng mật khẩu mới. Các endpoint này công khai, chưa có rate limit và không tiết lộ tài khoản tồn tại; giới hạn tần suất dự kiến dùng Redis. Không có endpoint wishlist, đổi email, mua lại, reset mật khẩu do Admin thực hiện thay khách, cổng thanh toán ngoài payOS, refund hoặc sửa nội dung đơn. Không có endpoint công khai để sửa ánh xạ dataset hoặc gửi event transaction.
+POST /auth/password-reset-requests nhận email và trả phản hồi chung; POST /auth/password-resets xác nhận token cùng mật khẩu mới. Các endpoint này công khai, chưa có rate limit và không tiết lộ tài khoản tồn tại; giới hạn tần suất dự kiến dùng Redis. Không có endpoint đổi email, mua lại, reset mật khẩu do Admin thực hiện thay khách, cổng thanh toán ngoài payOS, refund hoặc sửa nội dung đơn. Không có endpoint công khai để sửa ánh xạ dataset hoặc gửi event transaction.
 
-Thông báo trả `{ id, type, orderId, title, body, createdAt, readAt }`; ID bigint là chuỗi thập phân, thời gian ISO 8601 UTC. `GET /notifications` trả `items`, `total`, `unreadCount`; `page` bắt đầu từ 1, `pageSize` tối đa 100, `unreadOnly` nhận true/false. ID không tồn tại hoặc thuộc tài khoản khác cùng trả 404. SSE phát `notifications.sync` khi nối lại và `notifications.changed` sau khi có thay đổi; client tải dữ liệu mới từ REST.
+Thông báo trong ứng dụng đã được gỡ; các email đặt lại mật khẩu và email giao dịch đơn hàng vẫn được giữ. Mỗi tài khoản có tối đa một đánh giá cho mỗi sản phẩm; khi sửa, đánh giá trở lại trạng thái chờ duyệt. Dữ liệu thông báo cũ trong database được giữ nguyên.
+
+Dashboard sử dụng khoảng ngày theo `Asia/Ho_Chi_Minh`, bao gồm cả ngày cuối; đếm đơn mới theo `createdAt`, đơn chờ hiện tại, đơn đã hủy theo `cancelledAt`, và số đơn riêng biệt có sự kiện giao thất bại trong kỳ. Doanh thu đã thu được tách thành tiền hàng và phí giao theo `paidAt`. Tồn khả dụng SKU bằng `onHand - reserved`; ngưỡng cảnh báo cấu hình bằng `LOW_STOCK_THRESHOLD`, mặc định 5. Danh sách SKU hiển thị tối đa 20 mục có tồn thấp nhất.
 
 #### 8.1.1. Hợp đồng API quản trị Category
 
@@ -1011,9 +1015,9 @@ Các ca tracking/export và gợi ý rule-based thuộc nghiệm thu bản web, 
 
 ### 10.1. Giới hạn đã thống nhất
 
-- Không wishlist, xác minh email, đổi email, SMS hoặc Keycloak. Google OAuth đăng nhập thuộc phạm vi; các provider social khác không thuộc phạm vi. Email khôi phục mật khẩu và thông báo đơn hàng thuộc phạm vi.
+- Wishlist theo tài khoản và đánh giá sản phẩm có duyệt thuộc phạm vi. Không xác minh email, đổi email, SMS hoặc Keycloak. Google OAuth đăng nhập thuộc phạm vi; các provider social khác không thuộc phạm vi. Email khôi phục mật khẩu và email đơn hàng thuộc phạm vi.
 - Không bảng/quản trị Color, Size, SizeGroup hoặc EAV tổng quát; cấu hình lựa chọn SKU nằm trong form Product, không phụ thuộc Category, giá trị nằm tại SKU. Thông số chung được viết trong mô tả Product; không có trường Attributes riêng. Khách chọn options có sẵn, không tự gõ khi mua. Chưa lọc khoảng số trên lựa chọn SKU hoặc tự chuyển đổi đơn vị.
-- Không voucher, đánh giá, cổng thanh toán ngoài payOS, hoàn tiền, đối soát COD, hãng/mã vận đơn, giao một phần, đổi trả sau nhận hàng, hàng hỏng hoặc mua lại. Đơn payOS đã thanh toán không được hủy trong phạm vi này.
+- Không voucher, cổng thanh toán ngoài payOS, hoàn tiền, đối soát COD, hãng/mã vận đơn, giao một phần, đổi trả sau nhận hàng, hàng hỏng hoặc mua lại. Đơn payOS đã thanh toán không được hủy trong phạm vi này.
 - Không sửa đơn trực tiếp, không yêu cầu hủy sau xác nhận từ Customer, không giới hạn số đơn chờ.
 - Giả định toàn bộ hàng giao thất bại nhận về nguyên vẹn; không nhập kho trước khi xác nhận nhận lại.
 - Không cam kết tải đồng thời, production hosting hoặc độ chính xác recommendation. Model AI không phải phụ thuộc của ecommerce hiện tại.

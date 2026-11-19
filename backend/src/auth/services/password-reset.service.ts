@@ -13,7 +13,7 @@ import { UserRepository } from '../repositories/user.repository.js';
 import { PasswordResetTokenRepository } from '../repositories/password-reset-token.repository.js';
 
 const genericRequestMessage =
-  'Nếu email phù hợp với tài khoản, bạn sẽ nhận được liên kết đặt lại mật khẩu.';
+  'If the email matches an account, you will receive a password reset link.';
 const invalidTokenError = () =>
   new BadRequestException({
     code: 'INVALID_RESET_TOKEN',
@@ -47,7 +47,7 @@ export class PasswordResetService {
     const startedAt = Date.now();
     const issued = await this.prisma.transaction(async (transaction) => {
       const user = await this.users.findByEmailForUpdate(email, transaction);
-      if (!user || user.role !== 'CUSTOMER' || user.status !== 'ACTIVE')
+      if (!user || user.status !== 'ACTIVE')
         return null;
 
       await this.tokens.deleteAllForUser(user.id, transaction);
@@ -113,7 +113,7 @@ export class PasswordResetService {
         candidate.userId,
         transaction,
       );
-      if (!user || user.role !== 'CUSTOMER' || user.status !== 'ACTIVE')
+      if (!user || user.status !== 'ACTIVE')
         throw invalidTokenError();
 
       const current = await this.tokens.findByHashForUpdate(

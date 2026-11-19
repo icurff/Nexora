@@ -4,11 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
   ArrowRight,
-  BadgeCheck,
-  Bell,
   Check,
   ChevronRight,
-  LockKeyhole,
   LogOut,
   MapPin,
   Package,
@@ -16,7 +13,14 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  Navigate,
+  useNavigate,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { PasswordField } from '../../auth/components/FormField';
 import { Notice } from '../../auth/components/Notice';
 import { errorMessage, fieldError } from '../../auth/services/auth-api';
@@ -30,7 +34,8 @@ import {
   useUpdateProfile,
 } from '../../auth/hooks/useAuthMutations';
 import { Button } from '../../../components/ui/button';
-import { demoOrders, formatVnd } from '../../catalog/demo-data.js';
+import { OrdersPage } from '../../orders/pages/OrdersPage.js';
+import { OrderDetailPage } from '../../orders/pages/OrderDetailPage.js';
 import '../../../Account.css';
 import { AddressBook } from '../components/AddressBook';
 
@@ -50,10 +55,18 @@ export default function AccountPage() {
   const logoutMutation = useLogout();
   const profileMutation = useUpdateProfile();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [section, setSection] = useState<AccountSection>(() =>
-    searchParams.get('section') === 'addresses' ? 'addresses' : 'profile',
-  );
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { id: orderId } = useParams();
+  const isOrdersPath = location.pathname.startsWith('/account/orders');
+  const requestedSection = searchParams.get('section');
+  const section: AccountSection =
+    requestedSection === 'addresses' ||
+    requestedSection === 'orders' ||
+    requestedSection === 'security'
+      ? requestedSection
+      : 'profile';
+  const activeSection = isOrdersPath ? 'orders' : section;
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [logoutError, setLogoutError] = useState('');
@@ -105,7 +118,7 @@ export default function AccountPage() {
       await logoutMutation.mutateAsync();
       navigate('/login?loggedOut=1', { replace: true });
     } catch {
-      setLogoutError('Chưa thể kết nối để thu hồi phiên. Vui lòng thử lại.');
+      setLogoutError('Unable to revoke your session. Please try again.');
     }
   }
 
@@ -127,24 +140,24 @@ export default function AccountPage() {
 
   const menu: { id: AccountSection; label: string; icon: typeof UserRound }[] =
     [
-      { id: 'profile', label: 'Thông tin cá nhân', icon: UserRound },
-      { id: 'addresses', label: 'Sổ địa chỉ', icon: MapPin },
-      { id: 'orders', label: 'Đơn hàng của tôi', icon: Package },
-      { id: 'security', label: 'Bảo mật tài khoản', icon: ShieldCheck },
+      { id: 'profile', label: 'Personal information', icon: UserRound },
+      { id: 'addresses', label: 'Address book', icon: MapPin },
+      { id: 'orders', label: 'My orders', icon: Package },
+      { id: 'security', label: 'Account security', icon: ShieldCheck },
     ];
 
   return (
     <div className="page-container account-dashboard page-section">
       <div className="breadcrumbs">
-        <Link to="/">Trang chủ</Link>
+        <Link to="/">Home</Link>
         <ChevronRight />
-        <span>Tài khoản của tôi</span>
+        <span>My account</span>
       </div>
       <div className="account-dashboard-heading">
         <div>
-          <span className="section-eyebrow">KHÔNG GIAN CỦA BẠN</span>
-          <h1>Xin chào, {user.fullName.split(' ').slice(-1)[0]}.</h1>
-          <p>Quản lý thông tin, đơn hàng và tùy chọn tài khoản.</p>
+          <span className="section-eyebrow">YOUR ACCOUNT</span>
+          <h1>Hello, {user.fullName.split(' ').slice(-1)[0]}.</h1>
+          <p>Manage your details, orders, and account settings.</p>
         </div>
         <button
           className="account-logout"
@@ -152,7 +165,7 @@ export default function AccountPage() {
           disabled={logoutMutation.isPending}
         >
           <LogOut size={15} />
-          {logoutMutation.isPending ? 'Đang đăng xuất...' : 'Đăng xuất'}
+          {logoutMutation.isPending ? 'Signing out...' : 'Sign out'}
         </button>
       </div>
       {logoutError ? <Notice>{logoutError}</Notice> : null}
@@ -163,7 +176,7 @@ export default function AccountPage() {
               <img
                 className="account-large-avatar account-large-avatar-image"
                 src={user.avatarUrl}
-                alt={`Ảnh đại diện của ${user.fullName}`}
+                alt={`Profile picture of ${user.fullName}`}
                 referrerPolicy="no-referrer"
               />
             ) : (
@@ -176,18 +189,18 @@ export default function AccountPage() {
               <small>{user.email}</small>
             </div>
             <span className="account-role">
-              {user.role === 'ADMIN' ? 'Quản trị viên' : 'Khách hàng'}
+              {user.role === 'ADMIN' ? 'Administrator' : 'Customer'}
             </span>
           </div>
-          <nav aria-label="Điều hướng tài khoản">
+          <nav aria-label="Account navigation">
             {menu.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                className={section === id ? 'active' : ''}
+                className={activeSection === id ? 'active' : ''}
                 onClick={() => {
-                  setSection(id);
-                  if (id === 'addresses') setSearchParams({ section: id });
-                  else setSearchParams({});
+                  navigate(
+                    id === 'profile' ? '/account' : id === 'orders' ? '/account/orders' : `/account?section=${id}`,
+                  );
                 }}
               >
                 <Icon size={17} />
@@ -195,39 +208,25 @@ export default function AccountPage() {
                 <ChevronRight size={14} />
               </button>
             ))}
-            {user.role === 'CUSTOMER' ? (
-              <Link className="account-nav-notifications" to="/notifications">
-                <Bell size={17} />
-                <span>Thông báo</span>
-                <ChevronRight size={14} />
-              </Link>
-            ) : null}
             {user.role === 'ADMIN' ? (
               <Link className="account-admin-link" to="/admin">
                 <ShieldCheck size={17} />
-                <span>Khu vực quản trị</span>
+                <span>Admin area</span>
                 <ArrowRight size={14} />
               </Link>
             ) : null}
           </nav>
-          <div className="account-help">
-            <span>
-              <Bell size={15} />
-            </span>
-            <p>Cần hỗ trợ về tài khoản?</p>
-            <a href="mailto:hello@nexora.vn">Liên hệ Nexora</a>
-          </div>
         </aside>
         <section className="account-content">
-          {section === 'profile' ? (
+          {activeSection === 'profile' ? (
             <div className="account-panel">
               <div className="account-panel-title">
                 <div>
-                  <span className="section-eyebrow">HỒ SƠ CỦA BẠN</span>
-                  <h2>Thông tin cá nhân</h2>
-                  <p>Cập nhật thông tin liên hệ của bạn.</p>
+                  <span className="section-eyebrow">YOUR PROFILE</span>
+                  <h2>Personal information</h2>
+                  <p>Update your contact details.</p>
                 </div>
-                {user.role === 'CUSTOMER' ? (
+                {user ? (
                   <span className="subtle-icon" aria-hidden="true">
                     <Pencil size={16} />
                   </span>
@@ -235,15 +234,13 @@ export default function AccountPage() {
               </div>
               <form className="profile-form" onSubmit={saveProfile}>
                 <label>
-                  Họ và tên
+                  Full name
                   <input
                     value={fullName}
                     required
                     minLength={1}
                     maxLength={100}
-                    disabled={
-                      user.role !== 'CUSTOMER' || profileMutation.isPending
-                    }
+                    disabled={profileMutation.isPending}
                     onChange={(event) => {
                       setFullName(event.target.value);
                     }}
@@ -252,24 +249,21 @@ export default function AccountPage() {
                 <label>
                   Email
                   <input value={user.email} disabled />
-                  <small>Email đăng nhập không thể thay đổi.</small>
                 </label>
                 <label>
-                  Số điện thoại
+                  Phone number
                   <input
                     value={phone}
                     maxLength={30}
-                    disabled={
-                      user.role !== 'CUSTOMER' || profileMutation.isPending
-                    }
+                    disabled={profileMutation.isPending}
                     onChange={(event) => {
                       setPhone(event.target.value);
                     }}
-                    placeholder="Nhập số điện thoại"
+                    placeholder="Enter phone number"
                   />
                 </label>
                 <label>
-                  Ngày tạo tài khoản
+                  Account created
                   <input
                     value={new Date(user.createdAt).toLocaleDateString(
                       'vi-VN',
@@ -282,15 +276,11 @@ export default function AccountPage() {
                   <span aria-live="polite">
                     {profileSaved ? (
                       <>
-                        <Check size={14} /> Đã lưu thay đổi.
+                        <Check size={14} /> Changes saved.
                       </>
-                    ) : user.role === 'CUSTOMER' ? (
-                      'Email đăng nhập chỉ có thể xem.'
-                    ) : (
-                      'Hồ sơ quản trị viên.'
-                    )}
+                    ) : null}
                   </span>
-                  {user.role === 'CUSTOMER' ? (
+                  {user ? (
                     <button
                       className="button-primary"
                       type="submit"
@@ -299,9 +289,7 @@ export default function AccountPage() {
                         fullName.trim().length === 0
                       }
                     >
-                      {profileMutation.isPending
-                        ? 'Đang lưu...'
-                        : 'Lưu thay đổi'}{' '}
+                      {profileMutation.isPending ? 'Saving...' : 'Save changes'}{' '}
                       <ArrowRight size={15} />
                     </button>
                   ) : null}
@@ -310,105 +298,36 @@ export default function AccountPage() {
                   <Notice>
                     {errorMessage(
                       profileMutation.error,
-                      'Không thể lưu hồ sơ. Vui lòng thử lại.',
+                      'Unable to save your profile. Please try again.',
                     )}
                   </Notice>
                 ) : null}
               </form>
-              <div className="email-security-banner">
-                <span>
-                  <BadgeCheck />
-                </span>
-                <div>
-                  <strong>Email đăng nhập</strong>
-                  <small>Email này được dùng để đăng nhập tài khoản.</small>
-                </div>
-              </div>
             </div>
           ) : null}
-          {section === 'addresses' ? <AddressBook /> : null}
-          {section === 'orders' ? (
+          {activeSection === 'addresses' ? <AddressBook /> : null}
+          {activeSection === 'orders' ? (
+            orderId ? <OrderDetailPage key={orderId} id={orderId} /> : <OrdersPage />
+          ) : null}
+          {activeSection === 'security' ? (
             <div className="account-panel">
               <div className="account-panel-title">
                 <div>
-                  <span className="section-eyebrow">HÀNH TRÌNH MUA SẮM</span>
-                  <h2>Đơn hàng của tôi</h2>
-                  <p>Theo dõi những đơn hàng gần đây.</p>
-                </div>
-                <Link className="text-link" to="/orders">
-                  Xem tất cả <ArrowRight size={15} />
-                </Link>
-              </div>
-              <div className="account-order-list">
-                {demoOrders.slice(0, 2).map((order) => (
-                  <Link
-                    className="account-order-card"
-                    to={`/orders/${order.id}`}
-                    key={order.id}
-                  >
-                    <span className="account-order-icon">
-                      <Package />
-                    </span>
-                    <span>
-                      <strong>{order.id}</strong>
-                      <small>
-                        {order.date} · {order.items.length} sản phẩm
-                      </small>
-                    </span>
-                    <span
-                      className={`order-status ${order.status === 'Đang giao' ? 'in-progress' : 'complete'}`}
-                    >
-                      <i />
-                      {order.status}
-                    </span>
-                    <strong>{formatVnd(order.total)}</strong>
-                    <ChevronRight size={15} />
-                  </Link>
-                ))}
-              </div>
-              <Link
-                className="button-secondary account-see-orders"
-                to="/orders"
-              >
-                Lịch sử đơn hàng <ArrowRight size={15} />
-              </Link>
-            </div>
-          ) : null}
-          {section === 'security' ? (
-            <div className="account-panel">
-              <div className="account-panel-title">
-                <div>
-                  <span className="section-eyebrow">AN TOÀN TÀI KHOẢN</span>
-                  <h2>Bảo mật & đăng nhập</h2>
-                  <p>Giữ tài khoản của bạn an toàn và riêng tư.</p>
+                  <span className="section-eyebrow">ACCOUNT SECURITY</span>
+                  <h2>Security & sign-in</h2>
+                  <p>Keep your account safe and private.</p>
                 </div>
                 <span className="security-shield">
                   <ShieldCheck />
                 </span>
               </div>
-              <div className="security-status">
-                <span>
-                  <BadgeCheck />
-                </span>
-                <div>
-                  <strong>Tài khoản đang hoạt động</strong>
-                  <small>Email đã xác nhận · Phiên đăng nhập được bảo vệ</small>
-                </div>
-                <span className="active-pill">ĐANG HOẠT ĐỘNG</span>
-              </div>
               <div className="account-password-section">
-                <div className="account-subheading">
-                  <LockKeyhole />
-                  <div>
-                    <h3>Đổi mật khẩu</h3>
-                    <p>Mật khẩu mạnh giúp bảo vệ thông tin của bạn.</p>
-                  </div>
-                </div>
+              
                 {changePasswordMutation.error ? (
                   <Notice>
                     {errorMessage(
                       changePasswordMutation.error,
-                      'Không thể đổi mật khẩu. Vui lòng thử lại.',
+                      'Unable to change your password. Please try again.',
                     )}
                   </Notice>
                 ) : null}
@@ -417,10 +336,10 @@ export default function AccountPage() {
                   onSubmit={handleSubmit(submitPassword)}
                 >
                   <PasswordField
-                    label="Mật khẩu hiện tại"
+                    label="Current password"
                     autoComplete="current-password"
                     {...register('currentPassword', {
-                      required: 'Nhập mật khẩu hiện tại.',
+                      required: 'Enter your current password.',
                     })}
                     error={
                       errors.currentPassword?.message ??
@@ -432,13 +351,13 @@ export default function AccountPage() {
                   />
                   <div className="password-row">
                     <PasswordField
-                      label="Mật khẩu mới"
+                      label="New password"
                       autoComplete="new-password"
                       {...register('newPassword', {
-                        required: 'Nhập mật khẩu mới.',
+                        required: 'Enter a new password.',
                         minLength: {
                           value: 6,
-                          message: 'Mật khẩu cần ít nhất 6 ký tự.',
+                          message: 'Password must be at least 6 characters.',
                         },
                       })}
                       error={
@@ -447,13 +366,13 @@ export default function AccountPage() {
                       }
                     />
                     <PasswordField
-                      label="Xác nhận mật khẩu mới"
+                      label="Confirm new password"
                       autoComplete="new-password"
                       {...register('confirmPassword', {
-                        required: 'Xác nhận mật khẩu mới.',
+                        required: 'Confirm new password.',
                         validate: (value, values) =>
                           value === values.newPassword ||
-                          'Mật khẩu xác nhận không khớp.',
+                          'Passwords do not match.',
                       })}
                       error={
                         errors.confirmPassword?.message ??
@@ -465,15 +384,18 @@ export default function AccountPage() {
                     />
                   </div>
                   <div className="password-form-footer">
-                    <span>Bạn sẽ cần đăng nhập lại sau khi đổi mật khẩu.</span>
+                    <span>
+                      You will need to sign in again after changing your
+                      password.
+                    </span>
                     <Button
                       className="primary-button"
                       type="submit"
                       disabled={changePasswordMutation.isPending}
                     >
                       {changePasswordMutation.isPending
-                        ? 'Đang cập nhật...'
-                        : 'Cập nhật mật khẩu'}
+                        ? 'Updating...'
+                        : 'Update password'}
                     </Button>
                   </div>
                 </form>

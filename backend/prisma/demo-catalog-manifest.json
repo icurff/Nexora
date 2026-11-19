@@ -1,0 +1,8 @@
+﻿{
+  "version": "retailrocket-demo-v1",
+  "files": {
+    "products_demo.csv": "ecd4e3789def43e72eb1a5fefa7ab38b322311babf241ecab1026aa13b7169f5",
+    "categories_demo.csv": "8e96c70b9e6fa42ae631247d1cfc760477e15e41805a9b2f6a4de2762a0a4b5a",
+    "category_mapping.csv": "c9410178ba8f60da1348dbf2cf03a71639dd3cbecccf4298391ed4f3b25fe8f4"
+  }
+}

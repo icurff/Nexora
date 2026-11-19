@@ -8,77 +8,77 @@ export function PolicyPage() {
     { title: string; intro: string; sections: [string, string][] }
   > = {
     shipping: {
-      title: 'Chính sách giao hàng',
+      title: 'Shipping policy',
       intro:
-        'Nexora luôn cố gắng đưa lựa chọn của bạn đến nơi nhanh chóng và nguyên vẹn.',
+        'Nexora strives to deliver your choices quickly and in good condition.',
       sections: [
         [
-          'Thời gian giao hàng',
-          'Đơn hàng thường được giao trong 2–4 ngày làm việc tùy theo khu vực.',
+          'Delivery times',
+          'Orders are usually delivered within 2–4 business days, depending on location.',
         ],
         [
-          'Phí vận chuyển',
-          'Miễn phí giao hàng cho đơn hàng từ 500.000 ₫. Các đơn còn lại có phí tiêu chuẩn 30.000 ₫.',
+          'Shipping fees',
+          'Orders of at least 500,000 ₫ qualify for free delivery. A standard 30,000 ₫ fee applies to other orders.',
         ],
         [
-          'Theo dõi đơn hàng',
-          'Bạn có thể theo dõi tiến trình giao hàng trong mục Đơn hàng của tôi.',
+          'Order tracking',
+          'You can track delivery progress in My orders.',
         ],
       ],
     },
     returns: {
-      title: 'Đổi trả & hoàn tiền',
-      intro: 'Nếu sản phẩm chưa phù hợp, chúng tôi sẵn sàng hỗ trợ bạn.',
+      title: 'Returns & refunds',
+      intro: 'If a product is not right for you, we are here to help.',
       sections: [
         [
-          'Thời hạn đổi trả',
-          'Yêu cầu đổi trả được tiếp nhận trong vòng 7 ngày kể từ ngày nhận hàng.',
+          'Return window',
+          'Return requests are accepted within 7 days of delivery.',
         ],
         [
-          'Điều kiện',
-          'Sản phẩm còn nguyên tem nhãn, chưa qua sử dụng và có thông tin đơn hàng.',
+          'Conditions',
+          'Products must be unused, retain their tags, and include order information.',
         ],
         [
-          'Liên hệ hỗ trợ',
-          'Gửi email tới hello@nexora.vn để được hướng dẫn quy trình đổi trả.',
+          'Contact support',
+          'Email hello@nexora.vn for help with returns.',
         ],
       ],
     },
     privacy: {
-      title: 'Chính sách bảo mật',
+      title: 'Privacy policy',
       intro:
-        'Chúng tôi trân trọng quyền riêng tư và thông tin cá nhân của bạn.',
+        'We value your privacy and personal information.',
       sections: [
         [
-          'Thông tin thu thập',
-          'Thông tin tài khoản và giao hàng chỉ được dùng để phục vụ trải nghiệm mua sắm.',
+          'Information collected',
+          'Account and delivery information is used only to support your shopping experience.',
         ],
         [
-          'Bảo vệ dữ liệu',
-          'Nexora áp dụng các biện pháp phù hợp để bảo vệ thông tin của khách hàng.',
+          'Data protection',
+          'Nexora takes appropriate measures to protect customer information.',
         ],
         [
-          'Quyền của bạn',
-          'Bạn có thể yêu cầu xem hoặc cập nhật thông tin tài khoản của mình bất cứ lúc nào.',
+          'Your rights',
+          'You may request to view or update your account information at any time.',
         ],
       ],
     },
     terms: {
-      title: 'Điều khoản mua hàng',
+      title: 'Shopping terms',
       intro:
-        'Các điều khoản cơ bản giúp quá trình mua sắm diễn ra minh bạch và thuận tiện.',
+        'These basic terms help make shopping clear and convenient.',
       sections: [
         [
-          'Đặt hàng',
-          'Vui lòng kiểm tra sản phẩm, địa chỉ và phương thức thanh toán trước khi xác nhận.',
+          'Placing orders',
+          'Please review your products, address and payment method before confirming.',
         ],
         [
-          'Thanh toán',
-          'Giá hiển thị bằng Việt Nam Đồng và đã bao gồm các khoản thuế áp dụng.',
+          'Payment',
+          'Prices are shown in Vietnamese dong and include applicable taxes.',
         ],
         [
-          'Hỗ trợ',
-          'Nếu cần hỗ trợ về đơn hàng, hãy liên hệ đội ngũ chăm sóc khách hàng của Nexora.',
+          'Support',
+          'Contact Nexora customer support if you need help with an order.',
         ],
       ],
     },
@@ -87,41 +87,41 @@ export function PolicyPage() {
   return (
     <div className="page-container page-section">
       <div className="breadcrumbs">
-        <Link to="/">Trang chủ</Link>
+        <Link to="/">Home</Link>
         <ChevronRight />
-        <span>Chính sách</span>
+        <span>Policies</span>
       </div>
       <div className="policy-layout">
         <aside className="policy-nav">
-          <span className="section-eyebrow">TRỢ GIÚP</span>
-          <h2>Chính sách</h2>
+          <span className="section-eyebrow">HELP</span>
+          <h2>Policies</h2>
           <Link
             className={slug === 'shipping' ? 'active' : ''}
             to="/policies/shipping"
           >
-            Giao hàng <ChevronRight />
+            Shipping <ChevronRight />
           </Link>
           <Link
             className={slug === 'returns' ? 'active' : ''}
             to="/policies/returns"
           >
-            Đổi trả & hoàn tiền <ChevronRight />
+            Returns & refunds <ChevronRight />
           </Link>
           <Link
             className={slug === 'privacy' ? 'active' : ''}
             to="/policies/privacy"
           >
-            Bảo mật <ChevronRight />
+            Privacy <ChevronRight />
           </Link>
           <Link
             className={slug === 'terms' ? 'active' : ''}
             to="/policies/terms"
           >
-            Điều khoản <ChevronRight />
+            Terms <ChevronRight />
           </Link>
         </aside>
         <article className="policy-content">
-          <span className="section-eyebrow">NEXORA · CẬP NHẬT 2026</span>
+          <span className="section-eyebrow">NEXORA · UPDATED 2026</span>
           <h1>{policy.title}</h1>
           <p className="policy-intro">{policy.intro}</p>
           {policy.sections.map(([title, body], index) => (

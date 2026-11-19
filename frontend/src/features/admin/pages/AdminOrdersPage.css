@@ -1,3 +1,9 @@
+.admin-orders-table .admin-table th {
+  font-size: var(--type-meta);
+  font-weight: 650;
+  letter-spacing: normal;
+}
+
 .order-dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -44,7 +50,7 @@
   gap: 7px;
   margin-top: 16px;
   color: #45564a;
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 600;
 }
 
@@ -65,7 +71,7 @@
   gap: 9px;
   margin: 16px 0 0;
   color: #3f5044;
-  font-size: 13px;
+  font-size: var(--type-label);
   line-height: 1.5;
 }
 

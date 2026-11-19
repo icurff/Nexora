@@ -1,7 +1,8 @@
-import { ArrowRight, Heart, Search, Star } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { demoProducts, formatVnd } from '../demo-data.js';
-import { useDemoCommerceStore } from '../../../context/demo-commerce-store.js';
+import { ArrowRight, Heart, Search } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/hooks/useAuth.js';
+import { useToggleWishlist, useWishlist } from '../../wishlist/wishlist-api.js';
 import type { CatalogProduct } from '../services/public-catalog-api.js';
 import { formatVnd as formatCatalogVnd } from '../services/public-catalog-api.js';
 
@@ -27,83 +28,35 @@ export function SectionHeading({
       </div>
       {link ? (
         <Link className="text-link" to={link}>
-          {linkText ?? 'Xem tất cả'} <ArrowRight size={16} />
+          {linkText ?? 'View all'} <ArrowRight size={16} />
         </Link>
       ) : null}
     </div>
   );
 }
 
-export function ProductCard({
-  product,
-}: {
-  product: (typeof demoProducts)[number];
-}) {
-  const liked = useDemoCommerceStore((state) =>
-    state.wishlist.includes(product.id),
-  );
-  const toggleWishlist = useDemoCommerceStore((state) => state.toggleWishlist);
-  const discount = product.compareAt
-    ? Math.round((1 - product.price / product.compareAt) * 100)
-    : 0;
-  return (
-    <article className="product-card">
-      <div className={`product-image ${product.color}`}>
-        <Link to="/products" aria-label={`Xem danh sách sản phẩm`}>
-          <img src={product.image} alt={product.name} />
-        </Link>
-        {discount ? <span className="product-badge">-{discount}%</span> : null}
-        <button
-          className={`product-heart${liked ? ' is-liked' : ''}`}
-          aria-label={liked ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
-          onClick={() => toggleWishlist(product.id)}
-        >
-          <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
-        </button>
-      </div>
-      <div className="product-info">
-        <Link to="/products" className="product-category">
-          {product.category}
-        </Link>
-        <Link to="/products" className="product-name">
-          {product.name}
-        </Link>
-        <div className="product-meta">
-          <span className="product-price">{formatVnd(product.price)}</span>
-          {product.compareAt ? (
-            <span className="product-old-price">
-              {formatVnd(product.compareAt)}
-            </span>
-          ) : null}
-        </div>
-        <div className="product-rating">
-          <Star size={13} fill="currentColor" />
-          <strong>{product.rating}</strong>
-          <span>({product.sold} đã bán)</span>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-export function ProductGrid({ products }: { products: typeof demoProducts }) {
-  if (!products.length)
+function CatalogProductImage({ product }: { product: CatalogProduct }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const image = product.image;
+  if (!image || failedUrl === image.url) {
+    return <span className="detail-image-label">No image available</span>;
+  }
+  if (image.contentType.startsWith('video/')) {
     return (
-      <div className="empty-state">
-        <Search />
-        <h3>Chưa tìm thấy sản phẩm</h3>
-        <p>Thử đổi từ khóa hoặc bộ lọc của bạn.</p>
-        <Link className="button-primary" to="/products">
-          Xem tất cả sản phẩm
-        </Link>
-      </div>
+      <video
+        src={image.url}
+        muted
+        preload="metadata"
+        aria-label={product.name}
+      />
     );
+  }
   return (
-    <div className="product-grid">
-      {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
-      ))}
-    </div>
+    <img
+      src={image.url}
+      alt={image.altText || product.name}
+      onError={() => setFailedUrl(image.url)}
+    />
   );
 }
 
@@ -112,12 +65,16 @@ export function CatalogProductGrid({
 }: {
   products: CatalogProduct[];
 }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const wishlist = useWishlist();
+  const toggle = useToggleWishlist();
   if (!products.length)
     return (
       <div className="empty-state">
         <Search />
-        <h3>Chưa có sản phẩm đang bán</h3>
-        <p>Vui lòng quay lại sau hoặc khám phá danh mục khác.</p>
+        <h3>No products available</h3>
+        <p>Please check back later or explore another category.</p>
       </div>
     );
   return (
@@ -127,23 +84,40 @@ export function CatalogProductGrid({
           <div className="product-image">
             <Link
               to={`/products/${product.id}`}
-              aria-label={`Xem ${product.name}`}
+              aria-label={`View ${product.name}`}
             >
-              {product.image ? (
-                <img
-                  src={product.image.url}
-                  alt={product.image.altText || product.name}
-                  onError={(event) => {
-                    event.currentTarget.style.visibility = 'hidden';
-                  }}
-                />
-              ) : null}
-              {!product.image ? (
-                <span className="detail-image-label">NEXORA</span>
-              ) : null}
+              <CatalogProductImage product={product} />
             </Link>
+            <button
+              className={`product-heart${wishlist.data?.includes(product.id) ? ' is-liked' : ''}`}
+              aria-label={
+                wishlist.data?.includes(product.id)
+                  ? 'Remove from wishlist'
+                  : 'Add to wishlist'
+              }
+              disabled={toggle.isPending || (Boolean(user) && !wishlist.data)}
+              onClick={() => {
+                if (!user) {
+                  navigate('/login', {
+                    state: { from: { pathname: `/products/${product.id}` } },
+                  });
+                  return;
+                }
+                toggle.mutate({
+                  id: product.id,
+                  liked: wishlist.data?.includes(product.id) ?? false,
+                });
+              }}
+            >
+              <Heart
+                size={18}
+                fill={
+                  wishlist.data?.includes(product.id) ? 'currentColor' : 'none'
+                }
+              />
+            </button>
             {product.available === 0 ? (
-              <span className="product-badge">Hết hàng</span>
+              <span className="product-badge">Out of stock</span>
             ) : null}
           </div>
           <div className="product-info">
@@ -154,16 +128,19 @@ export function CatalogProductGrid({
             <div className="product-meta">
               <span className="product-price">
                 {product.priceVnd === null
-                  ? 'Chưa có SKU'
+                  ? 'Price unavailable'
                   : formatCatalogVnd(product.priceVnd)}
               </span>
             </div>
             <div className="product-rating">
-              <span>{product.available > 0 ? 'Còn hàng' : 'Tạm hết hàng'}</span>
+              <span>{product.available > 0 ? 'In stock' : 'Out of stock'}</span>
             </div>
           </div>
         </article>
       ))}
+      {toggle.isError || wishlist.isError ? (
+        <p role="alert">Unable to update wishlist. Please try again.</p>
+      ) : null}
     </div>
   );
 }

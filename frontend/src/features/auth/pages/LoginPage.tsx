@@ -57,40 +57,40 @@ export default function LoginPage() {
           <LockKeyhole />
         </div>
         <AuthHeading
-          eyebrow="CHÀO MỪNG TRỞ LẠI"
-          title="Đăng nhập"
-          description="Đăng nhập để tiếp tục mua sắm và quản lý tài khoản của bạn."
+          eyebrow="WELCOME BACK"
+          title="Sign in"
+          description="Sign in to continue shopping and manage your account."
         />
         {params.get('registered') === '1' ? (
           <Notice tone="success">
-            Tạo tài khoản thành công. Hãy đăng nhập để tiếp tục.
+            Your account has been created. Sign in to continue.
           </Notice>
         ) : null}
         {params.get('passwordChanged') === '1' ? (
           <Notice tone="success">
-            Mật khẩu đã được cập nhật. Vui lòng đăng nhập lại.
+            Your password has been updated. Please sign in again.
           </Notice>
         ) : null}
         {params.get('passwordReset') === '1' ? (
           <Notice tone="success">
-            Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.
+            Your password has been reset. Please sign in again.
           </Notice>
         ) : null}
         {params.get('loggedOut') === '1' ? (
-          <Notice tone="success">Bạn đã đăng xuất thành công.</Notice>
+          <Notice tone="success">You have signed out.</Notice>
         ) : null}
         {params.get('googleError') === 'configuration' ? (
           <Notice>
-            Đăng nhập Google chưa được cấu hình. Vui lòng kiểm tra cấu hình
-            OAuth của hệ thống.
+            Google sign-in is not configured. Please check the system's
+            OAuth configuration.
           </Notice>
         ) : null}
         {params.get('googleError') === '1' ? (
-          <Notice>Không thể đăng nhập bằng Google. Vui lòng thử lại.</Notice>
+          <Notice>Unable to sign in with Google. Please try again.</Notice>
         ) : null}
         {error ? (
           <Notice>
-            {errorMessage(error, 'Không thể đăng nhập. Vui lòng thử lại.')}
+            {errorMessage(error, 'Unable to sign in. Please try again.')}
           </Notice>
         ) : null}
         <form className="auth-form" onSubmit={handleSubmit(submit)}>
@@ -100,10 +100,10 @@ export default function LoginPage() {
             autoComplete="email"
             placeholder="tenban@example.com"
             {...register('email', {
-              required: 'Nhập email của bạn.',
+              required: 'Enter your email.',
               pattern: {
                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                message: 'Email chưa đúng định dạng.',
+                message: 'Enter a valid email address.',
               },
             })}
             maxLength={254}
@@ -111,16 +111,16 @@ export default function LoginPage() {
             error={errors.email?.message}
           />
           <PasswordField
-            label="Mật khẩu"
+            label="Password"
             autoComplete="current-password"
-            placeholder="Nhập mật khẩu"
+            placeholder="Enter your password"
             {...register('password', {
-              required: 'Nhập mật khẩu của bạn.',
+              required: 'Enter your password.',
             })}
             error={errors.password?.message}
           />
           <div className="forgot-password-link">
-            <Link to="/forgot-password">Quên mật khẩu?</Link>
+            <Link to="/forgot-password">Forgot password?</Link>
           </div>
           <Button
             className="primary-button"
@@ -130,17 +130,17 @@ export default function LoginPage() {
             {loginMutation.isPending ? (
               <>
                 <LoaderCircle className="animate-spin" />
-                Đang đăng nhập...
+                Signing in...
               </>
             ) : (
               <>
-                Đăng nhập <ArrowRight />
+                Sign in <ArrowRight />
               </>
             )}
           </Button>
         </form>
         <div className="auth-divider" aria-hidden="true">
-          <span>hoặc</span>
+          <span>or</span>
         </div>
         <Button
           className="google-login-button"
@@ -152,13 +152,13 @@ export default function LoginPage() {
           <span className="google-login-mark" aria-hidden="true">
             G
           </span>
-          Tiếp tục với Google
+          Continue with Google
         </Button>
         <div className="form-switch">
-          Chưa có tài khoản? <Link to="/register">Tạo tài khoản</Link>
+          Don't have an account? <Link to="/register">Create an account</Link>
         </div>
         <div className="secure-note">
-          <ShieldCheck /> Kết nối và thông tin tài khoản được bảo vệ
+          <ShieldCheck /> Your connection and account details are protected
         </div>
       </section>
     </AuthLayout>

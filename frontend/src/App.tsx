@@ -5,6 +5,7 @@
   Route,
   Routes,
   useLocation,
+  useParams,
 } from 'react-router-dom';
 import { LoaderCircle } from 'lucide-react';
 import { AuthLayout } from './layouts/AuthLayout';
@@ -24,14 +25,10 @@ import {
   CategoryPage,
   CheckoutPage,
   HomePage,
-  OrderDetailPage,
-  OrdersPage,
-  PaymentPage,
   PolicyPage,
   ProductDetailPage,
   ProductsPage,
   SearchPage,
-  VerifyEmailPage,
   WishlistPage,
 } from './pages/CommercePages';
 import { AdminLayout } from './layouts/AdminLayout';
@@ -42,7 +39,6 @@ import { AdminProductsPage } from './features/catalog/pages/AdminProductsPage.js
 import { AdminInventoryPage } from './features/catalog/pages/AdminInventoryPage.js';
 import { AdminOrdersPage } from './features/admin/pages/AdminOrdersPage.js';
 import { AdminCustomersPage } from './features/admin/pages/AdminCustomersPage.js';
-import { NotificationsPage } from './features/notifications/pages/NotificationsPage.js';
 import GoogleCallbackPage from './features/auth/pages/GoogleCallbackPage.js';
 import './App.css';
 import './Store.css';
@@ -56,7 +52,7 @@ function RequireAuth() {
       <AuthLayout compact>
         <div className="loading-card">
           <LoaderCircle className="animate-spin" />
-          Đang kiểm tra phiên đăng nhập...
+          Checking your session...
         </div>
       </AuthLayout>
     );
@@ -80,12 +76,17 @@ function GuestOnly() {
       <AuthLayout compact>
         <div className="loading-card">
           <LoaderCircle className="animate-spin" />
-          Đang kiểm tra phiên đăng nhập...
+          Checking your session...
         </div>
       </AuthLayout>
     );
   }
   return <Outlet />;
+}
+
+function LegacyOrderRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/account/orders/${id}` : '/account/orders'} replace />;
 }
 
 export default function App() {
@@ -103,11 +104,9 @@ export default function App() {
             <Route path="/cart" element={<CartPage />} />
             <Route path="/wishlist" element={<WishlistPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/payment/mock" element={<PaymentPage />} />
-            <Route path="/orders" element={<OrdersPage />} />
-            <Route path="/orders/:id" element={<OrderDetailPage />} />
+            <Route path="/orders" element={<LegacyOrderRedirect />} />
+            <Route path="/orders/:id" element={<LegacyOrderRedirect />} />
             <Route path="/policies/:slug" element={<PolicyPage />} />
-            <Route path="/verify-email" element={<VerifyEmailPage />} />
           </Route>
           <Route element={<GuestOnly />}>
             <Route path="/login" element={<LoginPage />} />
@@ -120,8 +119,11 @@ export default function App() {
             element={<GoogleCallbackPage />}
           />
           <Route element={<RequireAuth />}>
-            <Route path="/account" element={<AccountPage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route element={<StoreLayout />}>
+              <Route path="/account" element={<AccountPage />} />
+              <Route path="/account/orders" element={<AccountPage />} />
+              <Route path="/account/orders/:id" element={<AccountPage />} />
+            </Route>
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/admin/products" element={<AdminProductsPage />} />
@@ -140,7 +142,7 @@ export default function App() {
               />
               <Route
                 path="/admin/coupons"
-                element={<AdminManagementPage kind="coupons" />}
+                element={<Navigate to="/admin" replace />}
               />
               <Route path="/admin/orders" element={<AdminOrdersPage />} />
               <Route path="/admin/orders/:id" element={<AdminOrdersPage />} />
@@ -151,12 +153,8 @@ export default function App() {
               <Route path="/admin/users" element={<AdminCustomersPage />} />
               <Route path="/admin/users/:id" element={<AdminCustomersPage />} />
               <Route
-                path="/admin/notifications"
-                element={<AdminManagementPage kind="notifications" />}
-              />
-              <Route
                 path="/admin/settings"
-                element={<AdminManagementPage kind="settings" />}
+                element={<Navigate to="/admin" replace />}
               />
             </Route>
           </Route>

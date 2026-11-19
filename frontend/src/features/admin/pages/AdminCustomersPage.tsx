@@ -33,8 +33,8 @@ const dateTime = (value: string) =>
   }).format(new Date(value));
 const errorText = (error: unknown) =>
   error instanceof ApiError && error.status === 403
-    ? 'Tài khoản hiện tại không có quyền quản lý khách hàng.'
-    : 'Không thể tải dữ liệu. Vui lòng thử lại.';
+    ? 'Your account cannot manage customers.'
+    : 'Unable to load data. Please try again.';
 
 export function AdminCustomersPage() {
   const { id } = useParams();
@@ -85,39 +85,38 @@ export function AdminCustomersPage() {
     if (detail.isPending)
       return (
         <div className="customer-state">
-          <LoaderCircle className="spin" /> Đang tải thông tin khách hàng...
+          <LoaderCircle className="spin" /> Loading customer details...
         </div>
       );
     if (detail.isError)
       return (
         <div className="customer-state">
           <p>{errorText(detail.error)}</p>
-          <button onClick={() => void detail.refetch()}>Thử lại</button>
+          <button onClick={() => void detail.refetch()}>Try again</button>
         </div>
       );
     const customer = detail.data;
     return (
       <div className="admin-customers-page">
         <Link className="customer-back" to="/admin/users">
-          <ArrowLeft size={16} /> Danh sách khách hàng
+          <ArrowLeft size={16} /> Customer list
         </Link>
         <header className="customer-heading">
           <div>
-            <span>KHÁCH HÀNG NEXORA</span>
             <h1>{customer.fullName}</h1>
-            <p>Thông tin và trạng thái tài khoản.</p>
+            <p>Account information and status.</p>
           </div>
           <span className={`customer-status ${customer.status.toLowerCase()}`}>
-            {customer.status === 'ACTIVE' ? 'Đang hoạt động' : 'Đã khóa'}
+            {customer.status === 'ACTIVE' ? 'Active' : 'Locked'}
           </span>
         </header>
         <section className="customer-detail-card">
           <h2>
-            <ShieldCheck size={19} /> Thông tin tài khoản
+            <ShieldCheck size={19} /> Account information
           </h2>
           <dl>
             <div>
-              <dt>Họ và tên</dt>
+              <dt>Full name</dt>
               <dd>{customer.fullName}</dd>
             </div>
             <div>
@@ -125,29 +124,29 @@ export function AdminCustomersPage() {
               <dd>{customer.email}</dd>
             </div>
             <div>
-              <dt>Số điện thoại</dt>
-              <dd>{customer.phone || 'Chưa cung cấp'}</dd>
+              <dt>Phone number</dt>
+              <dd>{customer.phone || 'Not provided'}</dd>
             </div>
             <div>
-              <dt>Ngày tạo</dt>
+              <dt>Created</dt>
               <dd>{date(customer.createdAt)}</dd>
             </div>
             <div>
-              <dt>Trạng thái</dt>
+              <dt>Status</dt>
               <dd>
-                {customer.status === 'ACTIVE' ? 'Đang hoạt động' : 'Đã khóa'}
+                {customer.status === 'ACTIVE' ? 'Active' : 'Locked'}
               </dd>
             </div>
             {customer.status === 'LOCKED' ? (
               <>
                 <div>
-                  <dt>Thời điểm khóa</dt>
+                  <dt>Locked at</dt>
                   <dd>
                     {customer.lockedAt ? dateTime(customer.lockedAt) : '—'}
                   </dd>
                 </div>
                 <div className="customer-reason">
-                  <dt>Lý do khóa</dt>
+                  <dt>Lock reason</dt>
                   <dd>{customer.lockReason}</dd>
                 </div>
               </>
@@ -159,18 +158,18 @@ export function AdminCustomersPage() {
                 className="danger-action"
                 onClick={() => setShowLock(true)}
               >
-                <LockKeyhole size={16} /> Khóa tài khoản
+                <LockKeyhole size={16} /> Lock account
               </button>
             ) : (
               <button
                 className="primary-action"
                 disabled={unlock.isPending}
                 onClick={() => {
-                  if (window.confirm('Mở khóa tài khoản này?')) unlock.mutate();
+                  if (window.confirm('Unlock this account?')) unlock.mutate();
                 }}
               >
                 <UnlockKeyhole size={16} />{' '}
-                {unlock.isPending ? 'Đang mở khóa...' : 'Mở khóa'}
+                {unlock.isPending ? 'Unlocking...' : 'Unlock'}
               </button>
             )}
             {unlock.isError || lock.isError ? (
@@ -186,12 +185,11 @@ export function AdminCustomersPage() {
               aria-modal="true"
               aria-labelledby="lock-title"
             >
-              <h2 id="lock-title">Khóa tài khoản</h2>
+              <h2 id="lock-title">Lock account</h2>
               <p>
-                Khách hàng sẽ bị đăng xuất khỏi các phiên hiện tại. Đơn hàng
-                hiện có không bị hủy.
+                The customer will be signed out of current sessions. Existing orders will not be cancelled.
               </p>
-              <label htmlFor="lock-reason">Lý do khóa</label>
+              <label htmlFor="lock-reason">Lock reason</label>
               <textarea
                 id="lock-reason"
                 maxLength={500}
@@ -199,7 +197,7 @@ export function AdminCustomersPage() {
                 onChange={(event) => setReason(event.target.value)}
                 autoFocus
               />
-              <small>{reason.trim().length}/500 ký tự</small>
+              <small>{reason.trim().length}/500 characters</small>
               {lock.isError ? (
                 <p role="alert">{errorText(lock.error)}</p>
               ) : null}
@@ -208,14 +206,14 @@ export function AdminCustomersPage() {
                   onClick={() => setShowLock(false)}
                   disabled={lock.isPending}
                 >
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   className="danger-action"
                   disabled={!reason.trim() || lock.isPending}
                   onClick={() => lock.mutate()}
                 >
-                  {lock.isPending ? 'Đang khóa...' : 'Xác nhận khóa'}
+                  {lock.isPending ? 'Locking...' : 'Confirm lock'}
                 </button>
               </div>
             </section>
@@ -230,9 +228,8 @@ export function AdminCustomersPage() {
     <div className="admin-customers-page">
       <header className="customer-heading">
         <div>
-          <span>KHÁCH HÀNG NEXORA</span>
-          <h1>Quản lý khách hàng</h1>
-          <p>Tìm kiếm và quản lý trạng thái tài khoản Customer.</p>
+          <h1>Manage customers</h1>
+          <p>Search customers and manage account status.</p>
         </div>
       </header>
       <section className="customer-list-card">
@@ -240,8 +237,8 @@ export function AdminCustomersPage() {
           <label className="customer-search">
             <Search size={17} />
             <input
-              aria-label="Tìm theo tên hoặc email"
-              placeholder="Tìm tên hoặc email..."
+              aria-label="Search by name or email"
+              placeholder="Search name or email..."
               value={q}
               onChange={(event) => {
                 setQ(event.target.value);
@@ -250,30 +247,30 @@ export function AdminCustomersPage() {
             />
           </label>
           <select
-            aria-label="Lọc trạng thái"
+            aria-label="Filter by status"
             value={status}
             onChange={(event) => {
               setStatus(event.target.value);
               setPage(1);
             }}
           >
-            <option value="">Tất cả trạng thái</option>
-            <option value="ACTIVE">Đang hoạt động</option>
-            <option value="LOCKED">Đã khóa</option>
+            <option value="">All statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="LOCKED">Locked</option>
           </select>
         </div>
         {list.isPending ? (
           <div className="customer-state">
-            <LoaderCircle className="spin" /> Đang tải khách hàng...
+            <LoaderCircle className="spin" /> Loading customers...
           </div>
         ) : list.isError ? (
           <div className="customer-state">
             <p>{errorText(list.error)}</p>
-            <button onClick={() => void list.refetch()}>Thử lại</button>
+            <button onClick={() => void list.refetch()}>Try again</button>
           </div>
         ) : list.data.items.length === 0 ? (
           <div className="customer-state">
-            Không tìm thấy khách hàng phù hợp.
+            No matching customers found.
           </div>
         ) : (
           <>
@@ -281,11 +278,11 @@ export function AdminCustomersPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>KHÁCH HÀNG</th>
+                    <th>CUSTOMER</th>
                     <th>EMAIL</th>
-                    <th>ĐIỆN THOẠI</th>
-                    <th>NGÀY THAM GIA</th>
-                    <th>TRẠNG THÁI</th>
+                    <th>PHONE</th>
+                    <th>JOINED</th>
+                    <th>STATUS</th>
                     <th />
                   </tr>
                 </thead>
@@ -308,13 +305,13 @@ export function AdminCustomersPage() {
                           className={`customer-status ${customer.status.toLowerCase()}`}
                         >
                           {customer.status === 'ACTIVE'
-                            ? 'Đang hoạt động'
-                            : 'Đã khóa'}
+                            ? 'Active'
+                            : 'Locked'}
                         </span>
                       </td>
                       <td>
                         <Link to={`/admin/users/${customer.id}`}>
-                          Chi tiết <ChevronRight size={14} />
+                          Details <ChevronRight size={14} />
                         </Link>
                       </td>
                     </tr>
@@ -324,18 +321,18 @@ export function AdminCustomersPage() {
             </div>
             <footer className="customer-pagination">
               <span>
-                {list.data.total} khách hàng · Trang {page}/{totalPages}
+                {list.data.total} customers · Page {page}/{totalPages}
               </span>
               <div>
                 <button
-                  aria-label="Trang trước"
+                  aria-label="Previous page"
                   disabled={page <= 1}
                   onClick={() => setPage((value) => value - 1)}
                 >
                   <ChevronLeft size={17} />
                 </button>
                 <button
-                  aria-label="Trang sau"
+                  aria-label="Next page"
                   disabled={page >= totalPages}
                   onClick={() => setPage((value) => value + 1)}
                 >

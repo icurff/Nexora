@@ -46,7 +46,7 @@ function normalize(value: string) {
 
 async function getProvinces(signal: AbortSignal): Promise<Province[]> {
   const response = await fetch(LOCATION_URL, { signal, credentials: 'omit' });
-  if (!response.ok) throw new Error('Chưa tải được danh sách địa giới.');
+  if (!response.ok) throw new Error('Unable to load locations.');
   const value: unknown = await response.json();
   const isProvince = (item: unknown): item is Province => {
     if (!item || typeof item !== 'object') return false;
@@ -67,7 +67,7 @@ async function getProvinces(signal: AbortSignal): Promise<Province[]> {
     );
   };
   if (!Array.isArray(value) || !value.every(isProvince))
-    throw new Error('Dữ liệu địa giới từ nguồn không đúng định dạng.');
+    throw new Error('Location data is in an invalid format.');
   return value as Province[];
 }
 
@@ -132,7 +132,7 @@ function LocationSelect({
             : undefined
         }
         disabled={disabled}
-        placeholder={disabled ? 'Chọn tỉnh/thành trước' : placeholder}
+        placeholder={disabled ? 'Select a province or city first' : placeholder}
         value={open ? search : (selected?.label ?? '')}
         onFocus={() => {
           setSearch('');
@@ -167,7 +167,7 @@ function LocationSelect({
               </li>
             ))
           ) : (
-            <li className="location-empty">Không tìm thấy kết quả</li>
+            <li className="location-empty">No results found</li>
           )}
         </ul>
       ) : null}
@@ -241,11 +241,11 @@ function AddressEditor({
     event.preventDefault();
     setFormError('');
     if (locationError || loadingLocations) {
-      setFormError('Tải xong danh sách tỉnh và xã trước khi lưu.');
+      setFormError('Wait for provinces and wards to load before saving.');
       return;
     }
     if (!provinceCode || !wardCode) {
-      setFormError('Hãy chọn tỉnh/thành và xã/phường/đặc khu từ danh sách.');
+      setFormError('Select a province or city and a ward from the lists.');
       return;
     }
     try {
@@ -254,34 +254,34 @@ function AddressEditor({
       setFormError(
         error instanceof Error
           ? error.message
-          : 'Chưa lưu được địa chỉ. Vui lòng thử lại.',
+          : 'Unable to save the address. Please try again.',
       );
     }
   }
 
   return (
     <form className="address-add-form" onSubmit={(event) => void submit(event)}>
-      <h3>{address ? 'Sửa địa chỉ' : 'Thêm địa chỉ mới'}</h3>
+      <h3>{address ? 'Edit address' : 'Add a new address'}</h3>
       {locationError ? (
         <Notice>
           {locationError}{' '}
           <button type="button" onClick={retryLocations}>
-            Thử lại
+            Try again
           </button>
         </Notice>
       ) : null}
       {loadingLocations ? (
         <p role="status" className="address-loading">
-          Đang tải danh sách tỉnh và xã…
+          Loading provinces and wards…
         </p>
       ) : null}
       {locationMismatch ? (
         <Notice>
-          Địa giới đã lưu không còn trong danh sách. Hãy chọn lại tỉnh và xã.
+          The saved location is no longer available. Please select it again.
         </Notice>
       ) : null}
       <label>
-        Người nhận
+        Recipient
         <input
           required
           maxLength={100}
@@ -291,7 +291,7 @@ function AddressEditor({
         />
       </label>
       <label>
-        Số điện thoại
+        Phone number
         <input
           required
           maxLength={16}
@@ -302,11 +302,11 @@ function AddressEditor({
         />
       </label>
       <label>
-        Tỉnh/thành phố
+        Province or city
         <LocationSelect
           value={provinceCode}
           options={provinceOptions}
-          placeholder="Tìm tỉnh/thành phố"
+          placeholder="Search provinces or cities"
           disabled={loadingLocations || Boolean(locationError)}
           onChange={(code) => {
             setProvinceCode(code);
@@ -319,11 +319,11 @@ function AddressEditor({
         />
       </label>
       <label>
-        Xã/phường/đặc khu
+        Ward or commune
         <LocationSelect
           value={wardCode}
           options={wardOptions}
-          placeholder="Tìm xã/phường/đặc khu"
+          placeholder="Search wards or communes"
           disabled={!provinceCode || loadingLocations || Boolean(locationError)}
           onChange={(code) =>
             set(
@@ -334,12 +334,12 @@ function AddressEditor({
         />
       </label>
       <label>
-        Địa chỉ chi tiết
+        Street address
         <input
           required
           maxLength={300}
           autoComplete="street-address"
-          placeholder="Số nhà, tên đường, thôn, căn hộ…"
+          placeholder="House number, street, apartment…"
           value={form.addressLine}
           onChange={(event) => set('addressLine', event.target.value)}
         />
@@ -350,7 +350,7 @@ function AddressEditor({
           checked={form.isDefault}
           onChange={(event) => set('isDefault', event.target.checked)}
         />{' '}
-        Đặt làm địa chỉ mặc định
+        Set as default address
       </label>
       {formError ? (
         <p role="alert" className="address-form-error">
@@ -359,13 +359,13 @@ function AddressEditor({
       ) : null}
       <div>
         <button type="button" className="button-secondary" onClick={onCancel}>
-          Hủy
+          Cancel
         </button>
         <button
           className="button-primary"
           disabled={saving || loadingLocations || Boolean(locationError)}
         >
-          {saving ? 'Đang lưu…' : 'Lưu địa chỉ'}
+          {saving ? 'Saving…' : 'Save address'}
         </button>
       </div>
     </form>
@@ -396,12 +396,12 @@ export function AddressBook() {
   }
 
   async function remove(address: UserAddress) {
-    if (!window.confirm(`Xóa địa chỉ của ${address.recipientName}?`)) return;
+    if (!window.confirm(`Delete address for ${address.recipientName}?`)) return;
     setPageError('');
     try {
       await mutations.remove.mutateAsync(address.id);
     } catch {
-      setPageError('Chưa xóa được địa chỉ. Vui lòng thử lại.');
+      setPageError('Unable to delete the address. Please try again.');
     }
   }
 
@@ -410,7 +410,7 @@ export function AddressBook() {
     try {
       await mutations.setDefault.mutateAsync(address.id);
     } catch {
-      setPageError('Chưa đổi được địa chỉ mặc định. Vui lòng thử lại.');
+      setPageError('Unable to change the default address. Please try again.');
     }
   }
 
@@ -418,13 +418,13 @@ export function AddressBook() {
     <div className="account-panel">
       <div className="account-panel-title">
         <div>
-          <span className="section-eyebrow">GIAO HÀNG NHANH HƠN</span>
-          <h2>Sổ địa chỉ</h2>
-          <p>Quản lý địa chỉ nhận hàng của bạn.</p>
+          <span className="section-eyebrow">FASTER CHECKOUT</span>
+          <h2>Address book</h2>
+          <p>Manage your delivery addresses.</p>
         </div>
         {editing === undefined ? (
           <button className="button-primary" onClick={() => setEditing(null)}>
-            <Plus size={15} /> Thêm địa chỉ
+            <Plus size={15} /> Add address
           </button>
         ) : null}
       </div>
@@ -437,7 +437,7 @@ export function AddressBook() {
           loadingLocations={locations.isFetching}
           locationError={
             locations.isError
-              ? 'Chưa tải được danh sách địa giới từ GitHub.'
+              ? 'Unable to load locations from GitHub.'
               : ''
           }
           retryLocations={() => void locations.refetch()}
@@ -448,13 +448,13 @@ export function AddressBook() {
       ) : null}
       {addressesQuery.isLoading ? (
         <p role="status" className="address-loading">
-          Đang tải sổ địa chỉ…
+          Loading address book…
         </p>
       ) : null}
       {addressesQuery.isError ? (
         <Notice>
-          Chưa tải được sổ địa chỉ.{' '}
-          <button onClick={() => void addressesQuery.refetch()}>Thử lại</button>
+          Unable to load the address book.{' '}
+          <button onClick={() => void addressesQuery.refetch()}>Try again</button>
         </Notice>
       ) : null}
       {!addressesQuery.isLoading &&
@@ -463,9 +463,9 @@ export function AddressBook() {
       editing === undefined ? (
         <div className="address-empty">
           <MapPin />
-          <p>Bạn chưa lưu địa chỉ nhận hàng.</p>
+          <p>You have no saved delivery addresses.</p>
           <button className="button-primary" onClick={() => setEditing(null)}>
-            <Plus size={15} /> Thêm địa chỉ
+            <Plus size={15} /> Add address
           </button>
         </div>
       ) : null}
@@ -483,9 +483,9 @@ export function AddressBook() {
                   ) : (
                     <MapPin size={16} />
                   )}{' '}
-                  {address.isDefault ? 'Địa chỉ nhận hàng' : 'Địa chỉ khác'}
+                  {address.isDefault ? 'Delivery address' : 'Other address'}
                 </span>
-                {address.isDefault ? <em>MẶC ĐỊNH</em> : null}
+                {address.isDefault ? <em>DEFAULT</em> : null}
               </div>
               <strong>{address.recipientName}</strong>
               <p>
@@ -502,20 +502,20 @@ export function AddressBook() {
                     setEditing(address);
                   }}
                 >
-                  <Pencil size={13} /> Sửa
+                  <Pencil size={13} /> Edit
                 </button>
                 <button
                   disabled={mutations.remove.isPending}
                   onClick={() => void remove(address)}
                 >
-                  <Trash2 size={13} /> Xóa
+                  <Trash2 size={13} /> Delete
                 </button>
                 {!address.isDefault ? (
                   <button
                     disabled={mutations.setDefault.isPending}
                     onClick={() => void setDefault(address)}
                   >
-                    Đặt mặc định
+                    Set as default
                   </button>
                 ) : null}
               </div>
@@ -547,25 +547,25 @@ export function CheckoutAddressPicker({
       <div className="panel-heading">
         <span className="checkout-number">1</span>
         <div>
-          <h2>Địa chỉ nhận hàng</h2>
-          <p>Chọn địa chỉ bạn muốn dùng cho đơn hàng.</p>
+          <h2>Delivery address</h2>
+          <p>Choose the address for your order.</p>
         </div>
         <Link className="text-link" to="/account?section=addresses">
-          Quản lý
+          Manage
         </Link>
       </div>
-      {query.isLoading ? <p role="status">Đang tải địa chỉ…</p> : null}
+      {query.isLoading ? <p role="status">Loading addresses…</p> : null}
       {query.isError ? (
         <p role="alert">
-          Chưa tải được địa chỉ.{' '}
-          <button onClick={() => void query.refetch()}>Thử lại</button>
+          Unable to load addresses.{' '}
+          <button onClick={() => void query.refetch()}>Try again</button>
         </p>
       ) : null}
       {query.isSuccess && addresses.length === 0 ? (
         <div className="checkout-no-address">
-          <p>Bạn chưa lưu địa chỉ nhận hàng.</p>
+          <p>You have no saved delivery addresses.</p>
           <Link className="button-secondary" to="/account?section=addresses">
-            Thêm địa chỉ
+            Add address
           </Link>
         </div>
       ) : null}
@@ -588,7 +588,7 @@ export function CheckoutAddressPicker({
           <span className="address-copy">
             <strong>
               {address.recipientName} · {address.recipientPhone}
-              {address.isDefault ? <em>Mặc định</em> : null}
+              {address.isDefault ? <em>Default</em> : null}
             </strong>
             <small>
               {address.addressLine}, {address.wardName}, {address.provinceName}

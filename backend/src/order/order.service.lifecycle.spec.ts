@@ -128,6 +128,17 @@ const request = (version: number, extra = {}) => ({
 });
 
 describe('OrderService COD lifecycle', () => {
+  it('does not grant admin-wide access through customer order routes', async () => {
+    const { service, orders } = fixture();
+    await expect(service.get(admin, '21')).rejects.toMatchObject({
+      response: { code: 'ORDER_NOT_FOUND' },
+    });
+    await expect(service.cancel(admin, '21', request(4))).rejects.toMatchObject({
+      response: { code: 'ORDER_NOT_FOUND' },
+    });
+    expect(orders.findOrder).toHaveBeenCalled();
+  });
+
   it('dispatches once, preserves stock on redelivery, and returns stock once', async () => {
     const { service, order, catalog, notifications } = fixture();
     const shipped = await service.lifecycle(admin, '21', 'SHIP', request(4));

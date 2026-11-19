@@ -20,7 +20,7 @@ export class ApiError extends Error {
     const message = Array.isArray(problem?.message)
       ? problem.message.join(' ')
       : problem?.message;
-    super(message || fallback || 'Đã có lỗi xảy ra. Vui lòng thử lại.');
+    super(message || fallback || 'Something went wrong. Please try again.');
     this.name = 'ApiError';
     this.status = status;
     this.code = problem?.code;

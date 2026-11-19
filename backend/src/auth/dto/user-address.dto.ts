@@ -20,7 +20,7 @@ export class UserAddressDto {
   @IsString()
   @Length(8, 16)
   @Matches(/^\+?[0-9][0-9\s().-]{6,14}[0-9]$/, {
-    message: 'Số điện thoại không hợp lệ',
+    message: 'Invalid phone number',
   })
   recipientPhone!: string;
 
@@ -56,7 +56,7 @@ export class UpdateUserAddressDto {
   @IsString()
   @Length(8, 16)
   @Matches(/^\+?[0-9][0-9\s().-]{6,14}[0-9]$/, {
-    message: 'Số điện thoại không hợp lệ',
+    message: 'Invalid phone number',
   })
   recipientPhone?: string;
 

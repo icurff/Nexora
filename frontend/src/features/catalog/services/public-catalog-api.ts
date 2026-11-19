@@ -44,10 +44,31 @@ export type ProductPage = {
   totalPages: number;
 };
 
-export async function getPublicProducts(page = 1): Promise<ProductPage> {
+export type CatalogCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+};
+
+export async function getPublicCategories(): Promise<CatalogCategory[]> {
+  return (await apiClient.get<{ items: CatalogCategory[] }>('/categories')).data
+    .items;
+}
+
+export async function getPublicProducts(
+  page = 1,
+  q?: string,
+  categoryId?: string,
+): Promise<ProductPage> {
   return (
     await apiClient.get<ProductPage>('/products', {
-      params: { page, pageSize: 20 },
+      params: {
+        page,
+        pageSize: 20,
+        ...(q ? { q } : {}),
+        ...(categoryId ? { categoryId } : {}),
+      },
     })
   ).data;
 }

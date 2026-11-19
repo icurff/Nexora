@@ -13,7 +13,7 @@ export default function AdminPage() {
     queryFn: async () => {
       const token = storedAccessToken();
       if (!token)
-        throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        throw new Error('Your session has expired. Please sign in again.');
       return checkAdminAccess(token);
     },
     enabled: isAdmin,
@@ -24,9 +24,8 @@ export default function AdminPage() {
     return (
       <div className="admin-denied">
         <ShieldCheck />
-        <span>KIỂM TRA PHÂN QUYỀN</span>
-        <h1>Không có quyền truy cập</h1>
-        <p>Tài khoản hiện tại không có role ADMIN.</p>
+        <h1>Access denied</h1>
+        <p>Your account does not have the ADMIN role.</p>
       </div>
     );
   }
@@ -45,10 +44,10 @@ export default function AdminPage() {
         )}
         <span>
           {accessQuery.isSuccess
-            ? 'Backend đã xác nhận quyền ADMIN'
+            ? 'Admin access verified'
             : accessQuery.isError
               ? accessQuery.error.message
-              : 'Đang xác minh quyền với backend...'}
+              : 'Verifying admin access...'}
         </span>
       </div>
       <AdminDashboardPage />

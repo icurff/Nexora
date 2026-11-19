@@ -1,90 +1,128 @@
-import { useState } from 'react';
-import { ChevronRight, Search } from 'lucide-react';
+﻿import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, ChevronRight, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { demoProducts } from '../../catalog/demo-data.js';
-import { ProductGrid } from '../components/catalog-components.js';
+import { CatalogProductGrid } from '../components/catalog-components.js';
+import { getPublicProducts } from '../services/public-catalog-api.js';
 import { trackEvent } from '../../../services/tracking-api';
 
 export function SearchPage() {
-  const [params] = useSearchParams();
-  const initial = params.get('q') ?? '';
-  const [query, setQuery] = useState(initial);
-  const [submitted, setSubmitted] = useState(initial);
-  const products = demoProducts.filter(
-    (product) =>
-      !submitted ||
-      `${product.name} ${product.category}`
-        .toLowerCase()
-        .includes(submitted.toLowerCase()),
-  );
+  const [params, setParams] = useSearchParams();
+  const submitted = (params.get('q') ?? '').trim().slice(0, 100);
+  const requestedPage = Number(params.get('page') ?? '1');
+  const page =
+    Number.isSafeInteger(requestedPage) && requestedPage > 0
+      ? requestedPage
+      : 1;
+
+useEffect(() => {
+    if (submitted)
+      void trackEvent({ eventType: 'search', queryLength: submitted.length });
+  }, [submitted]);
+  const products = useQuery({
+    queryKey: ['public-products', 'search', submitted, page],
+    queryFn: () => getPublicProducts(page, submitted),
+    enabled: Boolean(submitted),
+    retry: false,
+  });
+
   return (
     <div className="page-container page-section">
       <div className="breadcrumbs">
-        <Link to="/">Trang chủ</Link>
+        <Link to="/">Home</Link>
         <ChevronRight />
-        <span>Tìm kiếm</span>
+        <span>Search</span>
       </div>
       <div className="search-heading">
-        <span className="section-eyebrow">TÌM KIẾM SẢN PHẨM</span>
+        <span className="section-eyebrow">SEARCH PRODUCTS</span>
         <h1>
           {submitted ? (
             <>
-              Kết quả cho <em>“{submitted}”</em>
+              Results for <em>“{submitted}”</em>
             </>
           ) : (
-            'Bạn đang tìm gì?'
+            'What are you looking for?'
           )}
         </h1>
         <form
           className="large-search"
           onSubmit={(event) => {
-          event.preventDefault();
-          const keyword = query.trim();
-          setSubmitted(keyword);
-          void trackEvent({
-            eventType: 'search',
-            queryLength: keyword.length,
-          });
-        }}
+            event.preventDefault();
+            const keyword = String(new FormData(event.currentTarget).get('q') ?? '').trim();
+            setParams(keyword ? { q: keyword } : {});
+          }}
         >
           <Search />
           <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Thử “túi tote”, “đèn bàn”..."
-            aria-label="Từ khóa tìm kiếm"
+            key={submitted}
+            name="q"
+            defaultValue={submitted}
+            maxLength={100}
+            placeholder="Enter a product name or category"
+            aria-label="Search keywords"
           />
-          <button type="submit">Tìm kiếm</button>
+          <button type="submit">Search</button>
         </form>
-        <p>
-          {submitted
-            ? `Tìm thấy ${products.length} sản phẩm phù hợp`
-            : 'Nhập tên hoặc danh mục sản phẩm để bắt đầu.'}
-        </p>
+        {!submitted ? (
+          <p>Enter a product name or category to get started.</p>
+        ) : products.isSuccess ? (
+          <p>Found {products.data.total} matching products</p>
+        ) : null}
       </div>
-      {submitted ? (
-        <ProductGrid products={products} />
-      ) : (
-        <div className="search-suggestions">
-          <span>Được tìm nhiều:</span>
-          {['Túi tote', 'Đèn bàn', 'Tai nghe', 'Ly gốm'].map((word) => (
+      {submitted &&
+        (products.isPending ? (
+          <div className="empty-state" role="status">
+            Searching products...
+          </div>
+        ) : products.isError ? (
+          <div className="empty-state" role="alert">
+            <h3>Unable to search products</h3>
             <button
-              key={word}
-              onClick={() => {
-                setQuery(word);
-                setSubmitted(word);
-
-                void trackEvent({
-                  eventType: 'search',
-                  queryLength: word.length,
-                });
-              }}
+              className="button-primary"
+              onClick={() => void products.refetch()}
             >
-              {word}
+              Try again
             </button>
-          ))}
-        </div>
-      )}
+          </div>
+        ) : products.data.items.length ? (
+          <>
+            <CatalogProductGrid products={products.data.items} />
+            {products.data.totalPages > 1 ? (
+              <nav
+                className="pagination"
+                aria-label="Search results pagination"
+              >
+                <button
+                  className="page-next"
+                  disabled={page <= 1}
+                  onClick={() =>
+                    setParams({ q: submitted, page: String(page - 1) })
+                  }
+                >
+                  Previous
+                </button>
+                <span className="page-number active" aria-current="page">
+                  {page}
+                </span>
+                <button
+                  className="page-next"
+                  disabled={page >= products.data.totalPages}
+                  onClick={() =>
+                    setParams({ q: submitted, page: String(page + 1) })
+                  }
+                >
+                  Next <ArrowRight size={15} />
+                </button>
+              </nav>
+            ) : null}
+          </>
+        ) : (
+          <div className="empty-state">
+            <Search />
+            <h3>No products found</h3>
+            <p>Try different keywords.</p>
+          </div>
+        ))}
     </div>
   );
 }

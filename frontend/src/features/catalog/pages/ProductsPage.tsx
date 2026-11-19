@@ -22,40 +22,40 @@ export function ProductsPage() {
   return (
     <div className="page-container page-section">
       <div className="breadcrumbs">
-        <Link to="/">Trang chủ</Link>
+        <Link to="/">Home</Link>
         <ChevronRight />
-        <span>Sản phẩm</span>
+        <span>Products</span>
       </div>
       <div className="catalog-title">
         <div>
-          <span className="section-eyebrow">CỬA HÀNG NEXORA</span>
-          <h1>Tất cả sản phẩm</h1>
-          <p>Khám phá những món đồ được chọn lọc cho bạn.</p>
+          <span className="section-eyebrow">NEXORA STORE</span>
+          <h1>All products</h1>
+          <p>Explore products selected for you.</p>
         </div>
       </div>
       {products.isPending ? (
         <div className="empty-state" role="status">
-          Đang tải sản phẩm...
+          Loading products...
         </div>
       ) : products.isError ? (
         <div className="empty-state" role="alert">
-          <h3>Chưa thể tải sản phẩm</h3>
-          <p>Kiểm tra kết nối rồi thử lại.</p>
+          <h3>Unable to load products</h3>
+          <p>Check your connection and try again.</p>
           <button
             className="button-primary"
             onClick={() => void products.refetch()}
           >
-            Thử lại
+            Try again
           </button>
         </div>
       ) : (
         <>
           <div className="catalog-count">
-            Có <strong>{result?.total ?? 0}</strong> sản phẩm
+            <strong>{result?.total ?? 0}</strong> products
           </div>
           <CatalogProductGrid products={result?.items ?? []} />
           {(result?.totalPages ?? 0) > 1 ? (
-            <nav className="pagination" aria-label="Phân trang sản phẩm">
+            <nav className="pagination" aria-label="Product pagination">
               <button
                 className="page-next"
                 disabled={page <= 1}
@@ -63,7 +63,7 @@ export function ProductsPage() {
                   setParams(page <= 2 ? {} : { page: String(page - 1) })
                 }
               >
-                Trang trước
+                Previous
               </button>
               <span className="page-number active" aria-current="page">
                 {page}
@@ -73,7 +73,7 @@ export function ProductsPage() {
                 disabled={page >= (result?.totalPages ?? 1)}
                 onClick={() => setParams({ page: String(page + 1) })}
               >
-                Trang tiếp <ArrowRight size={15} />
+                Next <ArrowRight size={15} />
               </button>
             </nav>
           ) : null}

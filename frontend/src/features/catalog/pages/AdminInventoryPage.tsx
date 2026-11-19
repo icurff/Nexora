@@ -44,11 +44,11 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 function optionsText(row: InventoryRow) {
-  if (row.kind === 'PRODUCT') return 'Tồn kho cấp sản phẩm · Không có SKU';
+  if (row.kind === 'PRODUCT') return 'Product-level stock · No SKU';
   const entries = Object.entries(row.optionLabels);
   return entries.length
     ? entries.map(([label, value]) => `${label}: ${value}`).join(' · ')
-    : 'SKU mặc định';
+    : 'Default SKU';
 }
 type PendingAdjustment = {
   signature: string;
@@ -154,34 +154,33 @@ function InventoryList({
     <>
       <div className="admin-inventory-heading">
         <div>
-          <span className="admin-inventory-kicker">CATALOG / KHO</span>
-          <h1>Quản lý tồn kho</h1>
-          <p>Theo dõi tồn kho theo SKU hoặc trực tiếp ở cấp sản phẩm.</p>
+          <h1>Manage inventory</h1>
+          <p>Track stock by SKU or directly by product.</p>
         </div>
         <div className="inventory-count">
           <PackageCheck size={17} />
-          <span>{query.data?.total ?? '—'} mặt hàng</span>
+          <span>{query.data?.total ?? '—'} items</span>
         </div>
       </div>
       <form className="inventory-filters" onSubmit={submit}>
         <label className="inventory-search">
-          <span>Tìm sản phẩm hoặc mã SKU</span>
+          <span>Search products or SKU codes</span>
           <div>
             <Search size={16} />
             <input
               value={q}
               onChange={(event) => setQ(event.target.value)}
-              placeholder="Tên sản phẩm, NX-SKU…"
+              placeholder="Product name, NX-SKU…"
             />
           </div>
         </label>
         <label>
-          <span>Danh mục</span>
+          <span>Category</span>
           <select
             value={categoryId}
             onChange={(event) => setCategoryId(event.target.value)}
           >
-            <option value="">Tất cả danh mục</option>
+            <option value="">All categories</option>
             {categories.map(({ item, depth }) => (
               <option key={item.id} value={item.id}>
                 {'　'.repeat(depth)}
@@ -191,34 +190,34 @@ function InventoryList({
           </select>
         </label>
         <label>
-          <span>Sản phẩm</span>
+          <span>Product</span>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
           >
-            <option value="">Mọi trạng thái</option>
-            <option value="ACTIVE">Đang bán</option>
-            <option value="INACTIVE">Ngừng bán</option>
+            <option value="">All statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
           </select>
         </label>
         <label>
-          <span>Tình trạng kho</span>
+          <span>Stock status</span>
           <select
             value={availability}
             onChange={(event) => setAvailability(event.target.value)}
           >
-            <option value="">Tất cả</option>
-            <option value="IN_STOCK">Còn hàng</option>
-            <option value="OUT_OF_STOCK">Hết hàng</option>
+            <option value="">All</option>
+            <option value="IN_STOCK">In stock</option>
+            <option value="OUT_OF_STOCK">Out of stock</option>
           </select>
         </label>
         <button className="inventory-primary" type="submit">
-          <Search size={15} /> Lọc
+          <Search size={15} /> Filter
         </button>
       </form>
       {params.get('productId') ? (
         <div className="inventory-product-filter">
-          Đang lọc theo sản phẩm{' '}
+          Filtering by product{' '}
           <button
             type="button"
             onClick={() => {
@@ -228,22 +227,22 @@ function InventoryList({
               setParams(next);
             }}
           >
-            Bỏ lọc
+            Clear filter
           </button>
         </div>
       ) : null}
       {query.isPending ? (
         <div className="inventory-state">
-          <LoaderCircle className="inventory-spin" /> Đang tải tồn kho…
+          <LoaderCircle className="inventory-spin" /> Loading inventory…
         </div>
       ) : query.isError ? (
         <div className="inventory-state inventory-state-error">
           {inventoryErrorMessage(query.error)}{' '}
-          <button onClick={() => void query.refetch()}>Thử lại</button>
+          <button onClick={() => void query.refetch()}>Try again</button>
         </div>
       ) : !query.data?.items.length ? (
         <div className="inventory-state">
-          Không tìm thấy mặt hàng tồn kho phù hợp.
+          No matching inventory items found.
         </div>
       ) : (
         <>
@@ -251,13 +250,13 @@ function InventoryList({
             <table className="inventory-table">
               <thead>
                 <tr>
-                  <th>Sản phẩm / SKU</th>
-                  <th>Lựa chọn</th>
-                  <th>Trạng thái</th>
-                  <th>Tồn thực tế</th>
-                  <th>Đang giữ</th>
-                  <th>Có thể bán</th>
-                  <th>Cập nhật</th>
+                  <th>Product / SKU</th>
+                  <th>Options</th>
+                  <th>Status</th>
+                  <th>On hand</th>
+                  <th>Reserved</th>
+                  <th>Available</th>
+                  <th>Updated</th>
                   <th></th>
                 </tr>
               </thead>
@@ -271,7 +270,7 @@ function InventoryList({
                       >
                         <strong>{row.product.name}</strong>
                         <small>
-                          {row.kind === 'SKU' ? row.sku : 'Tồn cấp sản phẩm'} ·{' '}
+                          {row.kind === 'SKU' ? row.sku : 'Product-level stock'} ·{' '}
                           {row.product.category.name}
                         </small>
                       </Link>
@@ -282,8 +281,8 @@ function InventoryList({
                         className={`inventory-status ${row.product.status.toLowerCase()}`}
                       >
                         {row.product.status === 'ACTIVE'
-                          ? 'Đang bán'
-                          : 'Ngừng bán'}
+                          ? 'Active'
+                          : 'Inactive'}
                       </span>
                     </td>
                     <td className="inventory-number">
@@ -310,14 +309,14 @@ function InventoryList({
                             setParams(next);
                           }}
                         >
-                          Chi tiết <ArrowRight size={14} />
+                          Details <ArrowRight size={14} />
                         </button>
                       ) : (
                         <Link
                           className="inventory-row-link"
                           to={`/admin/products/${row.product.id}/edit`}
                         >
-                          Quản lý <ArrowRight size={14} />
+                          Manage <ArrowRight size={14} />
                         </Link>
                       )}
                     </td>
@@ -328,18 +327,18 @@ function InventoryList({
           </div>
           <div className="inventory-pagination">
             <span>
-              Trang {query.data.page} / {Math.max(1, query.data.totalPages)} ·{' '}
-              {query.data.total} mặt hàng
+              Page {query.data.page} / {Math.max(1, query.data.totalPages)} ·{' '}
+              {query.data.total} items
             </span>
             <div>
               <button disabled={page <= 1} onClick={() => changePage(page - 1)}>
-                Trước
+                Previous
               </button>
               <button
                 disabled={page >= query.data.totalPages}
                 onClick={() => changePage(page + 1)}
               >
-                Sau
+                Next
               </button>
             </div>
           </div>
@@ -388,7 +387,7 @@ function InventoryDetail({
         /* Ignore unavailable storage after success. */
       }
       setError('');
-      setSuccess('Đã cập nhật tồn kho.');
+      setSuccess('Inventory updated.');
       setQuantity('');
       setReason('');
       await Promise.all([
@@ -423,23 +422,23 @@ function InventoryDetail({
     setSuccess('');
     const numeric = Number(quantity);
     if (!Number.isInteger(numeric) || quantity.trim() === '') {
-      setError('Nhập số lượng nguyên hợp lệ.');
+      setError('Enter a valid whole-number quantity.');
       return;
     }
     if (!reason.trim()) {
-      setError('Nhập lý do điều chỉnh.');
+      setError('Enter a reason for the adjustment.');
       return;
     }
     if (type === 'RESTOCK' && numeric <= 0) {
-      setError('Số lượng nhập phải lớn hơn 0.');
+      setError('The restock quantity must be greater than zero.');
       return;
     }
     if (type === 'ADJUSTMENT' && numeric === 0) {
-      setError('Mức điều chỉnh phải khác 0.');
+      setError('The adjustment must not be zero.');
       return;
     }
     if (type === 'STOCKTAKE' && numeric < 0) {
-      setError('Tồn kiểm kê không được âm.');
+      setError('Stocktake quantity cannot be negative.');
       return;
     }
     if (!row) return;
@@ -476,14 +475,14 @@ function InventoryDetail({
   if (detail.isPending)
     return (
       <div className="inventory-state">
-        <LoaderCircle className="inventory-spin" /> Đang tải SKU…
+        <LoaderCircle className="inventory-spin" /> Loading SKU…
       </div>
     );
   if (detail.isError || !row)
     return (
       <div className="inventory-state inventory-state-error">
         <button onClick={onBack}>
-          <ArrowLeft size={15} /> Quay lại danh sách
+          <ArrowLeft size={15} /> Back to list
         </button>{' '}
         {inventoryErrorMessage(detail.error)}
       </div>
@@ -496,56 +495,55 @@ function InventoryDetail({
   return (
     <>
       <button className="inventory-back" onClick={onBack}>
-        <ArrowLeft size={15} /> Danh sách tồn kho
+        <ArrowLeft size={15} /> Inventory list
       </button>
       <div className="admin-inventory-heading inventory-detail-heading">
         <div>
-          <span className="admin-inventory-kicker">CHI TIẾT SKU</span>
           <h1>{row.product.name}</h1>
           <p>
             {row.sku} · {optionsText(row)} ·{' '}
             <Link to={`/admin/products/${row.product.id}/edit`}>
-              Mở sản phẩm
+              Open product
             </Link>
           </p>
         </div>
         <span
           className={`inventory-status ${row.product.status.toLowerCase()}`}
         >
-          {row.product.status === 'ACTIVE' ? 'Đang bán' : 'Ngừng bán'}
+          {row.product.status === 'ACTIVE' ? 'Active' : 'Inactive'}
         </span>
       </div>
       <div className="inventory-metrics">
         <article>
-          <span>Tồn thực tế</span>
+          <span>On hand</span>
           <strong>{row.onHand.toLocaleString('vi-VN')}</strong>
         </article>
         <article>
-          <span>Đang giữ</span>
+          <span>Reserved</span>
           <strong>{row.reserved.toLocaleString('vi-VN')}</strong>
         </article>
         <article>
-          <span>Có thể bán</span>
+          <span>Available</span>
           <strong>{row.available.toLocaleString('vi-VN')}</strong>
         </article>
       </div>
       {row.deleted ? (
         <div className="inventory-notice">
-          SKU đã xóa mềm. Có thể xem tồn và lịch sử, nhưng không thể điều chỉnh.
+          This SKU has been deleted. Stock and history remain visible, but cannot be adjusted.
         </div>
       ) : (
         <form className="inventory-adjust-form" onSubmit={submit}>
           <div className="inventory-section-heading">
             <div>
-              <h2>Điều chỉnh tồn</h2>
+              <h2>Adjust stock</h2>
               <p>
-                Mỗi thay đổi được lưu vào lịch sử cùng tài khoản Admin và lý do.
+                Each change is recorded with the admin account and reason.
               </p>
             </div>
           </div>
           <div className="inventory-form-grid">
             <label>
-              Loại thao tác
+              Action type
               <select
                 value={type}
                 onChange={(event) => {
@@ -553,17 +551,17 @@ function InventoryDetail({
                   setError('');
                 }}
               >
-                <option value="RESTOCK">Nhập hàng · cộng tồn</option>
-                <option value="ADJUSTMENT">Điều chỉnh tăng / giảm</option>
-                <option value="STOCKTAKE">Kiểm kê · đặt tồn thực tế</option>
+                <option value="RESTOCK">Restock · add stock</option>
+                <option value="ADJUSTMENT">Adjust stock up or down</option>
+                <option value="STOCKTAKE">Stocktake · set on-hand stock</option>
               </select>
             </label>
             <label>
               {type === 'STOCKTAKE'
-                ? 'Tồn thực tế sau kiểm kê'
+                ? 'On-hand stock after stocktake'
                 : type === 'RESTOCK'
-                  ? 'Số lượng nhập'
-                  : 'Mức điều chỉnh (+ / −)'}
+                  ? 'Restock quantity'
+                  : 'Adjustment (+ / −)'}
               <input
                 type="number"
                 step="1"
@@ -573,34 +571,34 @@ function InventoryDetail({
                 placeholder={
                   type === 'STOCKTAKE'
                     ? String(row.onHand)
-                    : 'Ví dụ: 12 hoặc -2'
+                    : 'For example: 12 or -2'
                 }
               />
             </label>
             <label className="inventory-reason">
-              Lý do
+              Reason
               <textarea
                 value={reason}
                 maxLength={500}
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="Ví dụ: Nhập hàng từ nhà cung cấp, kiểm kê cuối ngày…"
+                placeholder="For example: supplier delivery or end-of-day stocktake…"
               />
             </label>
           </div>
           <div className="inventory-preview">
             {type === 'STOCKTAKE' ? (
               <>
-                Chênh lệch dự kiến:{' '}
+                Expected change:{' '}
                 <strong className={delta < 0 ? 'negative' : ''}>
                   {delta > 0 ? '+' : ''}
                   {delta.toLocaleString('vi-VN')}
                 </strong>{' '}
-                · Tồn sau kiểm kê:{' '}
+                · Stock after stocktake:{' '}
                 <strong>{Number(quantity || 0).toLocaleString('vi-VN')}</strong>
               </>
             ) : (
               <>
-                Tồn sau thao tác dự kiến:{' '}
+                Expected stock after adjustment:{' '}
                 <strong>
                   {(
                     row.onHand +
@@ -632,7 +630,7 @@ function InventoryDetail({
             ) : (
               <PackageCheck size={15} />
             )}{' '}
-            {mutation.isPending ? 'Đang lưu…' : 'Xác nhận điều chỉnh'}
+            {mutation.isPending ? 'Saving…' : 'Confirm adjustment'}
           </button>
         </form>
       )}

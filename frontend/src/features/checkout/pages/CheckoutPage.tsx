@@ -28,7 +28,7 @@ export function CheckoutPage() {
   const location = useLocation();
   const client = useQueryClient();
   const cart = useCart();
-  const addressesQuery = useAddresses(user?.role === 'CUSTOMER');
+  const addressesQuery = useAddresses(Boolean(user));
   const [selectedAddress, setSelectedAddress] = useState('');
   const [selectedItems, setSelectedItems] = useState<string[] | null>(null);
   const [pending, setPending] = useState(false);
@@ -85,7 +85,7 @@ export function CheckoutPage() {
           setResolvedAttemptKey(key);
         else
           setError(
-            'Chưa xác định được kết quả lần đặt trước. Tải lại trang để kiểm tra lại.',
+            'The previous order result is unknown. Reload the page to check again.',
           );
       });
     return () => {
@@ -136,7 +136,7 @@ export function CheckoutPage() {
         } catch (cause) {
           if (cause instanceof ApiError && cause.status === 404) {
             setError(
-              'Thông tin lần đặt trước không khớp. Hãy nhập lại ghi chú và giữ nguyên sản phẩm, địa chỉ để thử lại cùng yêu cầu.',
+              'The previous order details do not match. Re-enter the note and keep the same products and address to retry.',
             );
             return;
           }
@@ -151,7 +151,7 @@ export function CheckoutPage() {
       );
     } catch {
       setError(
-        'Không thể lưu khóa khôi phục an toàn trên trình duyệt. Hãy bật session storage rồi thử lại.',
+        'Unable to safely save the recovery key. Enable session storage and try again.',
       );
       return;
     }
@@ -194,14 +194,14 @@ export function CheckoutPage() {
         ]);
         setError(
           cause.code === 'PRICE_CHANGED'
-            ? 'Giá sản phẩm vừa thay đổi. Hãy kiểm tra lại trước khi đặt.'
+            ? 'Product prices have changed. Review them before placing your order.'
             : cause.code === 'INSUFFICIENT_STOCK'
-              ? 'Một sản phẩm không còn đủ hàng. Giỏ đã được tải lại.'
-              : 'Giỏ hàng hoặc địa chỉ vừa thay đổi. Hãy kiểm tra và xác nhận lại.',
+              ? 'An item no longer has enough stock. Your cart has been refreshed.'
+              : 'Your cart or address has changed. Review and confirm again.',
         );
       } else {
         setError(
-          'Chưa nhận được kết quả đặt hàng. Có thể thử lại để kiểm tra cùng yêu cầu.',
+          'The order result is unknown. Retry to check the same request.',
         );
       }
     } finally {
@@ -212,18 +212,18 @@ export function CheckoutPage() {
   if (status === 'loading')
     return (
       <div className="page-container page-section">
-        <p role="status">Đang kiểm tra tài khoản…</p>
+        <p role="status">Checking your account…</p>
       </div>
     );
-  if (!user || user.role !== 'CUSTOMER')
+  if (!user)
     return (
       <div className="page-container page-section">
         <div className="empty-state">
           <ShoppingBag />
-          <h1>Đăng nhập để thanh toán</h1>
-          <p>Đăng nhập tài khoản khách hàng để đặt hàng.</p>
+          <h1>Sign in to check out</h1>
+          <p>Sign in to place an order.</p>
           <Link className="button-primary" to="/login">
-            Đăng nhập
+            Sign in
           </Link>
         </div>
       </div>
@@ -241,21 +241,21 @@ export function CheckoutPage() {
             <div className="panel-heading">
               <span className="checkout-number">2</span>
               <div>
-                <h2>Sản phẩm đặt mua</h2>
-                <p>Giá và số lượng được kiểm tra lại khi đặt.</p>
+                <h2>Order items</h2>
+                <p>Prices and quantities are checked when you place the order.</p>
               </div>
             </div>
-            {cart.isPending ? <p role="status">Đang tải giỏ hàng…</p> : null}
+            {cart.isPending ? <p role="status">Loading cart…</p> : null}
             {cart.isError ? (
               <p role="alert">
-                Chưa tải được giỏ hàng.{' '}
-                <button onClick={() => void cart.refetch()}>Thử lại</button>
+                Unable to load the cart.{' '}
+                <button onClick={() => void cart.refetch()}>Try again</button>
               </p>
             ) : null}
             {cart.data && eligible.length === 0 ? (
               <p>
-                Giỏ hàng không có sản phẩm khả dụng.{' '}
-                <Link to="/cart">Quay lại giỏ hàng</Link>
+                There are no available items in your cart.{' '}
+                <Link to="/cart">Back to cart</Link>
               </p>
             ) : null}
             {eligible.map((item: CartItem) => (
@@ -277,8 +277,8 @@ export function CheckoutPage() {
                   <small>
                     {item.variant
                       ? Object.values(item.variant.options).join(' · ')
-                      : 'Sản phẩm không có phiên bản'}{' '}
-                    · SL {item.quantity}
+                      : 'Product without variants'}{' '}
+                    · Qty {item.quantity}
                   </small>
                 </span>
                 <b>
@@ -288,8 +288,7 @@ export function CheckoutPage() {
             ))}
             {cart.data?.items.some((item) => item.unavailableReason) ? (
               <p role="alert">
-                Một số dòng không thể mua và đã bị loại khỏi checkout. Hãy kiểm
-                tra giỏ hàng.
+                Some unavailable items were excluded from checkout. Please review your cart.
               </p>
             ) : null}
           </section>
@@ -297,12 +296,12 @@ export function CheckoutPage() {
             <div className="panel-heading">
               <span className="checkout-number">3</span>
               <div>
-                <h2>Thanh toán khi nhận hàng</h2>
-                <p>Thanh toán trực tiếp cho nhân viên giao hàng.</p>
+                <h2>Cash on delivery</h2>
+                <p>Pay the delivery agent when your order arrives.</p>
               </div>
             </div>
             <label className="checkout-note">
-              Ghi chú giao hàng (không bắt buộc)
+              Delivery note (optional)
               <textarea
                 value={customerNote}
                 maxLength={1000}
@@ -311,15 +310,15 @@ export function CheckoutPage() {
               />
             </label>
             <div className="checkout-total-row">
-              <span>Tiền hàng</span>
+              <span>Subtotal</span>
               <strong>{formatVnd(subtotal)}</strong>
             </div>
             <div className="checkout-total-row">
-              <span>Phí giao hàng</span>
+              <span>Shipping</span>
               <strong>{formatVnd(SHIPPING_FEE)}</strong>
             </div>
             <div className="checkout-total-row checkout-grand-total">
-              <span>Tổng thanh toán</span>
+              <span>Total</span>
               <strong>{formatVnd(subtotal + SHIPPING_FEE)}</strong>
             </div>
           </section>
@@ -330,25 +329,24 @@ export function CheckoutPage() {
           ) : null}
           {addressesQuery.isError ? (
             <p role="alert">
-              Chưa tải được địa chỉ.{' '}
+              Unable to load addresses.{' '}
               <button onClick={() => void addressesQuery.refetch()}>
-                Thử lại
+                Try again
               </button>
             </p>
           ) : null}
           {addresses.length === 0 ? (
             <p className="inline-error">
-              Bạn cần thêm địa chỉ trong{' '}
-              <Link to="/account?section=addresses">sổ địa chỉ</Link> trước khi
-              đặt.
+              Add an address in your{' '}
+              <Link to="/account?section=addresses">address book</Link> before placing your order.
             </p>
           ) : null}
           {pendingRecovery ? (
-            <p role="status">Đang kiểm tra kết quả lần đặt trước…</p>
+            <p role="status">Checking the previous order…</p>
           ) : null}
           <div className="checkout-actions">
             <Link className="button-secondary" to="/cart">
-              <ArrowLeft size={16} /> Quay lại giỏ
+              <ArrowLeft size={16} /> Back to cart
             </Link>
             <button
               className="button-primary"
@@ -361,10 +359,10 @@ export function CheckoutPage() {
               onClick={() => void submit()}
             >
               {pendingRecovery
-                ? 'Đang kiểm tra đơn trước…'
+                ? 'Checking previous order…'
                 : pending
-                  ? 'Đang đặt hàng…'
-                  : 'Đặt hàng COD'}
+                  ? 'Placing order…'
+                  : 'Place cash-on-delivery order'}
             </button>
           </div>
         </main>

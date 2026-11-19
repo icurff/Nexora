@@ -125,12 +125,12 @@ export class UserAddressService {
 
   private async lockOwner(userId: string, tx: TransactionClient) {
     if (!(await this.addresses.lockOwner(userId, tx)).length)
-      throw new NotFoundException('Tài khoản không tồn tại');
+      throw new NotFoundException('Account not found');
   }
 
   private async getOwned(userId: string, id: string, tx: TransactionClient) {
     const address = await this.addresses.find(userId, id, tx);
-    if (!address) throw new NotFoundException('Không tìm thấy địa chỉ');
+    if (!address) throw new NotFoundException('Address not found');
     return address;
   }
 
@@ -151,6 +151,6 @@ export function parseAddressId(value: string): string {
     BigInt(value) <= 0n ||
     BigInt(value) > 9_223_372_036_854_775_807n
   )
-    throw new BadRequestException('Mã địa chỉ không hợp lệ');
+    throw new BadRequestException('Invalid address ID');
   return value;
 }

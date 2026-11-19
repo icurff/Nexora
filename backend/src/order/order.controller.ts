@@ -24,7 +24,7 @@ import { OrderService } from './order.service.js';
 
 @Controller('orders')
 @UseGuards(AuthGuard, RolesGuard)
-@Roles('CUSTOMER')
+@Roles('CUSTOMER', 'ADMIN')
 export class CustomerOrdersController {
   constructor(private readonly orders: OrderService) {}
   @Post() place(

@@ -71,19 +71,19 @@ export default function RegisterPage() {
             <Check />
           </div>
           <AuthHeading
-            eyebrow="HOÀN TẤT"
-            title="Tài khoản đã sẵn sàng"
-            description="Bạn có thể đăng nhập bằng email và mật khẩu vừa tạo."
+            eyebrow="COMPLETE"
+            title="Your account is ready"
+            description="You can sign in with your new email and password."
           />
           <Button
             className="primary-button button-link"
             type="button"
             onClick={() => navigate('/login?registered=1')}
           >
-            Đi đến đăng nhập <ArrowRight />
+            Go to sign in <ArrowRight />
           </Button>
           <p className="secure-note">
-            <ShieldCheck /> Tài khoản Customer được tạo an toàn
+            <ShieldCheck /> Your customer account has been created securely
           </p>
         </section>
       </AuthLayout>
@@ -97,15 +97,15 @@ export default function RegisterPage() {
           <UserRound />
         </div>
         <AuthHeading
-          eyebrow="BẮT ĐẦU CÙNG NEXORA"
-          title="Tạo tài khoản"
-          description="Tham gia Nexora để theo dõi đơn hàng và mua sắm thuận tiện hơn."
+          eyebrow="GET STARTED WITH NEXORA"
+          title="Create an account"
+          description="Join Nexora to track orders and shop with ease."
         />
         {error ? (
           <Notice>
             {errorMessage(
               error,
-              'Không thể tạo tài khoản. Vui lòng kiểm tra thông tin.',
+              'Unable to create an account. Please check your details.',
             )}
           </Notice>
         ) : null}
@@ -114,10 +114,10 @@ export default function RegisterPage() {
           onSubmit={handleSubmit(submit)}
         >
           <FormField
-            label="Họ và tên"
+            label="Full name"
             autoComplete="name"
-            placeholder="Nguyễn Minh Anh"
-            {...register('fullName', { required: 'Nhập họ và tên.' })}
+            placeholder="Your full name"
+            {...register('fullName', { required: 'Enter your full name.' })}
             maxLength={100}
             error={errors.fullName?.message ?? fieldError(error, 'fullName')}
           />
@@ -127,38 +127,38 @@ export default function RegisterPage() {
             autoComplete="email"
             placeholder="tenban@example.com"
             {...register('email', {
-              required: 'Nhập email của bạn.',
+              required: 'Enter your email.',
               pattern: {
                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                message: 'Email chưa đúng định dạng.',
+                message: 'Enter a valid email address.',
               },
             })}
             maxLength={254}
             error={errors.email?.message ?? fieldError(error, 'email')}
           />
           <PasswordField
-            label="Mật khẩu"
+            label="Password"
             autoComplete="new-password"
-            placeholder="Tối thiểu 6 ký tự"
+            placeholder="At least 6 characters"
             {...register('password', {
-              required: 'Nhập mật khẩu.',
+              required: 'Enter a password.',
               minLength: {
                 value: 6,
-                message: 'Mật khẩu cần ít nhất 6 ký tự.',
+                message: 'Password must be at least 6 characters.',
               },
             })}
-            hint="Ít nhất 6 ký tự."
+            hint="At least 6 characters."
             error={errors.password?.message ?? fieldError(error, 'password')}
           />
           <PasswordField
-            label="Xác nhận mật khẩu"
+            label="Confirm password"
             autoComplete="new-password"
-            placeholder="Nhập lại mật khẩu"
+            placeholder="Re-enter your password"
             {...register('confirmPassword', {
-              required: 'Xác nhận mật khẩu.',
+              required: 'Confirm your password.',
               validate: (value) =>
                 value === getValues('password') ||
-                'Mật khẩu xác nhận không khớp.',
+                'Passwords do not match.',
             })}
             error={
               errors.confirmPassword?.message ??
@@ -173,20 +173,20 @@ export default function RegisterPage() {
             {registerMutation.isPending ? (
               <>
                 <LoaderCircle className="animate-spin" />
-                Đang tạo tài khoản...
+                Creating account...
               </>
             ) : (
               <>
-                Tạo tài khoản <ArrowRight />
+                Create account <ArrowRight />
               </>
             )}
           </Button>
         </form>
         <div className="form-switch">
-          Đã có tài khoản? <Link to="/login">Đăng nhập</Link>
+          Already have an account? <Link to="/login">Sign in</Link>
         </div>
         <div className="secure-note">
-          <ShieldCheck /> Tài khoản mới được tạo với quyền Customer
+          <ShieldCheck /> New accounts are created with customer access
         </div>
       </section>
     </AuthLayout>

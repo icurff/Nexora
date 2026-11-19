@@ -5,7 +5,6 @@ import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { OrderModule } from './order/order.module.js';
-import { NotificationHttpModule } from './notification/notification-http.module.js';
 import { TrackingModule } from './tracking/tracking.module.js';
 import { RecommendationModule } from './recommendation/recommendation.module.js';
 
@@ -15,7 +14,6 @@ import { RecommendationModule } from './recommendation/recommendation.module.js'
     AuthModule,
     CatalogModule,
     OrderModule,
-    NotificationHttpModule,
     TrackingModule,
     RecommendationModule,
   ],

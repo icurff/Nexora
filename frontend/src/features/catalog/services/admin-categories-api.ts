@@ -86,18 +86,18 @@ export function updateAdminCategory(id: string, input: Partial<CategoryInput>) {
 
 export function categoryErrorMessage(error: unknown) {
   if (!(error instanceof ApiError))
-    return 'Không thể kết nối máy chủ. Vui lòng thử lại.';
+    return 'Unable to connect to the server. Please try again.';
   if (error.code === 'CATEGORY_ALREADY_EXISTS')
-    return 'Tên hoặc slug này đã được sử dụng.';
+    return 'This name or slug is already in use.';
   if (error.code === 'CATEGORY_CYCLE')
-    return 'Không thể chuyển danh mục vào chính nó hoặc danh mục con.';
+    return 'A category cannot be moved into itself or one of its descendants.';
   if (error.code === 'CATEGORY_PARENT_NOT_FOUND')
-    return 'Danh mục cha không còn tồn tại. Hãy tải lại danh sách.';
+    return 'The parent category no longer exists. Reload the list.';
   if (error.code === 'CATEGORY_NOT_FOUND')
-    return 'Danh mục không còn tồn tại. Hãy tải lại danh sách.';
+    return 'The category no longer exists. Reload the list.';
   if (error.status === 401)
-    return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    return 'Your session has expired. Please sign in again.';
   if (error.status === 403)
-    return 'Tài khoản hiện tại không có quyền quản lý danh mục.';
-  return error.message || 'Không thể lưu danh mục. Vui lòng thử lại.';
+    return 'Your account cannot manage categories.';
+  return error.message || 'Unable to save the category. Please try again.';
 }

@@ -36,23 +36,22 @@ export default function ForgotPasswordPage() {
           <Mail />
         </div>
         <AuthHeading
-          eyebrow="KHÔI PHỤC TÀI KHOẢN"
-          title="Quên mật khẩu?"
-          description="Nhập email đã đăng ký. Nếu email phù hợp với tài khoản, bạn sẽ nhận được liên kết đặt lại mật khẩu."
+          eyebrow="ACCOUNT RECOVERY"
+          title="Forgot password?"
+          description="Enter your registered email. If it matches an account, you will receive a password reset link."
         />
         {submittedEmail ? (
           <div className="recovery-success">
             <Notice tone="success">
-              Nếu email phù hợp với tài khoản, bạn sẽ nhận được liên kết đặt lại
-              mật khẩu.
+              If the email matches an account, you will receive a password reset
+              link.
             </Notice>
             <p>
-              Hãy kiểm tra hộp thư của <strong>{submittedEmail}</strong>, kể cả
-              thư mục spam.
+              Check the inbox and spam folder for <strong>{submittedEmail}</strong>.
             </p>
             <Button asChild className="primary-button button-link">
               <Link to="/login">
-                <ArrowLeft /> Quay lại đăng nhập
+                <ArrowLeft /> Back to sign in
               </Link>
             </Button>
           </div>
@@ -68,10 +67,10 @@ export default function ForgotPasswordPage() {
                 maxLength={254}
                 autoFocus
                 {...register('email', {
-                  required: 'Nhập email của bạn.',
+                  required: 'Enter your email.',
                   pattern: {
                     value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                    message: 'Email chưa đúng định dạng.',
+                    message: 'Enter a valid email address.',
                   },
                 })}
                 error={errors.email?.message}
@@ -83,11 +82,11 @@ export default function ForgotPasswordPage() {
               >
                 {mutation.isPending ? (
                   <>
-                    <LoaderCircle className="animate-spin" /> Đang gửi...
+                    <LoaderCircle className="animate-spin" /> Sending...
                   </>
                 ) : (
                   <>
-                    Gửi liên kết đặt lại <Mail />
+                    Send reset link <Mail />
                   </>
                 )}
               </Button>
@@ -96,12 +95,11 @@ export default function ForgotPasswordPage() {
         )}
         <div className="form-switch">
           <Link to="/login">
-            <ArrowLeft /> Trở về đăng nhập
+            <ArrowLeft /> Back to sign in
           </Link>
         </div>
         <div className="secure-note">
-          <ShieldCheck /> Liên kết chỉ sử dụng được một lần và hết hạn sau 30
-          phút
+          <ShieldCheck /> The link can be used once and expires after 30 minutes
         </div>
       </section>
     </AuthLayout>
