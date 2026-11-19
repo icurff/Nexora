@@ -12,12 +12,12 @@ export function AuthLayout({
   return (
     <div className="auth-page">
       <header className="site-header">
-        <Link className="brand" to="/" aria-label="Nexora, trang chủ">
+        <Link className="brand" to="/" aria-label="Nexora, home">
           <BrandLogo />
         </Link>
-        <div className="header-note">Mua sắm dễ dàng, an tâm mỗi ngày</div>
+        <div className="header-note">Easy shopping, every day</div>
         <a className="header-help" href="mailto:support@nexora.vn">
-          Cần hỗ trợ?
+          Need help?
         </a>
       </header>
       <main className={`auth-main${compact ? ' auth-main-compact' : ''}`}>
@@ -26,7 +26,7 @@ export function AuthLayout({
       </main>
       <footer className="site-footer">
         <span>© 2026 Nexora</span>
-        <span>An toàn thông tin tài khoản của bạn luôn được ưu tiên.</span>
+        <span>Your account security is our priority.</span>
       </footer>
     </div>
   );

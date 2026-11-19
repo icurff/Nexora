@@ -24,7 +24,7 @@ import { NotificationStream } from './notification.stream.js';
 
 @Controller('notifications')
 @UseGuards(AuthGuard, RolesGuard)
-@Roles('CUSTOMER')
+@Roles('CUSTOMER', 'ADMIN')
 export class NotificationController {
   constructor(
     private readonly notifications: NotificationService,
@@ -91,10 +91,7 @@ export class NotificationController {
         void this.auth
           .authenticate(token)
           .then((current) => {
-            if (
-              current.userId !== actor.userId ||
-              current.role !== 'CUSTOMER'
-            ) {
+            if (current.userId !== actor.userId || current.role !== actor.role) {
               subscriber.complete();
               return;
             }

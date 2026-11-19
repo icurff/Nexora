@@ -21,23 +21,22 @@ export function HomePage() {
           <div className="hero-copy">
             <span className="hero-kicker">
               <span />
-              BỘ SƯU TẬP MÙA MỚI
+              THE NEW COLLECTION
             </span>
             <h1>
-              Những điều nhỏ bé,
+              Little things,
               <br />
-              <em>niềm vui mỗi ngày.</em>
+              <em>everyday joy.</em>
             </h1>
             <p>
-              Tìm thấy những sản phẩm hữu ích, đẹp mắt và được chọn lọc để đồng
-              hành cùng nhịp sống của bạn.
+              Discover useful, beautiful products selected for your everyday life.
             </p>
             <div className="hero-actions">
               <Link className="button-primary" to="/products">
-                Khám phá bộ sưu tập <ArrowRight size={17} />
+                Explore the collection <ArrowRight size={17} />
               </Link>
               <Link className="button-secondary" to="/categories">
-                Xem danh mục
+                Browse categories
               </Link>
             </div>
             <div className="hero-proof">
@@ -47,7 +46,7 @@ export function HomePage() {
                 <span>M</span>
               </div>
               <span>
-                <strong>4.9/5</strong> từ hơn 1.200 khách hàng
+                <strong>4.9/5</strong> from over 1,200 customers
               </span>
             </div>
           </div>
@@ -59,16 +58,16 @@ export function HomePage() {
                 <br />
                 ESSENTIALS
               </span>
-              <img src="/demo-products/lamp.svg" alt="Đèn bàn Aurora" />
+              <img src="/demo-products/lamp.svg" alt="Aurora table lamp" />
             </div>
             <div className="hero-art-card hero-art-card-front">
               <img
                 src="/demo-products/tote.svg"
-                alt="Túi tote Canvas Everyday"
+                alt="Everyday canvas tote"
               />
               <div>
-                <span>ĐƯỢC YÊU THÍCH</span>
-                <strong>Túi tote Canvas</strong>
+                <span>FAVORITE</span>
+                <strong>Canvas tote</strong>
                 <small>189.000 ₫</small>
               </div>
             </div>
@@ -87,39 +86,39 @@ export function HomePage() {
           <div>
             <Truck />
             <span>
-              <strong>Giao hàng nhanh</strong>
-              <small>Toàn quốc từ 2–4 ngày</small>
+              <strong>Fast delivery</strong>
+              <small>Nationwide in 2–4 days</small>
             </span>
           </div>
           <div>
             <ShieldCheck />
             <span>
-              <strong>Thanh toán an toàn</strong>
-              <small>Đa dạng phương thức</small>
+              <strong>Secure checkout</strong>
+              <small>Multiple payment options</small>
             </span>
           </div>
           <div>
             <PackageCheck />
             <span>
-              <strong>Đổi trả dễ dàng</strong>
-              <small>Trong vòng 7 ngày</small>
+              <strong>Easy returns</strong>
+              <small>Within 7 days</small>
             </span>
           </div>
           <div>
             <BadgeCheck />
             <span>
-              <strong>Chọn lọc chất lượng</strong>
-              <small>Yên tâm mỗi lựa chọn</small>
+              <strong>Selected for quality</strong>
+              <small>Shop with confidence</small>
             </span>
           </div>
         </section>
         <section className="home-section">
           <SectionHeading
-            eyebrow="MUA SẮM THEO NHU CẦU"
-            title="Tìm đúng điều bạn cần"
-            description="Khám phá những bộ sưu tập được chọn riêng cho bạn."
+            eyebrow="SHOP BY CATEGORY"
+            title="Find what you need"
+            description="Explore collections selected for you."
             link="/categories"
-            linkText="Tất cả danh mục"
+            linkText="All categories"
           />
           <div className="category-grid">
             {demoCategories.map((category, index) => (
@@ -141,9 +140,9 @@ export function HomePage() {
         </section>
         <section className="home-section">
           <SectionHeading
-            eyebrow="ĐƯỢC YÊU THÍCH"
-            title="Món đồ mọi người đang chọn"
-            description="Những sản phẩm nổi bật trong tuần này."
+            eyebrow="FAVORITES"
+            title="Popular picks"
+            description="Featured products this week."
             link="/products?sort=popular"
           />
           <ProductGrid products={featured} />
@@ -152,42 +151,42 @@ export function HomePage() {
           <div>
             <span className="section-eyebrow">NEXORA NOTES · 01</span>
             <h2>
-              Góc nhỏ của bạn
+              Your space
               <br />
-              xứng đáng được chăm chút.
+              deserves thoughtful touches.
             </h2>
-            <p>Chọn những món đồ giúp không gian sống trở nên dễ chịu hơn.</p>
+            <p>Discover pieces that make your space more inviting.</p>
             <Link className="button-secondary" to="/categories/home">
-              Khám phá đồ gia dụng <ArrowRight size={16} />
+              Explore home goods <ArrowRight size={16} />
             </Link>
           </div>
           <img
             src="/demo-products/lamp.svg"
-            alt="Đèn Aurora trong không gian ấm áp"
+            alt="Aurora lamp in a cozy setting"
           />
         </section>
         <section className="home-section">
           <SectionHeading
-            eyebrow="MỚI TẠI NEXORA"
-            title="Thêm một chút cảm hứng"
+            eyebrow="NEW AT NEXORA"
+            title="A little more inspiration"
             link="/products"
           />
           <ProductGrid products={demoProducts.slice(4)} />
         </section>
         <section className="newsletter">
           <div>
-            <span className="section-eyebrow">THƯ TỪ NEXORA</span>
-            <h2>Đón những điều hay ho vào hộp thư.</h2>
-            <p>Ưu đãi và bộ sưu tập mới, vừa đủ để bạn không bỏ lỡ.</p>
+            <span className="section-eyebrow">NOTES FROM NEXORA</span>
+            <h2>Good things, delivered to your inbox.</h2>
+            <p>Discover new collections and offers.</p>
           </div>
           <form onSubmit={(event) => event.preventDefault()}>
             <input
               type="email"
-              placeholder="Địa chỉ email của bạn"
-              aria-label="Email nhận tin"
+              placeholder="Your email address"
+              aria-label="Newsletter email address"
             />
             <button type="submit">
-              Đăng ký <ArrowRight size={16} />
+              Subscribe <ArrowRight size={16} />
             </button>
           </form>
         </section>

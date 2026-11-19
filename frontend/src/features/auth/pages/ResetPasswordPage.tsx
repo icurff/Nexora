@@ -53,50 +53,50 @@ export default function ResetPasswordPage() {
           <KeyRound />
         </div>
         <AuthHeading
-          eyebrow="BẢO MẬT TÀI KHOẢN"
-          title="Đặt mật khẩu mới"
-          description="Tạo mật khẩu mới để tiếp tục sử dụng tài khoản Nexora. Liên kết đặt lại chỉ dùng được một lần."
+          eyebrow="ACCOUNT SECURITY"
+          title="Set a new password"
+          description="Create a new password to continue using your Nexora account. The reset link can only be used once."
         />
         {mutation.error ? <Notice>{mutation.error.message}</Notice> : null}
         <form className="auth-form" onSubmit={handleSubmit(submit)}>
           {!tokenFromUrl ? (
             <FormField
-              label="Mã đặt lại"
+              label="Reset code"
               autoComplete="one-time-code"
-              placeholder="Dán mã trong email của bạn"
+              placeholder="Paste the code from your email"
               {...register('token', {
-                required: 'Mã đặt lại là bắt buộc.',
+                required: 'Enter the reset code.',
               })}
               error={errors.token?.message}
             />
           ) : null}
           <PasswordField
-            label="Mật khẩu mới"
+            label="New password"
             autoComplete="new-password"
-            placeholder="Tối thiểu 6 ký tự"
+            placeholder="At least 6 characters"
             {...register('newPassword', {
-              required: 'Nhập mật khẩu mới.',
+              required: 'Enter a new password.',
               minLength: {
                 value: 6,
-                message: 'Mật khẩu cần ít nhất 6 ký tự.',
+                message: 'Password must be at least 6 characters.',
               },
             })}
             error={errors.newPassword?.message}
-            hint="Ít nhất 6 ký tự."
+            hint="At least 6 characters."
           />
           <PasswordField
-            label="Xác nhận mật khẩu mới"
+            label="Confirm new password"
             autoComplete="new-password"
-            placeholder="Nhập lại mật khẩu mới"
+            placeholder="Re-enter your new password"
             {...register('confirmPassword', {
-              required: 'Xác nhận mật khẩu mới.',
+              required: 'Confirm your new password.',
               minLength: {
                 value: 6,
-                message: 'Mật khẩu cần ít nhất 6 ký tự.',
+                message: 'Password must be at least 6 characters.',
               },
               validate: (value) =>
                 value === getValues('newPassword') ||
-                'Mật khẩu xác nhận không khớp.',
+                'Passwords do not match.',
             })}
             error={errors.confirmPassword?.message}
           />
@@ -107,20 +107,20 @@ export default function ResetPasswordPage() {
           >
             {mutation.isPending ? (
               <>
-                <LoaderCircle className="animate-spin" /> Đang cập nhật...
+                <LoaderCircle className="animate-spin" /> Updating...
               </>
             ) : (
               <>
-                Đặt lại mật khẩu <ArrowRight />{' '}
+                Reset password <ArrowRight />{' '}
               </>
             )}
           </Button>
         </form>
         <div className="form-switch">
-          <Link to="/forgot-password">Yêu cầu liên kết mới</Link>
+          <Link to="/forgot-password">Request a new link</Link>
         </div>
         <div className="secure-note">
-          <ShieldCheck /> Sau khi đặt lại, bạn sẽ cần đăng nhập lại
+          <ShieldCheck /> You will need to sign in again after resetting
         </div>
       </section>
     </AuthLayout>

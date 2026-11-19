@@ -20,7 +20,7 @@ import { CartService } from './cart.service.js';
 
 @Controller('cart')
 @UseGuards(AuthGuard, RolesGuard)
-@Roles('CUSTOMER')
+@Roles('CUSTOMER', 'ADMIN')
 export class CartController {
   constructor(private readonly cart: CartService) {}
 

@@ -21,28 +21,28 @@ import {
 export function AdminDashboardPage() {
   const metrics = [
     {
-      label: 'Tổng doanh thu',
+      label: 'Total revenue',
       value: '128.450.000 ₫',
       change: '+12,8%',
       icon: BarChart3,
       color: 'violet',
     },
     {
-      label: 'Đơn hàng',
+      label: 'Orders',
       value: '1.284',
       change: '+8,2%',
       icon: ShoppingBag,
       color: 'blue',
     },
     {
-      label: 'Khách hàng mới',
+      label: 'New customers',
       value: '356',
       change: '+18,4%',
       icon: Users,
       color: 'amber',
     },
     {
-      label: 'Giá trị trung bình',
+      label: 'Average order value',
       value: '845.000 ₫',
       change: '+4,6%',
       icon: TrendingUp,
@@ -54,14 +54,14 @@ export function AdminDashboardPage() {
     <div className="admin-dashboard">
       <div className="admin-page-heading">
         <div>
-          <span>TỔNG QUAN CỬA HÀNG</span>
+          <span>STORE OVERVIEW</span>
           <h1>
-            Chào buổi sáng, Minh Anh <span className="wave">✦</span>
+            Good morning, Minh Anh <span className="wave">✦</span>
           </h1>
-          <p>Đây là những gì đang diễn ra với Nexora hôm nay.</p>
+          <p>Here's what's happening at Nexora today.</p>
         </div>
         <button className="admin-date-button">
-          Tháng này <ChevronDown size={15} />
+          This month <ChevronDown size={15} />
         </button>
       </div>
       <div className="admin-metric-grid">
@@ -79,7 +79,7 @@ export function AdminDashboardPage() {
               <i>
                 <ArrowUpRight size={13} /> {change}
               </i>{' '}
-              so với tháng trước
+              compared to last month
             </small>
           </article>
         ))}
@@ -88,8 +88,8 @@ export function AdminDashboardPage() {
         <section className="admin-panel revenue-panel">
           <div className="admin-panel-head">
             <div>
-              <span>HIỆU QUẢ KINH DOANH</span>
-              <h2>Doanh thu theo tháng</h2>
+              <span>BUSINESS PERFORMANCE</span>
+              <h2>Monthly revenue</h2>
             </div>
             <button className="admin-select">
               2026 <ChevronDown size={14} />
@@ -142,8 +142,8 @@ export function AdminDashboardPage() {
         <section className="admin-panel category-performance">
           <div className="admin-panel-head">
             <div>
-              <span>TỔNG QUAN</span>
-              <h2>Đơn theo danh mục</h2>
+              <span>OVERVIEW</span>
+              <h2>Orders by category</h2>
             </div>
             <button className="round-more">
               <MoreHorizontal size={18} />
@@ -152,21 +152,21 @@ export function AdminDashboardPage() {
           <div className="donut-chart">
             <div>
               <strong>1.284</strong>
-              <small>Đơn hàng</small>
+              <small>Orders</small>
             </div>
           </div>
           <div className="donut-legend">
             <span>
-              <i className="dot-purple" /> Thời trang <strong>38%</strong>
+              <i className="dot-purple" /> Fashion <strong>38%</strong>
             </span>
             <span>
-              <i className="dot-blue" /> Nhà cửa <strong>27%</strong>
+              <i className="dot-blue" /> Home <strong>27%</strong>
             </span>
             <span>
-              <i className="dot-orange" /> Thiết bị số <strong>21%</strong>
+              <i className="dot-orange" /> Electronics <strong>21%</strong>
             </span>
             <span>
-              <i className="dot-green" /> Phụ kiện <strong>14%</strong>
+              <i className="dot-green" /> Accessories <strong>14%</strong>
             </span>
           </div>
         </section>
@@ -174,22 +174,22 @@ export function AdminDashboardPage() {
       <section className="admin-panel recent-orders-panel">
         <div className="admin-panel-head">
           <div>
-            <span>CẬP NHẬT GẦN ĐÂY</span>
-            <h2>Đơn hàng mới nhất</h2>
+            <span>RECENT UPDATES</span>
+            <h2>Latest orders</h2>
           </div>
           <Link to="/admin/orders" className="admin-text-link">
-            Xem tất cả <ArrowRight size={15} />
+            View all <ArrowRight size={15} />
           </Link>
         </div>
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
               <tr>
-                <th>MÃ ĐƠN</th>
-                <th>KHÁCH HÀNG</th>
-                <th>NGÀY ĐẶT</th>
-                <th>TỔNG TIỀN</th>
-                <th>TRẠNG THÁI</th>
+                <th>ORDER ID</th>
+                <th>CUSTOMER</th>
+                <th>ORDER DATE</th>
+                <th>TOTAL</th>
+                <th>STATUS</th>
                 <th />
               </tr>
             </thead>
@@ -232,8 +232,8 @@ export function AdminDashboardPage() {
         <section className="admin-panel popular-products">
           <div className="admin-panel-head">
             <div>
-              <span>SẢN PHẨM</span>
-              <h2>Bán chạy nhất</h2>
+              <span>PRODUCTS</span>
+              <h2>Best sellers</h2>
             </div>
             <button className="round-more">
               <MoreHorizontal size={18} />
@@ -246,7 +246,7 @@ export function AdminDashboardPage() {
               </span>
               <span>
                 <strong>{product.name}</strong>
-                <small>{product.sold} sản phẩm đã bán</small>
+                <small>{product.sold} products sold</small>
               </span>
               <em>{[34, 28, 19, 12][index]}%</em>
             </div>
@@ -255,8 +255,8 @@ export function AdminDashboardPage() {
         <section className="admin-panel quick-actions">
           <div className="admin-panel-head">
             <div>
-              <span>TRUY CẬP NHANH</span>
-              <h2>Thao tác thường dùng</h2>
+              <span>QUICK ACCESS</span>
+              <h2>Common actions</h2>
             </div>
           </div>
           <Link to="/admin/products">
@@ -264,8 +264,8 @@ export function AdminDashboardPage() {
               <Plus />
             </span>
             <span>
-              <strong>Thêm sản phẩm</strong>
-              <small>Đưa sản phẩm mới lên cửa hàng</small>
+              <strong>Add a product</strong>
+              <small>Add a new product to the store</small>
             </span>
             <ArrowRight />
           </Link>
@@ -274,8 +274,8 @@ export function AdminDashboardPage() {
               <BadgePercent />
             </span>
             <span>
-              <strong>Tạo ưu đãi</strong>
-              <small>Tạo mã giảm giá cho khách hàng</small>
+              <strong>Create an offer</strong>
+              <small>Create a discount code for customers</small>
             </span>
             <ArrowRight />
           </Link>
@@ -284,7 +284,7 @@ export function AdminDashboardPage() {
               <ShoppingBag />
             </span>
             <span>
-              <strong>Xử lý đơn hàng</strong>
+              <strong>Manage orders</strong>
 
             </span>
             <ArrowRight />

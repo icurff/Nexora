@@ -1,6 +1,6 @@
 ﻿import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsInt, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentActor, type AuthenticatedActor } from '../../shared/decorators/current-actor.decorator.js';
 import { Roles } from '../../shared/decorators/roles.decorator.js';
@@ -14,6 +14,7 @@ import { MAX_MEDIA_BYTES } from '../images/supabase-storage.adapter.js';
 class PublicProductQueryDto {
   @Type(() => Number) @IsInt() @Min(1) page = 1;
   @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize = 20;
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
 }
 
 @Controller('products')
@@ -22,7 +23,7 @@ export class PublicProductController {
 
   @Get()
   list(@Query() query: PublicProductQueryDto) {
-    return this.products.publicList(query.page, query.pageSize);
+    return this.products.publicList(query.page, query.pageSize, query.q?.trim());
   }
 
   @Get(':id')

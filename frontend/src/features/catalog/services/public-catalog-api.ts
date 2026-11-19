@@ -44,10 +44,13 @@ export type ProductPage = {
   totalPages: number;
 };
 
-export async function getPublicProducts(page = 1): Promise<ProductPage> {
+export async function getPublicProducts(
+  page = 1,
+  q?: string,
+): Promise<ProductPage> {
   return (
     await apiClient.get<ProductPage>('/products', {
-      params: { page, pageSize: 20 },
+      params: { page, pageSize: 20, ...(q ? { q } : {}) },
     })
   ).data;
 }

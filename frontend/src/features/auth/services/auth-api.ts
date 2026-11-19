@@ -137,9 +137,9 @@ export function fieldError(error: unknown, field: string): string | undefined {
 export function errorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     if (error.code === 'INVALID_CREDENTIALS')
-      return 'Email hoặc mật khẩu chưa chính xác.';
+      return 'Incorrect email or password.';
     if (error.code === 'CURRENT_PASSWORD_INVALID')
-      return 'Mật khẩu hiện tại chưa chính xác.';
+      return 'The current password is incorrect.';
     return error.message;
   }
   return fallback;

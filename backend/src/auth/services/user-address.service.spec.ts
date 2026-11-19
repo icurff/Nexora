@@ -92,6 +92,16 @@ describe('UserAddressService', () => {
     expect(repository.setDefault).not.toHaveBeenCalled();
   });
 
+  it('keeps address ownership scoped to an admin account', async () => {
+    const admin = { ...actor, userId: '8', role: 'ADMIN' as const };
+    repository.find.mockResolvedValue(null);
+    await expect(service.makeDefault(admin, '19')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(repository.find).toHaveBeenCalledWith('8', '19', transaction);
+    expect(repository.setDefault).not.toHaveBeenCalled();
+  });
+
   it('clears the previous default before choosing another one', async () => {
     repository.find.mockResolvedValue(row(19n, false));
     repository.setDefault.mockResolvedValue(row(19n, true));

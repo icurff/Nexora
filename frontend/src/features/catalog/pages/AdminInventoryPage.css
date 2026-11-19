@@ -19,13 +19,13 @@
 .admin-inventory-heading p {
   margin: 0;
   color: #718075;
-  font-size: 13px;
+  font-size: var(--type-label);
 }
 .admin-inventory-kicker {
   display: block;
   margin-top: 12px;
   color: #7b8c7e;
-  font-size: 10px;
+  font-size: var(--type-meta);
   font-weight: 700;
   letter-spacing: 0.13em;
 }
@@ -38,7 +38,7 @@
   border-radius: 7px;
   background: #fff;
   color: #47634e;
-  font-size: 12px;
+  font-size: var(--type-small);
   font-weight: 650;
 }
 .inventory-filters {
@@ -58,7 +58,7 @@
   display: grid;
   gap: 6px;
   color: #58685b;
-  font-size: 10px;
+  font-size: var(--type-meta);
   font-weight: 650;
 }
 .inventory-filters input,
@@ -75,7 +75,7 @@
   background: #fff;
   color: #263a2d;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--type-small);
   outline: none;
 }
 .inventory-filters input:focus,
@@ -116,7 +116,7 @@
   border-radius: 6px;
   background: #1d4d35;
   color: #fff;
-  font-size: 11px;
+  font-size: var(--type-small);
   font-weight: 650;
   cursor: pointer;
 }
@@ -127,7 +127,7 @@
 .inventory-product-filter {
   margin: -4px 0 12px;
   color: #687a6c;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .inventory-product-filter button {
   margin-left: 5px;
@@ -147,14 +147,14 @@
   width: 100%;
   min-width: 920px;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .inventory-table th {
   padding: 12px 13px;
   background: #f8faf8;
   color: #77877a;
   text-align: left;
-  font-size: 9px;
+  font-size: var(--type-meta);
   white-space: nowrap;
 }
 .inventory-table td {
@@ -174,17 +174,17 @@
   text-decoration: none;
 }
 .inventory-product-link strong {
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .inventory-product-link small {
   color: #839087;
-  font-size: 9px;
+  font-size: var(--type-meta);
 }
 .inventory-status {
   display: inline-flex;
   padding: 5px 8px;
   border-radius: 20px;
-  font-size: 9px;
+  font-size: var(--type-meta);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -212,7 +212,7 @@
   border: 0;
   background: transparent;
   color: #286341;
-  font-size: 10px;
+  font-size: var(--type-meta);
   font-weight: 700;
   cursor: pointer;
 }
@@ -223,7 +223,7 @@
   justify-content: center;
   gap: 9px;
   color: #738176;
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .inventory-state-error {
   color: #a4463c;
@@ -239,7 +239,7 @@
   border-radius: 6px;
   background: #fff;
   color: #3d5546;
-  font-size: 10px;
+  font-size: var(--type-meta);
   cursor: pointer;
 }
 .inventory-pagination {
@@ -248,7 +248,7 @@
   align-items: center;
   padding: 13px 3px;
   color: #718075;
-  font-size: 10px;
+  font-size: var(--type-meta);
 }
 .inventory-pagination > div {
   display: flex;
@@ -275,7 +275,7 @@
   border: 0;
   background: transparent;
   color: #637669;
-  font-size: 11px;
+  font-size: var(--type-small);
   cursor: pointer;
 }
 .inventory-detail-heading {
@@ -302,7 +302,7 @@
 }
 .inventory-metrics span {
   color: #748176;
-  font-size: 10px;
+  font-size: var(--type-meta);
 }
 .inventory-metrics strong {
   color: #2b5135;
@@ -329,7 +329,7 @@
 .inventory-section-heading p {
   margin: 0;
   color: #7a877c;
-  font-size: 10px;
+  font-size: var(--type-meta);
 }
 .inventory-form-grid {
   display: grid;
@@ -344,7 +344,7 @@
   align-content: start;
   gap: 7px;
   color: #526457;
-  font-size: 10px;
+  font-size: var(--type-meta);
   font-weight: 650;
 }
 .inventory-form-grid textarea {
@@ -357,7 +357,7 @@
 .inventory-preview {
   margin: 12px 0;
   color: #68786b;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .inventory-preview strong {
   color: #2f653d;
@@ -369,7 +369,7 @@
   margin: 9px 0;
   padding: 10px 12px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .inventory-form-message.error {
   background: #fff0ed;
@@ -386,7 +386,7 @@
 .inventory-notice {
   padding: 12px 14px;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .history-table {
   min-width: 800px;
@@ -406,7 +406,7 @@
 }
 .admin-variant-actions a {
   color: #286341;
-  font-size: 10px;
+  font-size: var(--type-meta);
   font-weight: 650;
   text-decoration: none;
 }
@@ -467,6 +467,6 @@
     gap: 7px;
   }
   .admin-variant-actions a {
-    font-size: 9px;
+    font-size: var(--type-meta);
   }
 }

@@ -15,7 +15,7 @@ export function useCart() {
   return useQuery({
     queryKey: cartKey(user?.id),
     queryFn: getCart,
-    enabled: Boolean(user && user.role === 'CUSTOMER'),
+    enabled: Boolean(user),
     retry: false,
     refetchOnWindowFocus: true,
   });

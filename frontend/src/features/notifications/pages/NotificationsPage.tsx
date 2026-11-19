@@ -20,13 +20,13 @@ export function NotificationsPage() {
   const query = useQuery({
     queryKey: notificationKeys.list(user?.id, page, unreadOnly, 20),
     queryFn: () => getNotifications({ page, pageSize: 20, unreadOnly }),
-    enabled: user?.role === 'CUSTOMER',
+    enabled: Boolean(user),
     refetchOnWindowFocus: true,
     retry: false,
   });
   const markRead = useMarkNotificationRead();
   const markAll = useMarkAllNotificationsRead();
-  if (user?.role !== 'CUSTOMER') return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/" replace />;
   async function openOrder(id: string, orderId: string, readAt: string | null) {
     if (!readAt) {
       try {

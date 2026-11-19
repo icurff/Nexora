@@ -30,9 +30,19 @@ export class ProductRepository {
     return this.prisma.product.count({ where });
   }
 
-  publicList(skip: number, take: number) {
+  private publicWhere(search?: string, query?: string): Prisma.ProductWhereInput {
+    return {
+      status: 'ACTIVE',
+      ...(search ? { OR: [
+        { nameKey: { contains: search } },
+        { category: { name: { contains: query, mode: 'insensitive' } } },
+      ] } : {}),
+    };
+  }
+
+  publicList(skip: number, take: number, search?: string, query?: string) {
     return this.prisma.product.findMany({
-      where: { status: 'ACTIVE' },
+      where: this.publicWhere(search, query),
       skip,
       take,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -40,8 +50,8 @@ export class ProductRepository {
     });
   }
 
-  publicCount() {
-    return this.prisma.product.count({ where: { status: 'ACTIVE' } });
+  publicCount(search?: string, query?: string) {
+    return this.prisma.product.count({ where: this.publicWhere(search, query) });
   }
 
   cartProduct(id: bigint) {

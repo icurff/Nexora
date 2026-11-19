@@ -27,7 +27,7 @@ export function SectionHeading({
       </div>
       {link ? (
         <Link className="text-link" to={link}>
-          {linkText ?? 'Xem tất cả'} <ArrowRight size={16} />
+          {linkText ?? 'View all'} <ArrowRight size={16} />
         </Link>
       ) : null}
     </div>
@@ -49,13 +49,13 @@ export function ProductCard({
   return (
     <article className="product-card">
       <div className={`product-image ${product.color}`}>
-        <Link to="/products" aria-label={`Xem danh sách sản phẩm`}>
+        <Link to="/products" aria-label="View products">
           <img src={product.image} alt={product.name} />
         </Link>
         {discount ? <span className="product-badge">-{discount}%</span> : null}
         <button
           className={`product-heart${liked ? ' is-liked' : ''}`}
-          aria-label={liked ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
+          aria-label={liked ? 'Remove from wishlist' : 'Add to wishlist'}
           onClick={() => toggleWishlist(product.id)}
         >
           <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
@@ -79,7 +79,7 @@ export function ProductCard({
         <div className="product-rating">
           <Star size={13} fill="currentColor" />
           <strong>{product.rating}</strong>
-          <span>({product.sold} đã bán)</span>
+          <span>({product.sold} sold)</span>
         </div>
       </div>
     </article>
@@ -91,10 +91,10 @@ export function ProductGrid({ products }: { products: typeof demoProducts }) {
     return (
       <div className="empty-state">
         <Search />
-        <h3>Chưa tìm thấy sản phẩm</h3>
-        <p>Thử đổi từ khóa hoặc bộ lọc của bạn.</p>
+        <h3>No products found</h3>
+        <p>Try different keywords or filters.</p>
         <Link className="button-primary" to="/products">
-          Xem tất cả sản phẩm
+          View all products
         </Link>
       </div>
     );
@@ -116,8 +116,8 @@ export function CatalogProductGrid({
     return (
       <div className="empty-state">
         <Search />
-        <h3>Chưa có sản phẩm đang bán</h3>
-        <p>Vui lòng quay lại sau hoặc khám phá danh mục khác.</p>
+        <h3>No products available</h3>
+        <p>Please check back later or explore another category.</p>
       </div>
     );
   return (
@@ -127,7 +127,7 @@ export function CatalogProductGrid({
           <div className="product-image">
             <Link
               to={`/products/${product.id}`}
-              aria-label={`Xem ${product.name}`}
+              aria-label={`View ${product.name}`}
             >
               {product.image ? (
                 <img
@@ -143,7 +143,7 @@ export function CatalogProductGrid({
               ) : null}
             </Link>
             {product.available === 0 ? (
-              <span className="product-badge">Hết hàng</span>
+              <span className="product-badge">Out of stock</span>
             ) : null}
           </div>
           <div className="product-info">
@@ -154,12 +154,12 @@ export function CatalogProductGrid({
             <div className="product-meta">
               <span className="product-price">
                 {product.priceVnd === null
-                  ? 'Chưa có SKU'
+                  ? 'No SKU available'
                   : formatCatalogVnd(product.priceVnd)}
               </span>
             </div>
             <div className="product-rating">
-              <span>{product.available > 0 ? 'Còn hàng' : 'Tạm hết hàng'}</span>
+              <span>{product.available > 0 ? 'In stock' : 'Out of stock'}</span>
             </div>
           </div>
         </article>

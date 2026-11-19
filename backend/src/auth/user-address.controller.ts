@@ -27,7 +27,7 @@ import {
 
 @Controller('me/addresses')
 @UseGuards(AuthGuard, RolesGuard)
-@Roles('CUSTOMER')
+@Roles('CUSTOMER', 'ADMIN')
 export class UserAddressController {
   constructor(private readonly addresses: UserAddressService) {}
 

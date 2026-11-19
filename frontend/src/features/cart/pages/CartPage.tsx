@@ -154,17 +154,9 @@ export function CartPage() {
           </Link>
         </div>
       ) : null}
-      {user?.role === 'ADMIN' ? (
-        <div className="empty-state">
-          <h3>Giỏ hàng dành cho khách hàng</h3>
-          <Link className="button-primary" to="/products">
-            Tiếp tục mua sắm
-          </Link>
-        </div>
-      ) : null}
       {cartQuery.isError &&
       status === 'authenticated' &&
-      user?.role === 'CUSTOMER' ? (
+      user ? (
         <div className="empty-state" role="alert">
           <h3>Chưa thể tải giỏ hàng</h3>
           <p>Kiểm tra kết nối rồi thử lại.</p>

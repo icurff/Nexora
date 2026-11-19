@@ -6,15 +6,15 @@ export function CategoriesPage() {
   return (
     <div className="page-container page-section">
       <div className="breadcrumbs">
-        <Link to="/">Trang chủ</Link>
+        <Link to="/">Home</Link>
         <ChevronRight />
-        <span>Danh mục</span>
+        <span>Categories</span>
       </div>
       <div className="catalog-title">
         <div>
-          <span className="section-eyebrow">KHÁM PHÁ NEXORA</span>
-          <h1>Danh mục sản phẩm</h1>
-          <p>Tìm cảm hứng từ những điều phù hợp với bạn.</p>
+          <span className="section-eyebrow">EXPLORE NEXORA</span>
+          <h1>Product categories</h1>
+          <p>Find inspiration in things that suit you.</p>
         </div>
       </div>
       <div className="category-grid category-grid-large">
@@ -34,7 +34,7 @@ export function CategoriesPage() {
                   demoProducts.filter((p) => p.categoryId === category.id)
                     .length
                 }{' '}
-                sản phẩm
+                products
               </small>
             </div>
             <ArrowRight className="category-arrow" />

@@ -28,7 +28,7 @@ export function CheckoutPage() {
   const location = useLocation();
   const client = useQueryClient();
   const cart = useCart();
-  const addressesQuery = useAddresses(user?.role === 'CUSTOMER');
+  const addressesQuery = useAddresses(Boolean(user));
   const [selectedAddress, setSelectedAddress] = useState('');
   const [selectedItems, setSelectedItems] = useState<string[] | null>(null);
   const [pending, setPending] = useState(false);
@@ -215,7 +215,7 @@ export function CheckoutPage() {
         <p role="status">Đang kiểm tra tài khoản…</p>
       </div>
     );
-  if (!user || user.role !== 'CUSTOMER')
+  if (!user)
     return (
       <div className="page-container page-section">
         <div className="empty-state">

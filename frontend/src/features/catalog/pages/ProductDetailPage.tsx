@@ -129,10 +129,6 @@ export function ProductDetailPage() {
       ? { variantId: selectedVariant.id }
       : { productId: product.id };
     setNotice('');
-    if (user?.role === 'ADMIN') {
-      setNotice('Tài khoản quản trị không thể thêm sản phẩm vào giỏ hàng.');
-      return;
-    }
     if (!user) {
       navigate('/login', {
         state: {

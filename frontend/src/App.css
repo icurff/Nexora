@@ -45,11 +45,11 @@
 }
 .header-note {
   color: #77829a;
-  font-size: 13px;
+  font-size: var(--type-label);
 }
 .header-help {
   color: #455cba;
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 650;
   text-decoration: none;
 }
@@ -136,7 +136,7 @@
   gap: 8px;
   margin-bottom: 10px;
   color: #6373b7;
-  font-size: 10px;
+  font-size: var(--type-meta);
   font-weight: 750;
   letter-spacing: 1.2px;
 }
@@ -159,7 +159,7 @@
 .auth-heading p,
 .account-topline p {
   color: #78839a;
-  font-size: 13.5px;
+  font-size: var(--type-label);
   line-height: 1.6;
 }
 
@@ -175,7 +175,7 @@
   gap: 12px;
   margin: 18px 0 12px;
   color: #8993a8;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .auth-divider::before,
 .auth-divider::after {
@@ -191,7 +191,7 @@
   border-color: #dce2ed;
   color: #343e58;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 650;
 }
 .google-login-mark {
@@ -207,7 +207,7 @@
 }
 .field label {
   color: #343e58;
-  font-size: 12px;
+  font-size: var(--type-small);
   font-weight: 650;
 }
 
@@ -237,7 +237,7 @@
   padding: 12px 13px;
   color: #27324a;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--type-label);
   border: 0;
   outline: 0;
   background: transparent;
@@ -276,12 +276,12 @@
 }
 .field-error {
   color: #b44c53;
-  font-size: 11px;
+  font-size: var(--type-small);
   line-height: 1.4;
 }
 .field-hint {
   color: #8791a5;
-  font-size: 10.5px;
+  font-size: var(--type-small);
   line-height: 1.4;
 }
 
@@ -295,7 +295,7 @@
   padding: 0 18px;
   color: #fff;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 680;
   text-decoration: none;
   border: 0;
@@ -355,7 +355,7 @@ a:focus-visible {
   margin-top: 21px;
   color: #7b859a;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .form-switch a {
   color: #4b62ce;
@@ -365,7 +365,7 @@ a:focus-visible {
 .forgot-password-link {
   margin-top: -8px;
   text-align: right;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .forgot-password-link a,
 .recovery-card .form-switch a {
@@ -385,7 +385,7 @@ a:focus-visible {
 .recovery-success > p {
   margin: 0 0 18px;
   color: #78839a;
-  font-size: 12px;
+  font-size: var(--type-small);
   line-height: 1.6;
 }
 .recovery-success > p strong {
@@ -405,7 +405,7 @@ a:focus-visible {
 .admin-check-card > p {
   margin-bottom: 20px;
   color: #78839a;
-  font-size: 12px;
+  font-size: var(--type-small);
   line-height: 1.6;
 }
 .admin-check-icon {
@@ -436,7 +436,7 @@ a:focus-visible {
   border: 1px solid #ebeff6;
   border-radius: 11px;
   background: #fafbfe;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .admin-identity span {
   color: #8791a4;
@@ -453,7 +453,7 @@ a:focus-visible {
   margin: 18px 0;
   padding: 12px;
   border-radius: 9px;
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .admin-result svg {
   width: 17px;
@@ -480,7 +480,7 @@ a:focus-visible {
   gap: 7px;
   margin: 22px 0 0;
   color: #919bad;
-  font-size: 10px;
+  font-size: var(--type-meta);
   text-align: center;
 }
 .secure-note svg {
@@ -496,7 +496,7 @@ a:focus-visible {
   margin: 0 0 17px;
   padding: 11px 12px;
   border-radius: 8px;
-  font-size: 11.5px;
+  font-size: var(--type-small);
   line-height: 1.5;
 }
 .notice svg {
@@ -566,7 +566,7 @@ a:focus-visible {
   gap: 18px;
   padding: 0 clamp(20px, 6vw, 88px);
   color: #929bad;
-  font-size: 10px;
+  font-size: var(--type-meta);
   border-top: 1px solid #e9edf5;
   background: #fff;
 }
@@ -593,7 +593,7 @@ a:focus-visible {
   border: 1px solid #e5e9f5;
   border-radius: 10px;
   background: #f7f8ff;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .admin-account-link a {
   display: inline-flex;
@@ -619,7 +619,7 @@ a:focus-visible {
   padding: 9px 10px;
   color: #66718a;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--type-small);
   font-weight: 650;
   border: 1px solid #e2e6ef;
   border-radius: 8px;
@@ -655,7 +655,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   color: #4a61c3;
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 750;
   border-radius: 50%;
   background: #e8edff;
@@ -669,18 +669,18 @@ a:focus-visible {
 }
 .profile-info strong {
   color: #303b55;
-  font-size: 13px;
+  font-size: var(--type-label);
 }
 .profile-info span {
   overflow: hidden;
   color: #8791a4;
-  font-size: 11px;
+  font-size: var(--type-small);
   text-overflow: ellipsis;
 }
 .role-badge {
   padding: 5px 9px;
   color: #5368c4;
-  font-size: 10px;
+  font-size: var(--type-meta);
   font-weight: 650;
   border-radius: 20px;
   background: #edf0ff;
@@ -712,7 +712,7 @@ a:focus-visible {
 }
 .section-heading p {
   color: #8791a5;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .password-form {
   gap: 15px;
@@ -731,13 +731,13 @@ a:focus-visible {
 }
 .form-actions p {
   color: #8b95a8;
-  font-size: 10px;
+  font-size: var(--type-meta);
 }
 .form-actions .primary-button {
   flex: 0 0 auto;
   min-height: 42px;
   margin: 0;
-  font-size: 11px;
+  font-size: var(--type-small);
 }
 .loading-card {
   min-height: 100px;
@@ -746,7 +746,7 @@ a:focus-visible {
   justify-content: center;
   gap: 12px;
   color: #66718a;
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 
 @media (max-width: 600px) {
@@ -806,7 +806,7 @@ a:focus-visible {
     flex-direction: column;
   }
   .role-badge {
-    font-size: 9px;
+    font-size: var(--type-meta);
   }
   .password-row {
     grid-template-columns: 1fr;

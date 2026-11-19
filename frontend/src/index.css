@@ -6,6 +6,11 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --type-meta: 0.875rem;
+  --type-small: 0.9375rem;
+  --type-label: 1rem;
+  --type-body: 1rem;
+  --leading-body: 1.5;
   font-family:
     'Geist Variable',
     ui-sans-serif,
@@ -67,11 +72,17 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
 }
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
+h1, h2, h3, h4, h5, h6 { text-wrap: balance; }
+p { text-wrap: pretty; }
 button,
 a {
   -webkit-tap-highlight-color: transparent;

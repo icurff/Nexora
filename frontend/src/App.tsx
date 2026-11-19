@@ -56,7 +56,7 @@ function RequireAuth() {
       <AuthLayout compact>
         <div className="loading-card">
           <LoaderCircle className="animate-spin" />
-          Đang kiểm tra phiên đăng nhập...
+          Checking your session...
         </div>
       </AuthLayout>
     );
@@ -80,7 +80,7 @@ function GuestOnly() {
       <AuthLayout compact>
         <div className="loading-card">
           <LoaderCircle className="animate-spin" />
-          Đang kiểm tra phiên đăng nhập...
+          Checking your session...
         </div>
       </AuthLayout>
     );
@@ -120,7 +120,9 @@ export default function App() {
             element={<GoogleCallbackPage />}
           />
           <Route element={<RequireAuth />}>
-            <Route path="/account" element={<AccountPage />} />
+            <Route element={<StoreLayout />}>
+              <Route path="/account" element={<AccountPage />} />
+            </Route>
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminPage />} />

@@ -36,6 +36,9 @@ const row: Category = {
   nameKey: 'clothing',
   slug: 'clothing',
   parentId: null,
+  seedDatasetId: null,
+  seedCategoryId: null,
+  seedRootCategoryId: null,
   isActive: true,
   legacyOptionConfig: {
     options: { color: { label: 'Color' }, size: { label: 'Size' } },

@@ -42,7 +42,7 @@ export default function GoogleCallbackPage() {
     <AuthLayout compact>
       <div className="loading-card" role="status" aria-live="polite">
         <LoaderCircle className="animate-spin" />
-        Đang hoàn tất đăng nhập Google...
+        Completing Google sign-in...
       </div>
     </AuthLayout>
   );

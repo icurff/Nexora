@@ -35,7 +35,7 @@ export class CustomerManagementController {
   }
 
   @Patch('me')
-  @Roles('CUSTOMER')
+  @Roles('CUSTOMER', 'ADMIN')
   updateProfile(
     @CurrentActor() actor: AuthenticatedActor,
     @Body() body: UpdateProfileDto,

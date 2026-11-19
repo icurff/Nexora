@@ -29,7 +29,7 @@ export function OrdersPage() {
   const query = useQuery({
     queryKey: ['orders', user?.id, filter, page],
     queryFn: () => getOrders(filter === 'ALL' ? undefined : filter, page),
-    enabled: Boolean(user?.role === 'CUSTOMER'),
+    enabled: Boolean(user),
     retry: false,
   });
   return (

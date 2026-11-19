@@ -62,7 +62,7 @@ export function PasswordField(props: Omit<FieldProps, 'type' | 'trailing'>) {
           size="icon"
           type="button"
           onClick={() => setVisible((value) => !value)}
-          aria-label={visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+          aria-label={visible ? 'Hide password' : 'Show password'}
         >
           {visible ? <EyeOff /> : <Eye />}
         </Button>

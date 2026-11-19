@@ -189,6 +189,10 @@ npm run dev
 
 PostgreSQL cần chạy trước khi dùng npm trên host. Seed demo chỉ khi đã chủ động cấu hình ít nhất một cặp DEMO_CUSTOMER_EMAIL/PASSWORD hoặc DEMO_ADMIN_EMAIL/PASSWORD: npm run seed:demo. Mỗi loại tài khoản có thể seed độc lập; seed không ghi đè email đã tồn tại. Không tự seed database đang làm việc để test.
 
+Bộ catalog demo local dùng `dataset/demo_data` và manifest checksum tại `backend/prisma/demo-catalog-manifest.json`. Sau khi đồng bộ schema vào PostgreSQL local, cấu hình và seed ít nhất một Admin, chạy `npm run build` rồi `npm run seed:catalog` trong `backend`. Import kiểm tra ba CSV, ghi 500 Product, SKU mặc định, tồn và ánh xạ RetailRocket trong một transaction; chạy lại không ghi đè thay đổi quản trị. ID `products.id` là ID vận hành, còn `products.retailrocket_item_id` là `source_item_id` gốc. Thống kê nguồn không tạo event tracking.
+
+Riêng ảnh của bộ demo local được tải dưới dạng PNG và lưu tại `frontend/public/demo-catalog`, tên theo SHA-256; frontend phục vụ URL `/demo-catalog/...`. Cần giữ thư mục này cùng PostgreSQL khi sao lưu hoặc chuyển môi trường, và build lại frontend sau khi import. Không cần Supabase cho ảnh demo. Đây không thay đổi luồng upload ảnh Admin: ảnh mới qua API vẫn dùng Supabase Storage theo cấu hình hiện tại. Lần import đầu cần truy cập nguồn ảnh; chạy lại khi đã import đủ không tải lại ảnh.
+
 ### Validation
 
 Prisma Client được sinh khi npm ci/npm run build, hoặc chạy npm run prisma:generate sau khi sửa schema. Source sinh ở src/generated/prisma được bỏ qua bởi Git/ESLint và biên dịch vào dist. Docker build cần copy prisma/schema.prisma và prisma.config.ts trước npm ci. Prisma CLI vẫn dùng cho `db:push` và seed; Prisma Migrate không được dùng.

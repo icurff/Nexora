@@ -29,7 +29,7 @@ export function OrderDetailPage() {
   const query = useQuery({
     queryKey: ['order', id],
     queryFn: () => getOrder(id),
-    enabled: Boolean(id && user?.role === 'CUSTOMER'),
+    enabled: Boolean(id && user),
     retry: false,
   });
   const [error, setError] = useState('');

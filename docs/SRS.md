@@ -252,10 +252,12 @@ Các bước ghi nghiệp vụ liên quan dùng chung transaction/Prisma.Transac
 
 ### UC-06 — Quản lý sổ địa chỉ
 
-- **Tác nhân:** Customer. **Dữ liệu:** người nhận, điện thoại, tỉnh, đơn vị cấp xã, địa chỉ chi tiết, mặc định.
+- **Tác nhân:** Customer hoặc Admin dùng tài khoản cá nhân. **Dữ liệu:** người nhận, điện thoại, tỉnh, đơn vị cấp xã, địa chỉ chi tiết, mặc định.
 - **Luồng chính:** thêm/sửa → frontend tải JSON tỉnh/xã từ GitHub → đổi tỉnh thì bỏ lựa chọn xã cũ → gửi tên đã chọn cùng địa chỉ chi tiết; hoặc chọn mặc định/xóa địa chỉ của mình.
 - **Ngoại lệ:** JSON không tải được thì cho thử lại và giữ dữ liệu form; backend từ chối trường thiếu/sai độ dài hoặc địa chỉ không thuộc tài khoản. API không xác minh quan hệ tỉnh–xã; địa chỉ đã lưu vẫn xem/xóa được khi nguồn online lỗi.
 - **Sau:** tối đa một mặc định; địa chỉ đầu tiên mặc định; xóa mặc định chọn địa chỉ còn lại được tạo sớm nhất. **Nghiệm thu:** TC-06, TC-07.
+
+Admin cũng có thể sử dụng các luồng khách hàng bằng dữ liệu của chính tài khoản admin: hồ sơ, sổ địa chỉ, giỏ hàng, đặt hàng, đơn hàng và thông báo. Các API khách hàng vẫn kiểm tra quyền sở hữu; quyền quản trị các tài khoản và đơn hàng khác chỉ có ở các API admin.
 
 ### UC-07 — Duyệt, tìm kiếm và lọc
 

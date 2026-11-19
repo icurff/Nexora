@@ -23,16 +23,16 @@ import { useLogout } from '../features/auth/hooks/useAuthMutations';
 import { BrandLogo } from '../components/BrandLogo';
 
 const links = [
-  { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard, end: true },
-  { to: '/admin/products', label: 'Sản phẩm', icon: Package },
-  { to: '/admin/inventory', label: 'Tồn kho', icon: Boxes },
-  { to: '/admin/categories', label: 'Danh mục', icon: Tags },
-  { to: '/admin/coupons', label: 'Mã giảm giá', icon: TicketPercent },
-  { to: '/admin/orders', label: 'Đơn hàng', icon: ShoppingBag },
-  { to: '/admin/reviews', label: 'Đánh giá', icon: Star },
-  { to: '/admin/users', label: 'Khách hàng', icon: Users },
-  { to: '/admin/notifications', label: 'Thông báo', icon: Bell },
-  { to: '/admin/settings', label: 'Cấu hình cửa hàng', icon: Settings2 },
+  { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
+  { to: '/admin/products', label: 'Products', icon: Package },
+  { to: '/admin/inventory', label: 'Inventory', icon: Boxes },
+  { to: '/admin/categories', label: 'Categories', icon: Tags },
+  { to: '/admin/coupons', label: 'Coupons', icon: TicketPercent },
+  { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
+  { to: '/admin/reviews', label: 'Reviews', icon: Star },
+  { to: '/admin/users', label: 'Customers', icon: Users },
+  { to: '/admin/notifications', label: 'Notifications', icon: Bell },
+  { to: '/admin/settings', label: 'Store settings', icon: Settings2 },
 ];
 
 export function AdminLayout() {
@@ -49,10 +49,10 @@ export function AdminLayout() {
   if (user?.role !== 'ADMIN')
     return (
       <main className="admin-denied">
-        <span>KIỂM TRA PHÂN QUYỀN</span>
-        <h1>Không có quyền truy cập</h1>
-        <p>Tài khoản hiện tại không có role ADMIN.</p>
-        <Link to="/account">Về tài khoản</Link>
+        <span>ACCESS CHECK</span>
+        <h1>Access denied</h1>
+        <p>Your account does not have the ADMIN role.</p>
+        <Link to="/account">Back to account</Link>
       </main>
     );
   return (
@@ -60,7 +60,7 @@ export function AdminLayout() {
       <header className="admin-topbar">
         <button
           className="admin-menu-toggle"
-          aria-label="Mở menu"
+          aria-label="Open menu"
           onClick={() => setOpen(!open)}
         >
           {open ? <X /> : <Menu />}
@@ -70,7 +70,7 @@ export function AdminLayout() {
           <i>ADMIN</i>
         </NavLink>
         <div className="admin-topbar-title">
-          <span>Không gian quản trị</span>
+          <span>Admin workspace</span>
           <ChevronRight size={14} />
           <strong>{current.label}</strong>
         </div>
@@ -86,7 +86,7 @@ export function AdminLayout() {
           </span>
           <button
             className="admin-logout"
-            title="Đăng xuất"
+            title="Sign out"
             onClick={() => void logout.mutateAsync()}
           >
             <LogOut size={17} />
@@ -95,7 +95,7 @@ export function AdminLayout() {
       </header>
       <div className="admin-frame">
         <aside className={`admin-sidebar${open ? ' is-open' : ''}`}>
-          <div className="admin-side-label">MENU CHÍNH</div>
+          <div className="admin-side-label">MAIN MENU</div>
           <nav>
             {links.map(({ to, label, icon: Icon, end }) => (
               <NavLink
@@ -117,18 +117,18 @@ export function AdminLayout() {
               <span className="help-card-icon">
                 <CircleHelp size={17} />
               </span>
-              <strong>Cần trợ giúp?</strong>
-              <p>Xem hướng dẫn sử dụng trang quản trị.</p>
+              <strong>Need help?</strong>
+              <p>See the admin guide.</p>
               <button
                 onClick={() =>
-                  window.alert('Hướng dẫn quản trị trong bản demo.')
+                  window.alert('Admin guidance in the demo.')
                 }
               >
-                Xem hướng dẫn <ChevronRight size={14} />
+                View guide <ChevronRight size={14} />
               </button>
             </div>
             <NavLink to="/" className="back-store-link">
-              <Store size={17} /> Về cửa hàng
+              <Store size={17} /> Back to store
             </NavLink>
             <div className="admin-version">
               NEXORA ADMIN <span>v1.0.0</span>

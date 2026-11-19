@@ -554,10 +554,16 @@ export class ProductService {
     return rows.map((row) => this.mapCartVariant(row));
   }
 
-  async publicList(page = 1, pageSize = 20) {
+  async publicList(page = 1, pageSize = 20, query?: string) {
+    const search = query ? normalized(query) : undefined;
     const [products, total] = await Promise.all([
-      this.repository.publicList((page - 1) * pageSize, pageSize),
-      this.repository.publicCount(),
+      this.repository.publicList(
+        (page - 1) * pageSize,
+        pageSize,
+        search,
+        query,
+      ),
+      this.repository.publicCount(search, query),
     ]);
     return {
       items: products.map((product) => {

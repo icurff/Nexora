@@ -45,7 +45,7 @@ export function NotificationBell() {
     };
   }, [open]);
 
-  if (user?.role !== 'CUSTOMER') return null;
+  if (!user) return null;
   const unread = query.data?.unreadCount ?? 0;
   async function openItem(item: UserNotification) {
     setOpen(false);

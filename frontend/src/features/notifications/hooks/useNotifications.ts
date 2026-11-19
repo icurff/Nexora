@@ -38,7 +38,7 @@ export function useNotificationSummary(pageSize = 10) {
   return useQuery({
     queryKey: notificationKeys.list(user?.id, 1, false, pageSize),
     queryFn: () => getNotifications({ page: 1, pageSize }),
-    enabled: user?.role === 'CUSTOMER',
+    enabled: Boolean(user),
     refetchOnWindowFocus: true,
     retry: false,
   });
@@ -52,7 +52,7 @@ export function useNotificationStream() {
   );
   const setUnauthenticated = useAuthStore((state) => state.setUnauthenticated);
   useEffect(() => {
-    if (user?.role !== 'CUSTOMER') return;
+    if (!user?.id) return;
     const controller = new AbortController();
     void runNotificationStream(
       controller.signal,

@@ -163,7 +163,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
         );
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
         const user = await this.orders.user(userId, tx);
-        if (!user || user.status !== 'ACTIVE' || user.role !== 'CUSTOMER')
+        if (!user || user.status !== 'ACTIVE')
           throw new ConflictException({ code: 'CUSTOMER_NOT_ACTIVE' });
         if (!(await this.orders.activeSession(userId, actor.sessionId, tx)))
           throw new ConflictException({ code: 'CUSTOMER_SESSION_EXPIRED' });
