@@ -43,21 +43,21 @@ export async function addAdminImages(id: string, images: ImageInput[]) { return 
 export async function updateAdminImage(productId: string, id: string, input: Partial<Pick<ImageInput, 'altText' | 'sortOrder' | 'isPrimary'>>) { return request(async token => (await apiClient.patch<AdminProduct>(`/admin/products/${productId}/images/${id}`, input, { headers: headers(token) })).data); }
 export async function deleteAdminImage(productId: string, id: string) { return request(async token => (await apiClient.delete<AdminProduct>(`/admin/products/${productId}/images/${id}`, { headers: headers(token) })).data); }
 export function productErrorMessage(error: unknown) {
-  if (!(error instanceof ApiError)) return 'Không thể kết nối máy chủ. Vui lòng thử lại.';
+  if (!(error instanceof ApiError)) return 'Unable to connect to the server. Please try again.';
   const messages: Record<string, string> = {
-    SKU_OPTIONS_DUPLICATE: 'Tổ hợp lựa chọn SKU bị trùng.', SKU_OPTIONS_INVALID: 'Lựa chọn SKU không khớp cấu hình sản phẩm.',
-    SKU_OPTION_KEYS_MISMATCH: 'Các SKU phải dùng cùng bộ lựa chọn.', IMAGE_ASSET_NOT_FOUND: 'Không tìm thấy asset ảnh đã tải lên.',
-    PRODUCT_NEEDS_PRIMARY_IMAGE: 'Chọn đúng một ảnh đại diện.', PRODUCT_NEEDS_SKU: 'Sản phẩm cần ít nhất một SKU.',
-    SKU_HAS_RESERVED_STOCK: 'Không thể xóa SKU đang được đơn hàng giữ.',
-    SKU_HAS_ON_HAND_STOCK: 'Không thể xóa SKU còn hàng trong kho. Hãy xử lý tồn trước.',
-    PRODUCT_NEEDS_IMAGE: 'Sản phẩm cần có ảnh đại diện.',
-    PRODUCT_NOT_FOUND: 'Sản phẩm không còn tồn tại. Hãy tải lại trang.', SKU_NOT_FOUND: 'SKU không còn tồn tại. Hãy tải lại trang.',
-    ACTIVE_PRODUCT_NEEDS_IMAGE: 'Sản phẩm ACTIVE phải còn ảnh.',
-    IMAGE_STORAGE_NOT_CONFIGURED: 'Máy chủ chưa cấu hình Supabase Storage.', IMAGE_STORAGE_CONFIGURATION_CHANGED: 'Cấu hình bucket đã thay đổi; liên hệ quản trị viên.',
-    IMAGE_STORAGE_UNAVAILABLE: 'Không kết nối được Supabase Storage. Vui lòng thử lại.', IMAGE_STORAGE_BUCKET_NOT_FOUND: 'Không tìm thấy bucket ảnh đã cấu hình.',
-    IMAGE_STORAGE_UPLOAD_FAILED: 'Supabase Storage từ chối ảnh tải lên.', MEDIA_STORAGE_UPLOAD_FAILED: 'Supabase Storage từ chối tệp tải lên.', MEDIA_TOO_LARGE: 'Ảnh tối đa 5 MiB, video tối đa 50 MB mỗi tệp.', MEDIA_TYPE_UNSUPPORTED: 'Chỉ nhận ảnh JPEG, PNG, WebP hoặc video MP4, WebM, MOV.',
+    SKU_OPTIONS_DUPLICATE: 'This SKU option combination is duplicated.', SKU_OPTIONS_INVALID: 'SKU options do not match the product configuration.',
+    SKU_OPTION_KEYS_MISMATCH: 'SKUs must use the same option set.', IMAGE_ASSET_NOT_FOUND: 'Uploaded image asset not found.',
+    PRODUCT_NEEDS_PRIMARY_IMAGE: 'Select exactly one primary image.', PRODUCT_NEEDS_SKU: 'The product requires at least one SKU.',
+    SKU_HAS_RESERVED_STOCK: 'Cannot delete a SKU reserved by orders.',
+    SKU_HAS_ON_HAND_STOCK: 'Cannot delete a SKU with stock on hand. Resolve its stock first.',
+    PRODUCT_NEEDS_IMAGE: 'The product requires a primary image.',
+    PRODUCT_NOT_FOUND: 'The product no longer exists. Reload the page.', SKU_NOT_FOUND: 'The SKU no longer exists. Reload the page.',
+    ACTIVE_PRODUCT_NEEDS_IMAGE: 'An active product must retain an image.',
+    IMAGE_STORAGE_NOT_CONFIGURED: 'Supabase Storage is not configured on the server.', IMAGE_STORAGE_CONFIGURATION_CHANGED: 'The bucket configuration has changed; contact an administrator.',
+    IMAGE_STORAGE_UNAVAILABLE: 'Unable to connect to Supabase Storage. Please try again.', IMAGE_STORAGE_BUCKET_NOT_FOUND: 'The configured image bucket was not found.',
+    IMAGE_STORAGE_UPLOAD_FAILED: 'Supabase Storage rejected the image upload.', MEDIA_STORAGE_UPLOAD_FAILED: 'Supabase Storage rejected the file upload.', MEDIA_TOO_LARGE: 'Images must be at most 5 MiB and videos at most 50 MB per file.', MEDIA_TYPE_UNSUPPORTED: 'Only JPEG, PNG, WebP images and MP4, WebM, MOV videos are supported.',
   };
-  if (error.status === 401) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
-  if (error.status === 403) return 'Tài khoản hiện tại không có quyền quản lý sản phẩm.';
-  return messages[error.code ?? ''] ?? error.message ?? 'Không thể lưu sản phẩm. Vui lòng thử lại.';
+  if (error.status === 401) return 'Your session has expired. Please sign in again.';
+  if (error.status === 403) return 'Your account cannot manage products.';
+  return messages[error.code ?? ''] ?? error.message ?? 'Unable to save the product. Please try again.';
 }

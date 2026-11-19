@@ -22,66 +22,65 @@ type OrderAction =
   | 'receive-return';
 
 const labels: Record<string, string> = {
-  PENDING: 'Chờ xác nhận',
-  CONFIRMED: 'Đã xác nhận',
-  SHIPPING: 'Đang giao',
-  DELIVERY_FAILED: 'Giao thất bại',
-  DELIVERED: 'Đã giao',
-  CANCELLED: 'Đã hủy',
+  PENDING: 'Pending',
+  CONFIRMED: 'Confirmed',
+  SHIPPING: 'Shipping',
+  DELIVERY_FAILED: 'Delivery failed',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
 };
 const filters = [
-  ['ALL', 'Tất cả'],
-  ['PENDING', 'Chờ xác nhận'],
-  ['CONFIRMED', 'Đã xác nhận'],
-  ['SHIPPING', 'Đang giao'],
-  ['DELIVERY_FAILED', 'Giao thất bại'],
-  ['DELIVERED', 'Đã giao'],
-  ['CANCELLED', 'Đã hủy'],
+  ['ALL', 'All'],
+  ['PENDING', 'Pending'],
+  ['CONFIRMED', 'Confirmed'],
+  ['SHIPPING', 'Shipping'],
+  ['DELIVERY_FAILED', 'Delivery failed'],
+  ['DELIVERED', 'Delivered'],
+  ['CANCELLED', 'Cancelled'],
 ];
 const actionText: Record<
   OrderAction,
   { title: string; description: string; submit: string }
 > = {
   confirm: {
-    title: 'Xác nhận đơn hàng',
+    title: 'Confirm order',
     description:
-      'Đơn sẽ được xác nhận và tiếp tục chờ bàn giao cho đơn vị giao hàng.',
-    submit: 'Xác nhận đơn',
+      'The order will be confirmed and await handoff to the delivery provider.',
+    submit: 'Confirm order',
   },
   cancel: {
-    title: 'Hủy đơn hàng',
-    description: 'Đơn sẽ bị hủy và lượng hàng đang giữ sẽ được giải phóng.',
-    submit: 'Xác nhận hủy đơn',
+    title: 'Cancel order',
+    description: 'The order will be cancelled and reserved stock released.',
+    submit: 'Confirm cancellation',
   },
   ship: {
-    title: 'Chuyển đơn đi giao',
-    description:
-      'Tồn kho sẽ được trừ ngay khi chuyển đơn sang trạng thái đang giao.',
-    submit: 'Chuyển đi giao',
+    title: 'Dispatch order',
+    description: 'Stock will be deducted when the order moves to shipping.',
+    submit: 'Dispatch',
   },
   deliver: {
-    title: 'Xác nhận giao thành công',
+    title: 'Confirm successful delivery',
     description:
-      'Xác nhận khách đã nhận hàng và thu đủ tiền COD. Đơn sẽ được đánh dấu đã thanh toán.',
-    submit: 'Đã giao và thu COD',
+      'Confirm that the customer received the order and the full COD amount was collected. The order will be marked as paid.',
+    submit: 'Delivered and COD collected',
   },
   'delivery-fail': {
-    title: 'Ghi nhận giao thất bại',
+    title: 'Record failed delivery',
     description:
-      'Đơn sẽ được ghi nhận giao thất bại; hàng chưa được cộng lại kho.',
-    submit: 'Ghi nhận thất bại',
+      'The delivery will be recorded as failed; stock will not yet be returned.',
+    submit: 'Record failure',
   },
   'retry-delivery': {
-    title: 'Xác nhận giao lại',
+    title: 'Confirm redelivery',
     description:
-      'Đơn chuyển lại sang đang giao. Hệ thống không trừ tồn hoặc tính thêm phí giao hàng.',
-    submit: 'Xác nhận giao lại',
+      'The order returns to shipping. Stock will not be deducted again and no extra delivery fee is charged.',
+    submit: 'Confirm redelivery',
   },
   'receive-return': {
-    title: 'Nhận hàng hoàn về kho',
+    title: 'Receive returned items',
     description:
-      'Chỉ xác nhận nếu đã nhận đủ toàn bộ hàng nguyên vẹn. Đơn sẽ bị hủy và hàng được cộng lại kho một lần.',
-    submit: 'Đã nhận đủ hàng',
+      'Confirm only after all items have been returned intact. The order will be cancelled and stock restored once.',
+    submit: 'All items received',
   },
 };
 function date(value: string) {
@@ -141,7 +140,7 @@ export function AdminOrdersPage() {
     },
     onError: () => {
       setPendingAction(null);
-      setError('Không xác nhận được đơn. Tải lại để kiểm tra trạng thái.');
+      setError('Unable to confirm the order. Reload to check its status.');
     },
   });
   const cancel = useMutation({
@@ -161,7 +160,7 @@ export function AdminOrdersPage() {
     },
     onError: () => {
       setPendingAction(null);
-      setError('Không hủy được đơn. Tải lại để kiểm tra trạng thái.');
+      setError('Unable to cancel the order. Reload to check its status.');
     },
   });
   const lifecycle = useMutation({
@@ -196,7 +195,7 @@ export function AdminOrdersPage() {
     },
     onError: async () => {
       setError(
-        'Thao tác không thành công. Đơn có thể đã đổi trạng thái; đang tải lại.',
+        'The action failed. The order status may have changed; reloading.',
       );
       finishAttempt();
       setPendingAction(null);
@@ -212,14 +211,14 @@ export function AdminOrdersPage() {
       confirm.mutate();
     } else if (pendingAction === 'cancel') {
       if (!reason.trim()) {
-        setError('Nhập lý do hủy đơn.');
+        setError('Enter a cancellation reason.');
         return;
       }
       beginAttempt('cancel');
       cancel.mutate();
     } else if (pendingAction === 'delivery-fail') {
       if (!deliveryReason.trim()) {
-        setError('Nhập lý do giao thất bại.');
+        setError('Enter a delivery failure reason.');
         return;
       }
       lifecycle.mutate({
@@ -237,16 +236,10 @@ export function AdminOrdersPage() {
   if (!id)
     return (
       <div className="admin-page-content">
-        <div className="breadcrumbs">
-          <Link to="/admin">Quản trị</Link>
-          <ChevronRight />
-          <span>Đơn hàng</span>
-        </div>
         <header className="admin-page-heading">
           <div>
-            <span className="section-eyebrow">VẬN HÀNH CỬA HÀNG</span>
-            <h1>Đơn hàng</h1>
-            <p>Xem đơn mới, xác nhận hoặc hủy trước giao.</p>
+            <h1>Orders</h1>
+            <p>Review new orders, confirm or cancel before delivery.</p>
           </div>
         </header>
         <div className="order-tabs">
@@ -263,58 +256,63 @@ export function AdminOrdersPage() {
             </button>
           ))}
         </div>
-        {list.isPending ? <p role="status">Đang tải đơn…</p> : null}
+        {list.isPending ? <p role="status">Loading orders…</p> : null}
         {list.isError ? (
           <p role="alert">
-            Chưa tải được đơn hàng.{' '}
-            <button onClick={() => void list.refetch()}>Thử lại</button>
+            Unable to load orders.{' '}
+            <button onClick={() => void list.refetch()}>Try again</button>
           </p>
         ) : null}
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>MÃ ĐƠN</th>
-                <th>KHÁCH HÀNG</th>
-                <th>NGÀY ĐẶT</th>
-                <th>TỔNG</th>
-                <th>TRẠNG THÁI</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {list.data?.items.map((order) => (
-                <tr key={order.id}>
-                  <td>{order.id}</td>
-                  <td>
-                    {order.customer.fullName}
-                    <br />
-                    <small>{order.customer.email}</small>
-                  </td>
-                  <td>{date(order.createdAt)}</td>
-                  <td>{formatVnd(order.totalAmount)}</td>
-                  <td>{labels[order.status] ?? order.status}</td>
-                  <td>
-                    <Link to={`/admin/orders/${order.id}`}>Chi tiết</Link>
-                  </td>
+        <div className="admin-panel admin-table-panel admin-orders-table">
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Customer</th>
+                  <th>Order date</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {list.data?.items.map((order) => (
+                  <tr key={order.id}>
+                    <td>{order.id}</td>
+                    <td>
+                      {order.customer.fullName}
+                      <br />
+                      <small>{order.customer.email}</small>
+                    </td>
+                    <td>{date(order.createdAt)}</td>
+                    <td>{formatVnd(order.totalAmount)}</td>
+                    <td>{labels[order.status] ?? order.status}</td>
+                    <td>
+                      <Link to={`/admin/orders/${order.id}`}>Details</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {list.data && list.data.items.length === 0 ? (
+            <div className="table-empty">No orders found.</div>
+          ) : null}
         </div>
         {list.data && list.data.total > 20 ? (
-          <nav className="order-tabs" aria-label="Phân trang đơn hàng">
+          <nav className="order-tabs" aria-label="Order pagination">
             <button disabled={page <= 1} onClick={() => setPage(page - 1)}>
-              Trước
+              Previous
             </button>
             <span>
-              Trang {page} / {Math.ceil(list.data.total / 20)}
+              Page {page} / {Math.ceil(list.data.total / 20)}
             </span>
             <button
               disabled={page * 20 >= list.data.total}
               onClick={() => setPage(page + 1)}
             >
-              Sau
+              Next
             </button>
           </nav>
         ) : null}
@@ -324,37 +322,36 @@ export function AdminOrdersPage() {
   if (detail.isPending)
     return (
       <div className="admin-page-content">
-        <p role="status">Đang tải chi tiết đơn…</p>
+        <p role="status">Loading order details…</p>
       </div>
     );
   if (detail.isError || !detail.data)
     return (
       <div className="admin-page-content">
-        <p role="alert">Không tìm thấy đơn hàng.</p>
-        <Link to="/admin/orders">Quay lại danh sách</Link>
+        <p role="alert">Order not found.</p>
+        <Link to="/admin/orders">Back to list</Link>
       </div>
     );
   const order = detail.data;
   return (
     <div className="admin-page-content">
       <div className="breadcrumbs">
-        <Link to="/admin">Quản trị</Link>
+        <Link to="/admin">Admin</Link>
         <ChevronRight />
-        <Link to="/admin/orders">Đơn hàng</Link>
+        <Link to="/admin/orders">Orders</Link>
         <ChevronRight />
         <span>{order.id}</span>
       </div>
       <header className="admin-page-heading">
         <div>
-          <span className="section-eyebrow">CHI TIẾT ĐƠN HÀNG</span>
-          <h1>Đơn {order.id}</h1>
+          <h1>Order {order.id}</h1>
           <p>
             {date(order.createdAt)} · {labels[order.status]}
           </p>
         </div>
       </header>
       <section className="checkout-panel">
-        <h2>Khách hàng và giao hàng</h2>
+        <h2>Customer and delivery</h2>
         <p>
           {order.address.recipientName} · {order.address.recipientPhone}
         </p>
@@ -362,7 +359,7 @@ export function AdminOrdersPage() {
           {order.address.addressLine}, {order.address.wardName},{' '}
           {order.address.provinceName}
         </p>
-        <h2>Sản phẩm</h2>
+        <h2>Products</h2>
         {order.items.map((item) => (
           <div className="checkout-order-line" key={item.id}>
             <span>
@@ -372,41 +369,37 @@ export function AdminOrdersPage() {
                   .map(({ label, value }) => `${label}: ${value}`)
                   .join(' · ') ||
                   item.sku ||
-                  'Không có phiên bản'}{' '}
-                · SL {item.quantity}
+                  'No variant'}{' '}
+                · Qty {item.quantity}
               </small>
             </span>
             <b>{formatVnd(BigInt(item.unitPrice) * BigInt(item.quantity))}</b>
           </div>
         ))}
         <div className="checkout-total-row">
-          <span>Tiền hàng</span>
+          <span>Subtotal</span>
           <strong>{formatVnd(order.subtotal)}</strong>
         </div>
         <div className="checkout-total-row">
-          <span>Phí giao hàng</span>
+          <span>Shipping</span>
           <strong>{formatVnd(order.shippingFee)}</strong>
         </div>
         <div className="checkout-total-row checkout-grand-total">
-          <span>Tổng COD</span>
+          <span>COD total</span>
           <strong>{formatVnd(order.totalAmount)}</strong>
         </div>
-        {order.customerNote ? <p>Ghi chú: {order.customerNote}</p> : null}
-        {order.cancelReason ? <p>Lý do hủy: {order.cancelReason}</p> : null}
+        {order.customerNote ? <p>Note: {order.customerNote}</p> : null}
+        {order.cancelReason ? (
+          <p>Cancellation reason: {order.cancelReason}</p>
+        ) : null}
         <div className="checkout-total-row">
-          <span>Thanh toán</span>
-          <strong>
-            {order.paymentStatus === 'PAID'
-              ? 'Đã thanh toán'
-              : 'Chưa thanh toán'}
-          </strong>
+          <span>Payment</span>
+          <strong>{order.paymentStatus === 'PAID' ? 'Paid' : 'Unpaid'}</strong>
         </div>
         {order.firstShippedAt ? (
-          <p>Bắt đầu giao: {date(order.firstShippedAt)}</p>
+          <p>Dispatched: {date(order.firstShippedAt)}</p>
         ) : null}
-        {order.deliveredAt ? (
-          <p>Giao thành công: {date(order.deliveredAt)}</p>
-        ) : null}
+        {order.deliveredAt ? <p>Delivered: {date(order.deliveredAt)}</p> : null}
         {order.status === 'PENDING' ? (
           <div className="checkout-actions">
             <button
@@ -414,14 +407,14 @@ export function AdminOrdersPage() {
               disabled={actionBusy}
               onClick={() => setPendingAction('confirm')}
             >
-              {confirm.isPending ? 'Đang xác nhận…' : 'Xác nhận đơn'}
+              {confirm.isPending ? 'Confirming…' : 'Confirm order'}
             </button>
             <button
               className="button-secondary"
               disabled={actionBusy}
               onClick={() => setPendingAction('cancel')}
             >
-              Hủy đơn
+              Cancel order
             </button>
           </div>
         ) : order.status === 'CONFIRMED' ? (
@@ -431,7 +424,7 @@ export function AdminOrdersPage() {
               disabled={actionBusy}
               onClick={() => setPendingAction('cancel')}
             >
-              Hủy đơn đã xác nhận
+              Cancel confirmed order
             </button>
           </div>
         ) : null}
@@ -442,7 +435,7 @@ export function AdminOrdersPage() {
               disabled={actionBusy}
               onClick={() => setPendingAction('ship')}
             >
-              Chuyển đi giao
+              Dispatch
             </button>
           </div>
         ) : null}
@@ -453,14 +446,14 @@ export function AdminOrdersPage() {
               disabled={actionBusy}
               onClick={() => setPendingAction('deliver')}
             >
-              Đã giao và thu đủ COD
+              Delivered and COD collected
             </button>
             <button
               className="button-secondary"
               disabled={actionBusy}
               onClick={() => setPendingAction('delivery-fail')}
             >
-              Giao thất bại
+              Delivery failed
             </button>
           </div>
         ) : null}
@@ -471,14 +464,14 @@ export function AdminOrdersPage() {
               disabled={actionBusy}
               onClick={() => setPendingAction('retry-delivery')}
             >
-              Giao lại
+              Redeliver
             </button>
             <button
               className="button-secondary"
               disabled={actionBusy}
               onClick={() => setPendingAction('receive-return')}
             >
-              Đã nhận đủ hàng về kho
+              All items returned to stock
             </button>
           </div>
         ) : null}
@@ -508,15 +501,15 @@ export function AdminOrdersPage() {
             <p>{actionText[pendingAction].description}</p>
             {pendingAction === 'deliver' ? (
               <p className="order-dialog-impact">
-                Số tiền COD cần thu:{' '}
+                COD amount to collect:{' '}
                 <strong>{formatVnd(order.totalAmount)}</strong>
               </p>
             ) : null}
             {pendingAction === 'cancel' || pendingAction === 'delivery-fail' ? (
               <label htmlFor="order-action-reason">
                 {pendingAction === 'cancel'
-                  ? 'Lý do hủy đơn'
-                  : 'Lý do giao thất bại'}
+                  ? 'Cancellation reason'
+                  : 'Delivery failure reason'}
                 <textarea
                   id="order-action-reason"
                   value={pendingAction === 'cancel' ? reason : deliveryReason}
@@ -533,14 +526,14 @@ export function AdminOrdersPage() {
             ) : null}
             {pendingAction === 'receive-return' ? (
               <label className="order-dialog-check">
-                <input type="checkbox" required />
-                Tôi xác nhận đã nhận đủ hàng nguyên vẹn về kho.
+                <input type="checkbox" required />I confirm that all items have
+                been returned to inventory intact.
               </label>
             ) : null}
             {pendingAction === 'deliver' ? (
               <label className="order-dialog-check">
-                <input type="checkbox" required />
-                Tôi xác nhận đã giao hàng và thu đủ COD.
+                <input type="checkbox" required />I confirm delivery and
+                collection of the full COD amount.
               </label>
             ) : null}
             <div className="order-dialog-actions">
@@ -553,21 +546,21 @@ export function AdminOrdersPage() {
                   setError('');
                 }}
               >
-                Để sau
+                Not now
               </button>
               <button
                 type="submit"
                 className="button-primary"
                 disabled={actionBusy}
               >
-                {actionBusy ? 'Đang xử lý…' : actionText[pendingAction].submit}
+                {actionBusy ? 'Processing…' : actionText[pendingAction].submit}
               </button>
             </div>
           </form>
         </div>
       ) : null}
       <section className="checkout-panel">
-        <h2>Lịch sử xử lý</h2>
+        <h2>Order history</h2>
         {order.history.map((item, index) => (
           <p key={`${item.toStatus}-${index}`}>
             <PackageCheck size={15} /> {labels[item.toStatus] ?? item.toStatus}{' '}
@@ -576,7 +569,7 @@ export function AdminOrdersPage() {
           </p>
         ))}
       </section>
-      <Link to="/admin/orders">Quay lại danh sách</Link>
+      <Link to="/admin/orders">Back to list</Link>
     </div>
   );
 }

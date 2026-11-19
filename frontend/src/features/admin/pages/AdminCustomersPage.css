@@ -8,16 +8,10 @@
   justify-content: space-between;
   align-items: center;
   gap: 18px;
-  margin: 10px 0 24px;
-}
-.customer-heading > div > span {
-  color: #8a9b8d;
-  font-size: var(--type-meta);
-  letter-spacing: 0.12em;
-  font-weight: 700;
+  margin: 0 0 24px;
 }
 .customer-heading h1 {
-  margin: 7px 0 5px;
+  margin: 0 0 5px;
   font-size: 29px;
   color: #354d3d;
 }

@@ -1,8 +1,14 @@
+import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { demoCategories, demoProducts } from '../../catalog/demo-data.js';
+import { getPublicCategories } from '../services/public-catalog-api.js';
 
 export function CategoriesPage() {
+  const query = useQuery({
+    queryKey: ['public-categories'],
+    queryFn: getPublicCategories,
+    retry: false,
+  });
   return (
     <div className="page-container page-section">
       <div className="breadcrumbs">
@@ -12,31 +18,31 @@ export function CategoriesPage() {
       </div>
       <div className="catalog-title">
         <div>
-          <span className="section-eyebrow">EXPLORE NEXORA</span>
           <h1>Product categories</h1>
-          <p>Find inspiration in things that suit you.</p>
+          <p>Explore our categories.</p>
         </div>
       </div>
+      {query.isPending ? <p role="status">Loading categories…</p> : null}
+      {query.isError ? (
+        <div className="empty-state" role="alert">
+          <p>Unable to load categories.</p>
+          <button
+            className="button-secondary"
+            onClick={() => void query.refetch()}
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
+      {query.data?.length === 0 ? <p>No categories available.</p> : null}
       <div className="category-grid category-grid-large">
-        {demoCategories.map((category, index) => (
+        {query.data?.map((category, index) => (
           <Link
             to={`/categories/${category.id}`}
             key={category.id}
-            className={`category-card category-${category.color}`}
+            className={`category-card category-${['mint', 'sand', 'blue', 'rose'][index % 4]}`}
           >
-            <span className="category-number">0{index + 1}</span>
-            <div className="category-icon">{category.icon}</div>
-            <div>
-              <h3>{category.name}</h3>
-              <p>{category.description}</p>
-              <small>
-                {
-                  demoProducts.filter((p) => p.categoryId === category.id)
-                    .length
-                }{' '}
-                products
-              </small>
-            </div>
+            <h3>{category.name}</h3>
             <ArrowRight className="category-arrow" />
           </Link>
         ))}

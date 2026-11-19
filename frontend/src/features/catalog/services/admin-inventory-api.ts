@@ -111,29 +111,29 @@ export function adjustAdminInventory(id: string, input: InventoryAdjustment) {
 
 export function inventoryErrorMessage(error: unknown) {
   if (!(error instanceof ApiError))
-    return 'Không thể kết nối máy chủ. Vui lòng thử lại.';
+    return 'Unable to connect to the server. Please try again.';
   const messages: Record<string, string> = {
-    INVENTORY_REASON_REQUIRED: 'Nhập lý do điều chỉnh tồn.',
-    INVENTORY_QUANTITY_INVALID: 'Số lượng không hợp lệ hoặc vượt giới hạn.',
-    INVENTORY_NO_CHANGE: 'Số lượng mới không làm thay đổi tồn kho.',
+    INVENTORY_REASON_REQUIRED: 'Enter a reason for the stock adjustment.',
+    INVENTORY_QUANTITY_INVALID: 'The quantity is invalid or exceeds the limit.',
+    INVENTORY_NO_CHANGE: 'The new quantity does not change stock.',
     INVENTORY_BELOW_RESERVED:
-      'Tồn thực tế không thể thấp hơn số lượng đang giữ.',
-    INVENTORY_VERSION_REQUIRED: 'Tải lại tồn kho trước khi kiểm kê.',
+      'On-hand stock cannot be less than reserved stock.',
+    INVENTORY_VERSION_REQUIRED: 'Reload stock before taking inventory.',
     INVENTORY_VERSION_CONFLICT:
-      'Tồn kho vừa thay đổi. Hãy tải số liệu mới và xác nhận lại.',
+      'Stock has changed. Reload the latest values and confirm again.',
     IDEMPOTENCY_KEY_REUSED:
-      'Yêu cầu này đã dùng mã gửi trùng với dữ liệu khác. Hãy tải lại tồn kho.',
-    SKU_DELETED: 'SKU đã ngừng hoạt động và chỉ còn xem lịch sử.',
-    SKU_NOT_FOUND: 'Không tìm thấy SKU này.',
-    CATEGORY_NOT_FOUND: 'Danh mục không còn tồn tại.',
+      'This request key was already used with different data. Reload stock.',
+    SKU_DELETED: 'This SKU is inactive and available only for historical viewing.',
+    SKU_NOT_FOUND: 'SKU not found.',
+    CATEGORY_NOT_FOUND: 'The category no longer exists.',
   };
   if (error.status === 401)
-    return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    return 'Your session has expired. Please sign in again.';
   if (error.status === 403)
-    return 'Tài khoản hiện tại không có quyền quản lý tồn kho.';
+    return 'Your account cannot manage inventory.';
   return (
     messages[error.code ?? ''] ??
     error.message ??
-    'Không thể lưu thay đổi tồn kho.'
+    'Unable to save inventory changes.'
   );
 }

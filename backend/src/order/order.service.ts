@@ -99,7 +99,7 @@ function view(
       fromStatus: item.fromStatus,
       toStatus: item.toStatus,
       reason: item.reason,
-      actor: item.actor?.fullName ?? 'Hệ thống',
+      actor: item.actor?.fullName ?? 'System',
       actorRole: item.actor?.role ?? 'SYSTEM',
       createdAt: item.createdAt.toISOString(),
     })),
@@ -264,7 +264,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
         return view(order);
       },
     );
-    this.notifications.publishChanged(BigInt(placed.userId));
+
     return placed;
   }
 
@@ -368,14 +368,16 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
   ) {
     const id = this.parseId(idValue);
     const actorId = BigInt(actor.userId);
-    const reason = body.reason?.trim() || (admin ? '' : 'Khách hàng hủy đơn');
+    const suppliedReason = body.reason?.trim();
+    const reason = suppliedReason || (admin ? '' : 'Cancelled by customer');
     if (admin && !reason)
       throw new BadRequestException({ code: 'CANCEL_REASON_REQUIRED' });
     const payload = {
       operation: 'CANCEL',
       orderId: id.toString(),
       expectedVersion: body.expectedVersion ?? '',
-      reason,
+      // Preserve the original idempotency payload for retries made before this copy changed.
+      reason: suppliedReason || (admin ? '' : 'Khách hàng hủy đơn'),
     };
     const cancelled = await this.idempotentTransaction(
       actorId,
@@ -493,7 +495,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
         return view(updated!);
       },
     );
-    this.notifications.publishChanged(BigInt(cancelled.userId));
+
     return cancelled;
   }
 
@@ -611,7 +613,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
         return view(updated!);
       },
     );
-    this.notifications.publishChanged(BigInt(confirmed.userId));
+
     return confirmed;
   }
 
@@ -722,7 +724,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
           await this.catalog.receiveReturnedOrder(tx, lines);
           toStatus = 'CANCELLED';
           historyReason =
-            'Đã nhận đủ hàng nguyên vẹn về kho sau giao thất bại.';
+            'All items received back in good condition after failed delivery.';
           changes.cancelledAt = now;
           changes.returnedAt = now;
           changes.cancelReason = historyReason;
@@ -754,7 +756,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
         return view(updated);
       },
     );
-    this.notifications.publishChanged(BigInt(result.userId));
+
     return result;
   }
 
@@ -812,56 +814,52 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
     try {
       const due = await this.orders.dueOrders(100);
       for (const { id } of due)
-        await this.prisma
-          .transaction(async (tx) => {
-            await this.orders.lockOrder(id, tx);
-            const order = await this.orders.findOrder(id, tx);
-            if (
-              !order ||
-              order.status !== 'PENDING' ||
-              order.paymentStatus !== 'UNPAID'
-            )
-              return;
-            const now = await this.databaseNow(tx);
-            if (order.expiresAt > now) return;
-            await this.catalog.releaseOrderReservation(
+        await this.prisma.transaction(async (tx) => {
+          await this.orders.lockOrder(id, tx);
+          const order = await this.orders.findOrder(id, tx);
+          if (
+            !order ||
+            order.status !== 'PENDING' ||
+            order.paymentStatus !== 'UNPAID'
+          )
+            return;
+          const now = await this.databaseNow(tx);
+          if (order.expiresAt > now) return;
+          await this.catalog.releaseOrderReservation(
+            tx,
+            order.items.map((item) => ({
+              productId: item.productId,
+              variantId: item.variantId,
+              quantity: item.quantity,
+            })),
+          );
+          await this.orders.changeStatus(
+            id,
+            'CANCELLED',
+            now,
+            now,
+            'EXPIRED',
+            null,
+            tx,
+          );
+          const history = await this.orders.history(
+            id,
+            null,
+            'PENDING',
+            'CANCELLED',
+            'EXPIRED',
+            tx,
+          );
+          const updated = await this.orders.findOrder(id, tx);
+          if (updated)
+            await this.notifications.recordOrderChange(
               tx,
-              order.items.map((item) => ({
-                productId: item.productId,
-                variantId: item.variantId,
-                quantity: item.quantity,
-              })),
-            );
-            await this.orders.changeStatus(
-              id,
-              'CANCELLED',
-              now,
-              now,
+              updated,
+              history.id,
               'EXPIRED',
-              null,
-              tx,
             );
-            const history = await this.orders.history(
-              id,
-              null,
-              'PENDING',
-              'CANCELLED',
-              'EXPIRED',
-              tx,
-            );
-            const updated = await this.orders.findOrder(id, tx);
-            if (updated)
-              await this.notifications.recordOrderChange(
-                tx,
-                updated,
-                history.id,
-                'EXPIRED',
-              );
-            return order.userId;
-          })
-          .then((userId) => {
-            if (userId) this.notifications.publishChanged(userId);
-          });
+          return order.userId;
+        });
     } catch {
       /* A later sweep retries any orders left pending. */
     }

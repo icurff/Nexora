@@ -15,11 +15,17 @@ import { useAuth } from '../../auth/hooks/useAuth.js';
 import { useAddCartItem } from '../../cart/hooks/useCart.js';
 import { formatVnd, getPublicProduct } from '../services/public-catalog-api.js';
 import { trackEvent } from '../../../services/tracking-api';
+import { ApiError } from '../../../services/api-client.js';
+import { ProductReviews } from '../components/ProductReviews.js';
 
 type PendingAdd = { variantId?: string; productId?: string; quantity: number };
 
 export function ProductDetailPage() {
   const { id = '' } = useParams();
+  return <ProductDetail key={id} id={id} />;
+}
+
+function ProductDetail({ id }: { id: string }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -35,10 +41,10 @@ export function ProductDetailPage() {
   );
   const [notice, setNotice] = useState(() =>
     pendingAdd
-      ? 'Đã đăng nhập. Kiểm tra lựa chọn rồi xác nhận thêm vào giỏ.'
+      ? 'You are signed in. Check your selection and confirm to add it to your cart.'
       : '',
   );
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ['public-product', id],
@@ -140,7 +146,7 @@ export function ProductDetailPage() {
     }
     try {
       await addMutation.mutateAsync({ ...target, quantity });
-      setNotice('Đã thêm vào giỏ hàng.');
+      setNotice('Added to your cart.');
       setPreferredVariantId(null);
       if (pendingAdd)
         navigate(location.pathname, { replace: true, state: null });
@@ -152,16 +158,32 @@ export function ProductDetailPage() {
   if (query.isPending)
     return (
       <div className="page-container page-section empty-state" role="status">
-        Đang tải sản phẩm...
+        Loading product...
       </div>
     );
   if (query.isError || !product)
     return (
       <div className="page-container page-section empty-state" role="alert">
-        <h1>Không tìm thấy sản phẩm</h1>
-        <p>Sản phẩm này không tồn tại hoặc đã ngừng bán.</p>
+        <h1>
+          {query.error instanceof ApiError && query.error.status === 404
+            ? 'Product not found'
+            : 'Unable to load product'}
+        </h1>
+        <p>
+          {query.error instanceof ApiError && query.error.status === 404
+            ? 'This product does not exist or is no longer available.'
+            : 'Check your connection and try again.'}
+        </p>
+        {!(query.error instanceof ApiError && query.error.status === 404) ? (
+          <button
+            className="button-secondary"
+            onClick={() => void query.refetch()}
+          >
+            Try again
+          </button>
+        ) : null}
         <Link className="button-primary" to="/products">
-          Quay lại danh sách
+          Back to products
         </Link>
       </div>
     );
@@ -169,22 +191,31 @@ export function ProductDetailPage() {
   return (
     <div className="page-container page-section">
       <div className="breadcrumbs">
-        <Link to="/">Trang chủ</Link>
+        <Link to="/">Home</Link>
         <ChevronRight />
-        <Link to="/products">Sản phẩm</Link>
+        <Link to="/products">Products</Link>
         <ChevronRight />
         <span>{product.name}</span>
       </div>
       <div className="product-detail-grid">
         <div className="detail-image">
-          {heroImage && !imageFailed ? (
+          {heroImage &&
+          failedImageUrl !== heroImage.url &&
+          heroImage.contentType.startsWith('video/') ? (
+            <video
+              src={heroImage.url}
+              controls
+              preload="metadata"
+              onError={() => setFailedImageUrl(heroImage.url)}
+            />
+          ) : heroImage && failedImageUrl !== heroImage.url ? (
             <img
               src={heroImage.url}
               alt={heroImage.altText || product.name}
-              onError={() => setImageFailed(true)}
+              onError={() => setFailedImageUrl(heroImage.url)}
             />
           ) : (
-            <span className="detail-image-label">NEXORA</span>
+            <span className="detail-image-label">No image available</span>
           )}
           {gallery.length > 1 ? (
             <div className="detail-thumbnails">
@@ -192,13 +223,17 @@ export function ProductDetailPage() {
                 <button
                   type="button"
                   key={image.id}
-                  aria-label={`Xem ảnh ${image.altText || product.name}`}
+                  aria-label={`View image of ${image.altText || product.name}`}
                   onClick={() => {
                     setSelectedImageId(image.id);
-                    setImageFailed(false);
+                    setFailedImageUrl(null);
                   }}
                 >
-                  <img src={image.url} alt="" />
+                  {image.contentType.startsWith('video/') ? (
+                    <video src={image.url} muted preload="metadata" />
+                  ) : (
+                    <img src={image.url} alt="" />
+                  )}
                 </button>
               ))}
             </div>
@@ -211,10 +246,10 @@ export function ProductDetailPage() {
             <span>
               {(selectedVariant?.available ??
                 (!product.variants.length ? product.available : 0)) > 0
-                ? 'Còn hàng'
+                ? 'In stock'
                 : product.variants.length && !selectedVariant
-                  ? 'Chọn phiên bản'
-                  : 'Tạm hết hàng'}
+                  ? 'Choose an option'
+                  : 'Out of stock'}
             </span>
           </div>
           <div className="detail-price">
@@ -240,10 +275,10 @@ export function ProductDetailPage() {
                       if (min === max) return formatVnd(min);
                       return Object.keys(selection).length
                         ? `${formatVnd(min)} – ${formatVnd(max)}`
-                        : `Từ ${formatVnd(min)}`;
+                        : `From ${formatVnd(min)}`;
                     })()
                   : product.priceVnd === null
-                    ? 'Chưa có giá'
+                    ? 'Price unavailable'
                     : formatVnd(product.priceVnd)}
             </strong>
           </div>
@@ -258,7 +293,8 @@ export function ProductDetailPage() {
                 (variant) => variant.id !== pendingAdd.variantId,
               ))) ? (
             <div className="inline-error" role="alert">
-              Phiên bản đã chọn không còn bán. Vui lòng chọn lại.
+              The selected variant is no longer available. Please choose
+              another.
             </div>
           ) : null}
           {product.variants.length
@@ -302,7 +338,7 @@ export function ProductDetailPage() {
                 onClick={() =>
                   setQuantity((current) => Math.max(1, current - 1))
                 }
-                aria-label="Giảm số lượng"
+                aria-label="Decrease quantity"
               >
                 <Minus size={15} />
               </button>
@@ -318,7 +354,7 @@ export function ProductDetailPage() {
                     ),
                   )
                 }
-                aria-label="Tăng số lượng"
+                aria-label="Increase quantity"
               >
                 <Plus size={15} />
               </button>
@@ -334,37 +370,38 @@ export function ProductDetailPage() {
               onClick={() => void addToCart()}
             >
               <ShoppingCart size={17} />
-              {addMutation.isPending ? 'Đang thêm...' : 'Thêm vào giỏ'}
+              {addMutation.isPending ? 'Adding...' : 'Add to cart'}
             </button>
           </div>
           {addMutation.isError ? (
             <div className="inline-error" role="alert">
               {addErrorCode === 'INSUFFICIENT_STOCK'
-                ? 'Số lượng hiện có không đủ. Vui lòng tải lại sản phẩm.'
+                ? 'There is not enough stock. Please reload the product.'
                 : addErrorStatus === 0
-                  ? 'Chưa xác định thao tác đã được lưu hay chưa. Giỏ hàng đã được tải lại; hãy kiểm tra giỏ trước khi thử lại.'
-                  : 'Không thể thêm vào giỏ. Vui lòng thử lại.'}
+                  ? 'The result is unknown. Your cart has been refreshed; check it before trying again.'
+                  : 'Unable to add to cart. Please try again.'}
             </div>
           ) : null}
           {notice ? (
             <div className="inline-success">
               <Check size={15} />
-              {notice} <Link to="/cart">Xem giỏ hàng</Link>
+              {notice} <Link to="/cart">View cart</Link>
             </div>
           ) : null}
           <div className="detail-perks">
             <span>
-              <Truck /> Thông tin giao hàng ở bước sau
+              <Truck /> Delivery details at checkout
             </span>
             <span>
-              <ShieldCheck /> Sản phẩm được quản lý theo phiên bản
+              <ShieldCheck /> Product options available
             </span>
             <span>
-              <PackageCheck /> Không giữ hàng khi thêm giỏ
+              <PackageCheck /> Items are not reserved in your cart
             </span>
           </div>
         </div>
       </div>
+      <ProductReviews productId={product.id} />
     </div>
   );
 }

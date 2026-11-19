@@ -11,7 +11,8 @@
   --type-label: 1rem;
   --type-body: 1rem;
   --leading-body: 1.5;
-  font-family:
+  --type-admin-title: 1.875rem;
+  --font-ui:
     'Geist Variable',
     ui-sans-serif,
     system-ui,
@@ -19,6 +20,8 @@
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
+  --font-display: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-ui);
   color: #27324a;
   background: #f6f8fc;
   font-synthesis: none;

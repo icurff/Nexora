@@ -4,11 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
   ArrowRight,
-  BadgeCheck,
-  Bell,
   Check,
   ChevronRight,
-  LockKeyhole,
   LogOut,
   MapPin,
   Package,
@@ -16,7 +13,14 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  Navigate,
+  useNavigate,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { PasswordField } from '../../auth/components/FormField';
 import { Notice } from '../../auth/components/Notice';
 import { errorMessage, fieldError } from '../../auth/services/auth-api';
@@ -30,7 +34,8 @@ import {
   useUpdateProfile,
 } from '../../auth/hooks/useAuthMutations';
 import { Button } from '../../../components/ui/button';
-import { demoOrders, formatVnd } from '../../catalog/demo-data.js';
+import { OrdersPage } from '../../orders/pages/OrdersPage.js';
+import { OrderDetailPage } from '../../orders/pages/OrderDetailPage.js';
 import '../../../Account.css';
 import { AddressBook } from '../components/AddressBook';
 
@@ -50,10 +55,18 @@ export default function AccountPage() {
   const logoutMutation = useLogout();
   const profileMutation = useUpdateProfile();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [section, setSection] = useState<AccountSection>(() =>
-    searchParams.get('section') === 'addresses' ? 'addresses' : 'profile',
-  );
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { id: orderId } = useParams();
+  const isOrdersPath = location.pathname.startsWith('/account/orders');
+  const requestedSection = searchParams.get('section');
+  const section: AccountSection =
+    requestedSection === 'addresses' ||
+    requestedSection === 'orders' ||
+    requestedSection === 'security'
+      ? requestedSection
+      : 'profile';
+  const activeSection = isOrdersPath ? 'orders' : section;
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [logoutError, setLogoutError] = useState('');
@@ -85,7 +98,6 @@ export default function AccountPage() {
   }>();
 
   if (!user) return <Navigate to="/login" replace />;
-  const activeSection = section;
 
   async function submitPassword(form: {
     currentPassword: string;
@@ -182,27 +194,20 @@ export default function AccountPage() {
           </div>
           <nav aria-label="Account navigation">
             {menu.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  className={activeSection === id ? 'active' : ''}
-                  onClick={() => {
-                    setSection(id);
-                    if (id === 'addresses') setSearchParams({ section: id });
-                    else setSearchParams({});
-                  }}
-                >
-                  <Icon size={17} />
-                  <span>{label}</span>
-                  <ChevronRight size={14} />
-                </button>
-              ))}
-            {user ? (
-              <Link className="account-nav-notifications" to="/notifications">
-                <Bell size={17} />
-                <span>Notifications</span>
+              <button
+                key={id}
+                className={activeSection === id ? 'active' : ''}
+                onClick={() => {
+                  navigate(
+                    id === 'profile' ? '/account' : id === 'orders' ? '/account/orders' : `/account?section=${id}`,
+                  );
+                }}
+              >
+                <Icon size={17} />
+                <span>{label}</span>
                 <ChevronRight size={14} />
-              </Link>
-            ) : null}
+              </button>
+            ))}
             {user.role === 'ADMIN' ? (
               <Link className="account-admin-link" to="/admin">
                 <ShieldCheck size={17} />
@@ -211,13 +216,6 @@ export default function AccountPage() {
               </Link>
             ) : null}
           </nav>
-          <div className="account-help">
-            <span>
-              <Bell size={15} />
-            </span>
-            <p>Need help with your account?</p>
-            <a href="mailto:hello@nexora.vn">Contact Nexora</a>
-          </div>
         </aside>
         <section className="account-content">
           {activeSection === 'profile' ? (
@@ -251,7 +249,6 @@ export default function AccountPage() {
                 <label>
                   Email
                   <input value={user.email} disabled />
-                  <small>Your sign-in email cannot be changed.</small>
                 </label>
                 <label>
                   Phone number
@@ -281,9 +278,7 @@ export default function AccountPage() {
                       <>
                         <Check size={14} /> Changes saved.
                       </>
-                    ) : (
-                      'Your sign-in email is read-only.'
-                    )}
+                    ) : null}
                   </span>
                   {user ? (
                     <button
@@ -294,9 +289,7 @@ export default function AccountPage() {
                         fullName.trim().length === 0
                       }
                     >
-                      {profileMutation.isPending
-                        ? 'Saving...'
-                        : 'Save changes'}{' '}
+                      {profileMutation.isPending ? 'Saving...' : 'Save changes'}{' '}
                       <ArrowRight size={15} />
                     </button>
                   ) : null}
@@ -310,64 +303,11 @@ export default function AccountPage() {
                   </Notice>
                 ) : null}
               </form>
-              <div className="email-security-banner">
-                <span>
-                  <BadgeCheck />
-                </span>
-                <div>
-                  <strong>Sign-in email</strong>
-                  <small>This email is used to sign in to your account.</small>
-                </div>
-              </div>
             </div>
           ) : null}
           {activeSection === 'addresses' ? <AddressBook /> : null}
           {activeSection === 'orders' ? (
-            <div className="account-panel">
-              <div className="account-panel-title">
-                <div>
-                  <span className="section-eyebrow">YOUR SHOPPING</span>
-                  <h2>My orders</h2>
-                  <p>Track your recent orders.</p>
-                </div>
-                <Link className="text-link" to="/orders">
-                  View all <ArrowRight size={15} />
-                </Link>
-              </div>
-              <div className="account-order-list">
-                {demoOrders.slice(0, 2).map((order) => (
-                  <Link
-                    className="account-order-card"
-                    to={`/orders/${order.id}`}
-                    key={order.id}
-                  >
-                    <span className="account-order-icon">
-                      <Package />
-                    </span>
-                    <span>
-                      <strong>{order.id}</strong>
-                      <small>
-                        {order.date} · {order.items.length} products
-                      </small>
-                    </span>
-                    <span
-                      className={`order-status ${order.status === 'Đang giao' ? 'in-progress' : 'complete'}`}
-                    >
-                      <i />
-                      {order.status === 'Đang giao' ? 'Shipping' : 'Delivered'}
-                    </span>
-                    <strong>{formatVnd(order.total)}</strong>
-                    <ChevronRight size={15} />
-                  </Link>
-                ))}
-              </div>
-              <Link
-                className="button-secondary account-see-orders"
-                to="/orders"
-              >
-                Order history <ArrowRight size={15} />
-              </Link>
-            </div>
+            orderId ? <OrderDetailPage key={orderId} id={orderId} /> : <OrdersPage />
           ) : null}
           {activeSection === 'security' ? (
             <div className="account-panel">
@@ -381,24 +321,8 @@ export default function AccountPage() {
                   <ShieldCheck />
                 </span>
               </div>
-              <div className="security-status">
-                <span>
-                  <BadgeCheck />
-                </span>
-                <div>
-                  <strong>Account active</strong>
-                  <small>Email verified · Session protected</small>
-                </div>
-                <span className="active-pill">ACTIVE</span>
-              </div>
               <div className="account-password-section">
-                <div className="account-subheading">
-                  <LockKeyhole />
-                  <div>
-                    <h3>Change password</h3>
-                    <p>A strong password helps protect your information.</p>
-                  </div>
-                </div>
+              
                 {changePasswordMutation.error ? (
                   <Notice>
                     {errorMessage(
@@ -460,7 +384,10 @@ export default function AccountPage() {
                     />
                   </div>
                   <div className="password-form-footer">
-                    <span>You will need to sign in again after changing your password.</span>
+                    <span>
+                      You will need to sign in again after changing your
+                      password.
+                    </span>
                     <Button
                       className="primary-button"
                       type="submit"

@@ -24,7 +24,6 @@ export default function AdminPage() {
     return (
       <div className="admin-denied">
         <ShieldCheck />
-        <span>ACCESS CHECK</span>
         <h1>Access denied</h1>
         <p>Your account does not have the ADMIN role.</p>
       </div>

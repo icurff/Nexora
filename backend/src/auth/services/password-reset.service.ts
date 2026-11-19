@@ -13,7 +13,7 @@ import { UserRepository } from '../repositories/user.repository.js';
 import { PasswordResetTokenRepository } from '../repositories/password-reset-token.repository.js';
 
 const genericRequestMessage =
-  'Nếu email phù hợp với tài khoản, bạn sẽ nhận được liên kết đặt lại mật khẩu.';
+  'If the email matches an account, you will receive a password reset link.';
 const invalidTokenError = () =>
   new BadRequestException({
     code: 'INVALID_RESET_TOKEN',

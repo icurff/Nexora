@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, ChevronRight, ShoppingBag } from 'lucide-react';
+import { ArrowRight, ShoppingBag } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatVnd } from '../../catalog/services/public-catalog-api.js';
 import { useAuth } from '../../auth/hooks/useAuth.js';
 import { getOrders } from '../services/order-api.js';
 
 const labels: Record<string, string> = {
-  PENDING: 'Chờ xác nhận',
-  CONFIRMED: 'Đã xác nhận',
-  SHIPPING: 'Đang giao',
-  DELIVERY_FAILED: 'Giao thất bại',
-  DELIVERED: 'Đã giao',
-  CANCELLED: 'Đã hủy',
+  PENDING: 'Pending',
+  CONFIRMED: 'Confirmed',
+  SHIPPING: 'Shipping',
+  DELIVERY_FAILED: 'Delivery failed',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
 };
 function date(value: string) {
   return new Intl.DateTimeFormat('vi-VN', {
@@ -33,28 +33,23 @@ export function OrdersPage() {
     retry: false,
   });
   return (
-    <div className="page-container page-section">
-      <div className="breadcrumbs">
-        <Link to="/">Trang chủ</Link>
-        <ChevronRight />
-        <span>Đơn hàng</span>
-      </div>
-      <div className="catalog-title">
+    <div className="account-panel account-orders-panel">
+      <div className="account-panel-title">
         <div>
-          <span className="section-eyebrow">TÀI KHOẢN CỦA BẠN</span>
-          <h1>Đơn hàng của tôi</h1>
-          <p>Theo dõi các đơn hàng bạn đã đặt.</p>
+          <span className="section-eyebrow">YOUR ACCOUNT</span>
+          <h2>My orders</h2>
+          <p>Track the orders you have placed.</p>
         </div>
       </div>
       <div className="order-tabs">
         {[
-          ['ALL', 'Tất cả'],
-          ['PENDING', 'Chờ xác nhận'],
-          ['CONFIRMED', 'Đã xác nhận'],
-          ['SHIPPING', 'Đang giao'],
-          ['DELIVERY_FAILED', 'Giao thất bại'],
-          ['DELIVERED', 'Đã giao'],
-          ['CANCELLED', 'Đã hủy'],
+          ['ALL', 'All'],
+          ['PENDING', 'Pending'],
+          ['CONFIRMED', 'Confirmed'],
+          ['SHIPPING', 'Shipping'],
+          ['DELIVERY_FAILED', 'Delivery failed'],
+          ['DELIVERED', 'Delivered'],
+          ['CANCELLED', 'Cancelled'],
         ].map(([value, label]) => (
           <button
             key={value}
@@ -68,24 +63,24 @@ export function OrdersPage() {
           </button>
         ))}
       </div>
-      {query.isPending ? <p role="status">Đang tải đơn hàng…</p> : null}
+      {query.isPending ? <p role="status">Loading orders…</p> : null}
       {query.isError ? (
         <div className="empty-state" role="alert">
-          <p>Chưa tải được đơn hàng.</p>
+          <p>Unable to load orders.</p>
           <button
             className="button-secondary"
             onClick={() => void query.refetch()}
           >
-            Thử lại
+            Try again
           </button>
         </div>
       ) : null}
       {query.data?.items.length === 0 ? (
         <div className="empty-state">
           <ShoppingBag />
-          <h2>Chưa có đơn hàng</h2>
+          <h2>No orders yet</h2>
           <Link className="button-primary" to="/products">
-            Tiếp tục mua sắm
+            Continue shopping
           </Link>
         </div>
       ) : null}
@@ -94,7 +89,7 @@ export function OrdersPage() {
           <article className="order-card" key={order.id}>
             <div className="order-card-head">
               <div>
-                <span>MÃ ĐƠN HÀNG</span>
+                <span>ORDER NUMBER</span>
                 <strong>{order.id}</strong>
               </div>
               <span
@@ -115,33 +110,33 @@ export function OrdersPage() {
                     (count, item) => count + item.quantity,
                     0,
                   )}{' '}
-                  sản phẩm
+                  items
                 </small>
               </div>
               <div className="order-total">
-                <span>Tổng cộng</span>
+                <span>Total</span>
                 <strong>{formatVnd(order.totalAmount)}</strong>
               </div>
-              <Link className="button-secondary" to={`/orders/${order.id}`}>
-                Chi tiết <ArrowRight size={15} />
+              <Link className="button-secondary" to={`/account/orders/${order.id}`}>
+                Details <ArrowRight size={15} />
               </Link>
             </div>
           </article>
         ))}
       </div>
       {query.data && query.data.total > 20 ? (
-        <nav className="order-tabs" aria-label="Phân trang đơn hàng">
+        <nav className="order-tabs" aria-label="Order pagination">
           <button disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            Trước
+            Previous
           </button>
           <span>
-            Trang {page} / {Math.ceil(query.data.total / 20)}
+            Page {page} / {Math.ceil(query.data.total / 20)}
           </span>
           <button
             disabled={page * 20 >= query.data.total}
             onClick={() => setPage(page + 1)}
           >
-            Sau
+            Next
           </button>
         </nav>
       ) : null}

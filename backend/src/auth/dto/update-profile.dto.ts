@@ -23,6 +23,6 @@ export class UpdateProfileDto {
   )
   @IsString()
   @Length(0, 16)
-  @Matches(/^(?:\+?\d{10,15})?$/, { message: 'Số điện thoại không hợp lệ' })
+  @Matches(/^(?:\+?\d{10,15})?$/, { message: 'Invalid phone number' })
   phone?: string | null;
 }

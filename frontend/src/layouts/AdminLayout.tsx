@@ -1,20 +1,16 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  Bell,
   ChevronRight,
-  CircleHelp,
   LayoutDashboard,
   LogOut,
   Menu,
   Package,
   Boxes,
-  Settings2,
   ShoppingBag,
   Star,
   Store,
   Tags,
-  TicketPercent,
   Users,
   X,
 } from 'lucide-react';
@@ -27,12 +23,9 @@ const links = [
   { to: '/admin/products', label: 'Products', icon: Package },
   { to: '/admin/inventory', label: 'Inventory', icon: Boxes },
   { to: '/admin/categories', label: 'Categories', icon: Tags },
-  { to: '/admin/coupons', label: 'Coupons', icon: TicketPercent },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { to: '/admin/reviews', label: 'Reviews', icon: Star },
   { to: '/admin/users', label: 'Customers', icon: Users },
-  { to: '/admin/notifications', label: 'Notifications', icon: Bell },
-  { to: '/admin/settings', label: 'Store settings', icon: Settings2 },
 ];
 
 export function AdminLayout() {
@@ -49,7 +42,6 @@ export function AdminLayout() {
   if (user?.role !== 'ADMIN')
     return (
       <main className="admin-denied">
-        <span>ACCESS CHECK</span>
         <h1>Access denied</h1>
         <p>Your account does not have the ADMIN role.</p>
         <Link to="/account">Back to account</Link>
@@ -113,20 +105,6 @@ export function AdminLayout() {
             ))}
           </nav>
           <div className="admin-sidebar-bottom">
-            <div className="help-card">
-              <span className="help-card-icon">
-                <CircleHelp size={17} />
-              </span>
-              <strong>Need help?</strong>
-              <p>See the admin guide.</p>
-              <button
-                onClick={() =>
-                  window.alert('Admin guidance in the demo.')
-                }
-              >
-                View guide <ChevronRight size={14} />
-              </button>
-            </div>
             <NavLink to="/" className="back-store-link">
               <Store size={17} /> Back to store
             </NavLink>

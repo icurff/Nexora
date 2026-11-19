@@ -89,7 +89,7 @@ function CategoryTree({
                 <button
                   className="category-tree-toggle"
                   type="button"
-                  aria-label={`${isOpen ? 'Thu gọn' : 'Mở rộng'} ${item.name}`}
+                  aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${item.name}`}
                   aria-expanded={isOpen}
                   onClick={() => onToggle(item.id)}
                 >
@@ -217,7 +217,7 @@ export function AdminCategoriesPage() {
         setSelectedId(null);
         setCreating(false);
         setSlugEdited(false);
-        setNotice('Đã tạo danh mục. Biểu mẫu đã được làm trống.');
+        setNotice('Category created. The form has been cleared.');
         form.reset(blankForm);
         return;
       }
@@ -225,7 +225,7 @@ export function AdminCategoriesPage() {
       setSelectedId(saved.id);
       setCreating(false);
       setSlugEdited(true);
-      setNotice('Danh mục đã được lưu.');
+      setNotice('Category saved.');
       form.reset({
         name: saved.name,
         slug: saved.slug,
@@ -241,7 +241,7 @@ export function AdminCategoriesPage() {
   function changeSelection(nextId: string | null, nextCreating: boolean) {
     if (
       dirty &&
-      !window.confirm('Bạn có thay đổi chưa lưu. Bỏ các thay đổi này?')
+      !window.confirm('You have unsaved changes. Discard them?')
     )
       return;
     setNotice('');
@@ -285,10 +285,9 @@ export function AdminCategoriesPage() {
     <div className="admin-categories-page">
       <header className="admin-page-heading category-page-heading">
         <div>
-          <span>TỔ CHỨC CỬA HÀNG</span>
-          <h1>Danh mục</h1>
+          <h1>Categories</h1>
           <p>
-            Tổ chức cây danh mục; lựa chọn SKU được cấu hình riêng cho từng sản phẩm.
+            Organize the category tree; SKU options are configured per product.
           </p>
         </div>
         <button
@@ -296,24 +295,23 @@ export function AdminCategoriesPage() {
           type="button"
           onClick={() => changeSelection(null, true)}
         >
-          <Plus size={16} /> Thêm danh mục
+          <Plus size={16} /> Add category
         </button>
       </header>
 
       <div className="category-management-layout">
         <section
           className="admin-panel category-tree-panel"
-          aria-label="Cây danh mục"
+          aria-label="Category tree"
         >
           <div className="category-panel-heading">
             <div>
-              <span>CATALOG</span>
-              <h2>Cây danh mục</h2>
+              <h2>Category tree</h2>
             </div>
             <button
               className="category-icon-button"
               type="button"
-              aria-label="Tải lại danh mục"
+              aria-label="Reload categories"
               onClick={() => void categoriesQuery.refetch()}
             >
               <RefreshCw size={16} />
@@ -324,12 +322,12 @@ export function AdminCategoriesPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Tìm danh mục..."
+              placeholder="Search categories..."
             />
           </label>
           {categoriesQuery.isPending ? (
             <div className="category-state">
-              <LoaderCircle className="animate-spin" /> Đang tải danh mục...
+              <LoaderCircle className="animate-spin" /> Loading categories...
             </div>
           ) : categoriesQuery.isError ? (
             <div className="category-state category-state-error">
@@ -339,7 +337,7 @@ export function AdminCategoriesPage() {
                 type="button"
                 onClick={() => void categoriesQuery.refetch()}
               >
-                Thử lại
+                Try again
               </button>
             </div>
           ) : visibleCategories.length === 0 ? (
@@ -347,8 +345,8 @@ export function AdminCategoriesPage() {
               <Tag />
               <span>
                 {categories.length
-                  ? 'Không có danh mục phù hợp.'
-                  : 'Chưa có danh mục. Hãy tạo danh mục đầu tiên.'}
+                  ? 'No matching categories.'
+                  : 'No categories yet. Create the first category.'}
               </span>
             </div>
           ) : (
@@ -368,28 +366,21 @@ export function AdminCategoriesPage() {
             />
           )}
           <div className="category-tree-count">
-            {visibleCategories.length} danh mục hiển thị · {categories.length}{' '}
-            tổng cộng
+            {visibleCategories.length} categories shown · {categories.length}{' '}
+            total
           </div>
         </section>
 
         <section
           className="admin-panel category-editor-panel"
-          aria-label="Thông tin danh mục"
+          aria-label="Category details"
         >
           <div className="category-panel-heading">
             <div>
-              <span>
-                {creating
-                  ? 'DANH MỤC MỚI'
-                  : selected
-                    ? 'CHỈNH SỬA DANH MỤC'
-                    : 'QUẢN LÝ DANH MỤC'}
-              </span>
               <h2>
                 {creating
-                  ? 'Tạo danh mục'
-                  : (selected?.name ?? 'Chọn một danh mục')}
+                  ? 'Create category'
+                  : (selected?.name ?? 'Select a category')}
               </h2>
             </div>
           </div>
@@ -403,10 +394,9 @@ export function AdminCategoriesPage() {
                 </div>
               ) : null}
               <FolderOpen />
-              <h3>Chưa chọn danh mục</h3>
+              <h3>No category selected</h3>
               <p>
-                Chọn một mục trong cây để xem và chỉnh sửa, hoặc tạo danh mục
-                mới.
+                Select a category in the tree to view and edit it, or create a new one.
               </p>
             </div>
           ) : (
@@ -417,16 +407,16 @@ export function AdminCategoriesPage() {
               <div className="category-form-grid">
                 <label className="category-field">
                   <span>
-                    Tên danh mục <i>*</i>
+                    Category name <i>*</i>
                   </span>
                   <input
                     autoComplete="off"
-                    placeholder="Ví dụ: Điện thoại"
+                    placeholder="For example: Phones"
                     {...form.register('name', {
-                      required: 'Vui lòng nhập tên danh mục.',
+                      required: 'Enter a category name.',
                       maxLength: {
                         value: 100,
-                        message: 'Tên tối đa 100 ký tự.',
+                        message: 'Name must not exceed 100 characters.',
                       },
                       onChange: (event) => handleNameChange(event.target.value),
                     })}
@@ -445,15 +435,15 @@ export function AdminCategoriesPage() {
                     autoComplete="off"
                     placeholder="dien-thoai"
                     {...form.register('slug', {
-                      required: 'Vui lòng nhập slug.',
+                      required: 'Enter a slug.',
                       maxLength: {
                         value: 150,
-                        message: 'Slug tối đa 150 ký tự.',
+                        message: 'Slug must not exceed 150 characters.',
                       },
                       pattern: {
                         value: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
                         message:
-                          'Chỉ dùng chữ thường không dấu, số và dấu gạch ngang.',
+                          'Use lowercase unaccented letters, numbers, and hyphens only.',
                       },
                       onChange: () => setSlugEdited(true),
                     })}
@@ -464,14 +454,14 @@ export function AdminCategoriesPage() {
                     </small>
                   ) : (
                     <small>
-                      Đường dẫn: /categories/{slugValue || 'slug-danh-muc'}
+                      Path: /categories/{slugValue || 'category-slug'}
                     </small>
                   )}
                 </label>
               </div>
 
               <label className="category-field">
-                <span>Danh mục cha</span>
+                <span>Parent category</span>
                 <select
                   value={parentId}
                   onChange={(event) =>
@@ -481,7 +471,7 @@ export function AdminCategoriesPage() {
                     })
                   }
                 >
-                  <option value="">Danh mục gốc</option>
+                  <option value="">Root category</option>
                   {parentOptions.map((option) => (
                     <option
                       key={option.id}
@@ -492,7 +482,7 @@ export function AdminCategoriesPage() {
                     </option>
                   ))}
                 </select>
-                <small>Danh mục con không tự kế thừa cấu hình của cha.</small>
+                <small>Child categories do not automatically inherit configuration from their parent.</small>
               </label>
 
               {submitError ? (
@@ -510,7 +500,7 @@ export function AdminCategoriesPage() {
               {mutation.isPending ? (
                 <div className="category-saving">
                   <LoaderCircle className="animate-spin" />
-                  Đang lưu danh mục…
+                  Saving category…
                 </div>
               ) : null}
               <div className="category-form-actions">
@@ -520,7 +510,7 @@ export function AdminCategoriesPage() {
                   onClick={() => changeSelection(selectedId, false)}
                   disabled={mutation.isPending}
                 >
-                  Hủy thay đổi
+                  Discard changes
                 </button>
                 <button
                   type="submit"
@@ -532,7 +522,7 @@ export function AdminCategoriesPage() {
                   ) : (
                     <Check size={15} />
                   )}
-                  {creating ? 'Tạo danh mục' : 'Lưu thay đổi'}
+                  {creating ? 'Create category' : 'Save changes'}
                 </button>
               </div>
             </form>

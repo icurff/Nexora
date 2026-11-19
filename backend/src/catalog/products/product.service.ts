@@ -554,16 +554,45 @@ export class ProductService {
     return rows.map((row) => this.mapCartVariant(row));
   }
 
-  async publicList(page = 1, pageSize = 20, query?: string) {
+  async publicList(
+    page = 1,
+    pageSize = 20,
+    query?: string,
+    categoryId?: string,
+  ) {
     const search = query ? normalized(query) : undefined;
+    let categoryIds: bigint[] | undefined;
+    if (categoryId) {
+      const rootId = parseId(categoryId, 'INVALID_CATEGORY_ID');
+      const categories = await this.repository.categories();
+      if (!categories.some((category) => category.id === rootId))
+        throw new NotFoundException({ code: 'CATEGORY_NOT_FOUND' });
+      const ids = new Set([rootId.toString()]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const category of categories) {
+          if (
+            category.parentId &&
+            ids.has(category.parentId.toString()) &&
+            !ids.has(category.id.toString())
+          ) {
+            ids.add(category.id.toString());
+            changed = true;
+          }
+        }
+      }
+      categoryIds = [...ids].map(BigInt);
+    }
     const [products, total] = await Promise.all([
       this.repository.publicList(
         (page - 1) * pageSize,
         pageSize,
         search,
         query,
+        categoryIds,
       ),
-      this.repository.publicCount(search, query),
+      this.repository.publicCount(search, query, categoryIds),
     ]);
     return {
       items: products.map((product) => {

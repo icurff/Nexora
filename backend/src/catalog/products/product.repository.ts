@@ -1,6 +1,9 @@
 ﻿import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
-import { PrismaService, type TransactionClient } from '../../database/prisma.service.js';
+import {
+  PrismaService,
+  type TransactionClient,
+} from '../../database/prisma.service.js';
 
 type Db = PrismaService | TransactionClient;
 
@@ -30,19 +33,34 @@ export class ProductRepository {
     return this.prisma.product.count({ where });
   }
 
-  private publicWhere(search?: string, query?: string): Prisma.ProductWhereInput {
+  private publicWhere(
+    search?: string,
+    query?: string,
+    categoryIds?: bigint[],
+  ): Prisma.ProductWhereInput {
     return {
       status: 'ACTIVE',
-      ...(search ? { OR: [
-        { nameKey: { contains: search } },
-        { category: { name: { contains: query, mode: 'insensitive' } } },
-      ] } : {}),
+      ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
+      ...(search
+        ? {
+            OR: [
+              { nameKey: { contains: search } },
+              { category: { name: { contains: query, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
     };
   }
 
-  publicList(skip: number, take: number, search?: string, query?: string) {
+  publicList(
+    skip: number,
+    take: number,
+    search?: string,
+    query?: string,
+    categoryIds?: bigint[],
+  ) {
     return this.prisma.product.findMany({
-      where: this.publicWhere(search, query),
+      where: this.publicWhere(search, query, categoryIds),
       skip,
       take,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -50,8 +68,10 @@ export class ProductRepository {
     });
   }
 
-  publicCount(search?: string, query?: string) {
-    return this.prisma.product.count({ where: this.publicWhere(search, query) });
+  publicCount(search?: string, query?: string, categoryIds?: bigint[]) {
+    return this.prisma.product.count({
+      where: this.publicWhere(search, query, categoryIds),
+    });
   }
 
   cartProduct(id: bigint) {
@@ -114,14 +134,24 @@ export class ProductRepository {
   }
 
   byId(id: bigint, database: Db = this.prisma) {
-    return database.product.findUnique({ where: { id }, include: this.detailsInclude });
+    return database.product.findUnique({
+      where: { id },
+      include: this.detailsInclude,
+    });
   }
 
   private readonly detailsInclude = {
     category: { select: { id: true, name: true, parentId: true } },
     inventory: true,
-    variants: { where: { deletedAt: null }, orderBy: { id: 'asc' as const }, include: { inventory: true } },
-    images: { orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }], include: { imageAsset: true } },
+    variants: {
+      where: { deletedAt: null },
+      orderBy: { id: 'asc' as const },
+      include: { inventory: true },
+    },
+    images: {
+      orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }],
+      include: { imageAsset: true },
+    },
   } satisfies Prisma.ProductInclude;
 
   async lockInventory(variantId: bigint, transaction: TransactionClient) {

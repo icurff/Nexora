@@ -11,6 +11,9 @@ import { OrderRepository } from './order.repository.js';
 import { OrderService } from './order.service.js';
 import { NotificationModule } from '../notification/notification.module.js';
 import { PaymentModule } from '../payment/payment.module.js';
+import { DashboardController } from './dashboard.controller.js';
+import { DashboardService } from './dashboard.service.js';
+import { DashboardRepository } from './dashboard.repository.js';
 
 @Module({
   imports: [AuthModule, CatalogModule, NotificationModule, PaymentModule],
@@ -18,7 +21,14 @@ import { PaymentModule } from '../payment/payment.module.js';
     CartController,
     CustomerOrdersController,
     AdminOrdersController,
+    DashboardController,
   ],
-  providers: [CartService, OrderRepository, OrderService],
+  providers: [
+    CartService,
+    OrderRepository,
+    OrderService,
+    DashboardRepository,
+    DashboardService,
+  ],
 })
 export class OrderModule {}

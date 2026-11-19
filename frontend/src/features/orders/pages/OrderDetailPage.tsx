@@ -1,18 +1,18 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronRight, PackageCheck } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, PackageCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { formatVnd } from '../../catalog/services/public-catalog-api.js';
 import { getOrder, cancelOrder } from '../services/order-api.js';
 import { useAuth } from '../../auth/hooks/useAuth.js';
 
 const labels: Record<string, string> = {
-  PENDING: 'Chờ xác nhận',
-  CONFIRMED: 'Đã xác nhận',
-  SHIPPING: 'Đang giao',
-  DELIVERY_FAILED: 'Giao thất bại',
-  DELIVERED: 'Đã giao thành công',
-  CANCELLED: 'Đã hủy',
+  PENDING: 'Pending',
+  CONFIRMED: 'Confirmed',
+  SHIPPING: 'Shipping',
+  DELIVERY_FAILED: 'Delivery failed',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
 };
 function date(value: string) {
   return new Intl.DateTimeFormat('vi-VN', {
@@ -22,8 +22,7 @@ function date(value: string) {
   }).format(new Date(value));
 }
 
-export function OrderDetailPage() {
-  const { id = '' } = useParams();
+export function OrderDetailPage({ id }: { id: string }) {
   const { user } = useAuth();
   const client = useQueryClient();
   const query = useQuery({
@@ -48,39 +47,32 @@ export function OrderDetailPage() {
     },
     onError: () =>
       setError(
-        'Không thể hủy đơn. Hãy thử lại cùng yêu cầu hoặc tải lại trạng thái.',
+        'Unable to cancel the order. Retry the same request or reload its status.',
       ),
   });
   if (query.isPending)
     return (
-      <div className="page-container page-section">
-        <p role="status">Đang tải đơn hàng…</p>
+      <div className="account-panel">
+        <p role="status">Loading orders…</p>
       </div>
     );
   if (query.isError || !query.data)
     return (
-      <div className="page-container page-section">
+      <div className="account-panel">
         <div className="empty-state" role="alert">
-          <h1>Không tìm thấy đơn hàng</h1>
-          <Link to="/orders">Quay lại danh sách</Link>
+          <h1>Order not found</h1>
+          <Link to="/account/orders">Back to orders</Link>
         </div>
       </div>
     );
   const order = query.data;
   return (
-    <div className="page-container page-section">
-      <div className="breadcrumbs">
-        <Link to="/">Trang chủ</Link>
-        <ChevronRight />
-        <Link to="/orders">Đơn hàng</Link>
-        <ChevronRight />
-        <span>{order.id}</span>
-      </div>
+    <div className="account-panel account-order-detail">
       <div className="order-detail-title">
         <div>
-          <span className="section-eyebrow">ĐƠN HÀNG CỦA BẠN</span>
-          <h1>Đơn hàng {order.id}</h1>
-          <p>Đặt ngày {date(order.createdAt)}</p>
+          <span className="section-eyebrow">YOUR ORDER</span>
+          <h1>Order {order.id}</h1>
+          <p>Placed on {date(order.createdAt)}</p>
         </div>
         <span
           className={`order-status ${['PENDING', 'CONFIRMED', 'SHIPPING', 'DELIVERY_FAILED'].includes(order.status) ? 'in-progress' : 'complete'}`}
@@ -96,7 +88,7 @@ export function OrderDetailPage() {
               <PackageCheck />
             </span>
             <div>
-              <h2>Thông tin giao hàng</h2>
+              <h2>Delivery details</h2>
               <p>
                 {order.address.recipientName} · {order.address.recipientPhone}
               </p>
@@ -106,7 +98,7 @@ export function OrderDetailPage() {
             {order.address.addressLine}, {order.address.wardName},{' '}
             {order.address.provinceName}
           </p>
-          <h2>Sản phẩm</h2>
+          <h2>Products</h2>
           {order.items.map((item) => (
             <div className="checkout-order-line" key={item.id}>
               <span>
@@ -116,41 +108,41 @@ export function OrderDetailPage() {
                     .map(({ label, value }) => `${label}: ${value}`)
                     .join(' · ') ||
                     item.sku ||
-                    'Không có phiên bản'}{' '}
-                  · SL {item.quantity}
+                    'No variant'}{' '}
+                  · Qty {item.quantity}
                 </small>
               </span>
               <b>{formatVnd(BigInt(item.unitPrice) * BigInt(item.quantity))}</b>
             </div>
           ))}
           <div className="checkout-total-row">
-            <span>Tiền hàng</span>
+            <span>Subtotal</span>
             <strong>{formatVnd(order.subtotal)}</strong>
           </div>
           <div className="checkout-total-row">
-            <span>Phí giao hàng</span>
+            <span>Shipping</span>
             <strong>{formatVnd(order.shippingFee)}</strong>
           </div>
           <div className="checkout-total-row checkout-grand-total">
-            <span>Tổng thanh toán · COD</span>
+            <span>Total · Cash on delivery</span>
             <strong>{formatVnd(order.totalAmount)}</strong>
           </div>
           <div className="checkout-total-row">
-            <span>Trạng thái thanh toán</span>
+            <span>Payment status</span>
             <strong>
               {order.paymentStatus === 'PAID'
-                ? 'Đã thanh toán'
-                : 'Chưa thanh toán'}
+                ? 'Paid'
+                : 'Unpaid'}
             </strong>
           </div>
           {order.firstShippedAt ? (
-            <p>Bắt đầu giao: {date(order.firstShippedAt)}</p>
+            <p>Dispatched: {date(order.firstShippedAt)}</p>
           ) : null}
           {order.deliveredAt ? (
-            <p>Giao thành công: {date(order.deliveredAt)}</p>
+            <p>Delivered: {date(order.deliveredAt)}</p>
           ) : null}
-          {order.customerNote ? <p>Ghi chú: {order.customerNote}</p> : null}
-          {order.cancelReason ? <p>Lý do hủy: {order.cancelReason}</p> : null}
+          {order.customerNote ? <p>Note: {order.customerNote}</p> : null}
+          {order.cancelReason ? <p>Cancellation reason: {order.cancelReason}</p> : null}
           {order.status === 'PENDING' && order.paymentStatus === 'UNPAID' ? (
             <button
               className="button-secondary"
@@ -160,13 +152,13 @@ export function OrderDetailPage() {
                 cancel.mutate();
               }}
             >
-              {cancel.isPending ? 'Đang hủy…' : 'Hủy đơn hàng'}
+              {cancel.isPending ? 'Cancelling…' : 'Cancel order'}
             </button>
           ) : null}
           {error ? <p role="alert">{error}</p> : null}
         </section>
         <section className="checkout-panel">
-          <h2>Lịch sử đơn hàng</h2>
+          <h2>Order history</h2>
           {order.history.map((entry, index) => (
             <div
               className="tracking-step done"
@@ -184,8 +176,8 @@ export function OrderDetailPage() {
               </div>
             </div>
           ))}
-          <Link className="continue-link" to="/orders">
-            <ArrowLeft size={15} /> Danh sách đơn hàng
+          <Link className="continue-link" to="/account/orders">
+            <ArrowLeft size={15} /> Order list
           </Link>
         </section>
       </div>

@@ -3,7 +3,6 @@ import { GmailEmailProvider } from './providers/gmail-email.provider.js';
 import { NotificationRepository } from './notification.repository.js';
 import { NotificationService } from './notification.service.js';
 import { EmailOutboxWorker } from './email-outbox.worker.js';
-import { NotificationStream } from './notification.stream.js';
 
 @Module({
   providers: [
@@ -11,8 +10,7 @@ import { NotificationStream } from './notification.stream.js';
     NotificationRepository,
     NotificationService,
     EmailOutboxWorker,
-    NotificationStream,
   ],
-  exports: [GmailEmailProvider, NotificationService, NotificationStream],
+  exports: [GmailEmailProvider, NotificationService],
 })
 export class NotificationModule {}

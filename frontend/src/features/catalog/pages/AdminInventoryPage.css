@@ -1,7 +1,7 @@
 .admin-inventory-page {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 34px 38px 56px;
+  padding: 0;
   color: #203629;
 }
 .admin-inventory-heading {
@@ -12,7 +12,7 @@
   margin-bottom: 22px;
 }
 .admin-inventory-heading h1 {
-  margin: 7px 0 5px;
+  margin: 0 0 5px;
   font-size: 30px;
   letter-spacing: -0.04em;
 }
@@ -20,14 +20,6 @@
   margin: 0;
   color: #718075;
   font-size: var(--type-label);
-}
-.admin-inventory-kicker {
-  display: block;
-  margin-top: 12px;
-  color: #7b8c7e;
-  font-size: var(--type-meta);
-  font-weight: 700;
-  letter-spacing: 0.13em;
 }
 .inventory-count {
   display: flex;
@@ -426,7 +418,7 @@
 }
 @media (max-width: 600px) {
   .admin-inventory-page {
-    padding: 21px 12px 34px;
+    padding: 0;
   }
   .admin-inventory-heading {
     align-items: flex-start;

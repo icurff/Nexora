@@ -37,6 +37,8 @@ model User {
   emailOutbox          EmailOutbox[]
   trackingSessions     TrackingSession[]
   interactionEvents    InteractionEvent[]
+  wishlistItems        WishlistItem[]
+  reviews              ProductReview[]
 
   @@map("users")
 }
@@ -164,11 +166,42 @@ model Product {
   cartItems         CartItem[]
   orderItems        OrderItem[]
   interactionEvents InteractionEvent[]
+  wishlistItems     WishlistItem[]
+  reviews           ProductReview[]
 
   @@index([categoryId, status, createdAt(sort: Desc)], map: "products_category_status_created_idx")
   @@index([status, createdAt(sort: Desc)], map: "products_status_created_idx")
   @@unique([seedDatasetId, seedProductId])
   @@map("products")
+}
+
+model WishlistItem {
+  userId    BigInt   @map("user_id")
+  productId BigInt   @map("product_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+  @@map("wishlist_items")
+}
+
+model ProductReview {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  productId BigInt   @map("product_id")
+  rating    Int
+  content   String   @db.VarChar(2000)
+  status    String   @default("PENDING") @db.VarChar(16)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, productId])
+  @@index([productId, status, createdAt])
+  @@index([status, createdAt])
+  @@map("product_reviews")
 }
 
 model ProductInventory {

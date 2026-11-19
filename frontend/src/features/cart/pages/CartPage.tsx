@@ -31,13 +31,13 @@ function optionSummary(
 
 function unavailableMessage(item: CartItem) {
   if (item.unavailableReason === 'SKU_SELECTION_REQUIRED')
-    return 'Sản phẩm hiện có phiên bản. Hãy quay lại chi tiết để chọn SKU.';
+    return 'This product now has variants. Return to its details to choose one.';
   if (item.unavailableReason === 'UNAVAILABLE')
-    return 'Sản phẩm hoặc phiên bản đã ngừng bán.';
+    return 'This product or variant is no longer available.';
   if (item.unavailableReason === 'OUT_OF_STOCK')
-    return 'Sản phẩm hiện đã hết hàng.';
+    return 'This product is out of stock.';
   if (item.unavailableReason === 'INSUFFICIENT_STOCK')
-    return `Chỉ còn ${item.available} sản phẩm. Hãy giảm số lượng.`;
+    return `Only ${item.available} items remain. Reduce the quantity.`;
   return '';
 }
 
@@ -121,36 +121,35 @@ export function CartPage() {
   return (
     <div className="page-container page-section">
       <div className="breadcrumbs">
-        <Link to="/">Trang chủ</Link>
+        <Link to="/">Home</Link>
         <ChevronRight />
-        <span>Giỏ hàng</span>
+        <span>Cart</span>
       </div>
       <div className="catalog-title">
         <div>
-          <span className="section-eyebrow">GIỎ HÀNG CỦA BẠN</span>
-          <h1>Những món bạn đã chọn</h1>
+          <span className="section-eyebrow">YOUR CART</span>
+          <h1>Your selected items</h1>
           <p>
-            {items.reduce((sum, item) => sum + item.quantity, 0)} sản phẩm trong
-            giỏ
+            {items.reduce((sum, item) => sum + item.quantity, 0)} items in your cart
           </p>
         </div>
       </div>
       {status === 'loading' || cartQuery.isPending ? (
         <div className="empty-state" role="status">
-          Đang tải giỏ hàng...
+          Loading cart...
         </div>
       ) : null}
       {status === 'unauthenticated' ? (
         <div className="empty-state">
           <ShoppingBag />
-          <h3>Đăng nhập để xem giỏ hàng</h3>
-          <p>Giỏ hàng được lưu theo tài khoản của bạn.</p>
+          <h3>Sign in to view your cart</h3>
+          <p>Your cart is saved to your account.</p>
           <Link
             className="button-primary"
             to="/login"
             state={{ from: { pathname: '/cart' } }}
           >
-            Đăng nhập
+            Sign in
           </Link>
         </div>
       ) : null}
@@ -158,23 +157,23 @@ export function CartPage() {
       status === 'authenticated' &&
       user ? (
         <div className="empty-state" role="alert">
-          <h3>Chưa thể tải giỏ hàng</h3>
-          <p>Kiểm tra kết nối rồi thử lại.</p>
+          <h3>Unable to load your cart</h3>
+          <p>Check your connection and try again.</p>
           <button
             className="button-primary"
             onClick={() => void cartQuery.refetch()}
           >
-            Thử lại
+            Try again
           </button>
         </div>
       ) : null}
       {cart && items.length === 0 ? (
         <div className="empty-state">
           <ShoppingBag />
-          <h3>Giỏ hàng đang trống</h3>
-          <p>Bắt đầu với một món đồ bạn yêu thích nhé.</p>
+          <h3>Your cart is empty</h3>
+          <p>Start with something you love.</p>
           <Link className="button-primary" to="/products">
-            Khám phá sản phẩm <ArrowRight size={16} />
+            Explore products <ArrowRight size={16} />
           </Link>
         </div>
       ) : null}
@@ -183,8 +182,8 @@ export function CartPage() {
           {error ? (
             <div className="inline-error" role="alert">
               {errorCode === 'INSUFFICIENT_STOCK'
-                ? 'Số lượng vượt quá tồn hiện tại. Giỏ đã được tải lại.'
-                : 'Không thể cập nhật giỏ hàng. Giỏ đã được tải lại.'}
+                ? 'Quantity exceeds available stock. Your cart has been refreshed.'
+                : 'Unable to update the cart. Your cart has been refreshed.'}
             </div>
           ) : null}
           <div className="cart-layout">
@@ -200,7 +199,7 @@ export function CartPage() {
                     setSelectedIds(event.target.checked ? eligibleIds : [])
                   }
                 />{' '}
-                Chọn tất cả sản phẩm có thể mua
+                Select all available items
               </label>
               {items.map((item) => {
                 const message = unavailableMessage(item);
@@ -216,7 +215,7 @@ export function CartPage() {
                         disabled={Boolean(message)}
                         checked={selectedSet.has(item.id)}
                         onChange={() => toggleSelected(item.id)}
-                        aria-label={`Chọn ${item.product.name}`}
+                        aria-label={`Select ${item.product.name}`}
                       />
                     </label>
                     <Link
@@ -245,7 +244,7 @@ export function CartPage() {
                               item.variant.options,
                               item.variant.optionLabels,
                             ) || item.variant.sku
-                          : 'Sản phẩm không có phiên bản'}
+                          : 'Product without variants'}
                       </span>
                       {message ? (
                         <strong className="cart-unavailable-message">
@@ -257,12 +256,12 @@ export function CartPage() {
                         disabled={pending}
                         onClick={() => void removeItem(item)}
                       >
-                        <X size={14} /> Xóa
+                        <X size={14} /> Remove
                       </button>
                     </div>
                     <div className="cart-line-quantity">
                       <span className="cart-unit-price">
-                        {formatVnd(item.priceVnd)} / sản phẩm
+                        {formatVnd(item.priceVnd)} / item
                       </span>
                       <div className="quantity-control">
                         <button
@@ -270,13 +269,13 @@ export function CartPage() {
                           onClick={() =>
                             void changeQuantity(item, item.quantity - 1)
                           }
-                          aria-label="Giảm"
+                          aria-label="Decrease"
                         >
                           <Minus size={14} />
                         </button>
                         <input
                           key={`${item.id}-${item.quantity}`}
-                          aria-label={`Số lượng ${item.product.name}`}
+                          aria-label={`Quantity ${item.product.name}`}
                           inputMode="numeric"
                           defaultValue={item.quantity}
                           disabled={pending}
@@ -296,7 +295,7 @@ export function CartPage() {
                           onClick={() =>
                             void changeQuantity(item, item.quantity + 1)
                           }
-                          aria-label="Tăng"
+                          aria-label="Increase"
                         >
                           <Plus size={14} />
                         </button>
@@ -308,18 +307,17 @@ export function CartPage() {
               })}
             </div>
             <aside className="order-summary">
-              <h2>Tạm tính tiền hàng</h2>
+              <h2>Order subtotal</h2>
               <div className="summary-row">
-                <span>{activeSelection.length} dòng đã chọn</span>
+                <span>{activeSelection.length} items selected</span>
                 <span>{formatVnd(subtotal)}</span>
               </div>
               <div className="summary-row summary-total">
-                <strong>Tạm tính</strong>
+                <strong>Subtotal</strong>
                 <strong>{formatVnd(subtotal)}</strong>
               </div>
               <p className="summary-note">
-                Chưa bao gồm phí vận chuyển. Phí giao hàng sẽ được tính ở bước
-                thanh toán.
+                Shipping is calculated at checkout.
               </p>
               <button
                 className="button-primary full-button"
@@ -330,10 +328,10 @@ export function CartPage() {
                   })
                 }
               >
-                Thanh toán
+                Checkout
               </button>
               <Link className="continue-link" to="/products">
-                <ArrowLeft size={15} /> Tiếp tục mua sắm
+                <ArrowLeft size={15} /> Continue shopping
               </Link>
             </aside>
           </div>

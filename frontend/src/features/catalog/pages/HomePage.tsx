@@ -6,14 +6,48 @@ import {
   Truck,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { demoCategories, demoProducts } from '../../catalog/demo-data.js';
+import { useQuery } from '@tanstack/react-query';
 import {
   SectionHeading,
-  ProductGrid,
+  CatalogProductGrid,
 } from '../components/catalog-components.js';
+import {
+  formatVnd,
+  getPublicProducts,
+} from '../services/public-catalog-api.js';
 
 export function HomePage() {
-  const featured = demoProducts.slice(0, 4);
+  const products = useQuery({
+    queryKey: ['public-products', 1],
+    queryFn: () => getPublicProducts(1),
+    retry: false,
+  });
+  const items = products.data?.items ?? [];
+  const featured = items.slice(0, 4);
+  const artwork = items.filter((item) =>
+    item.image?.contentType.startsWith('image/'),
+  );
+  const categories = [
+    ...new Map(items.map((item) => [item.category.id, item.category])).values(),
+  ].slice(0, 4);
+  const grid = (productsToShow: typeof items) =>
+    products.isPending ? (
+      <div className="empty-state" role="status">
+        Loading products...
+      </div>
+    ) : products.isError ? (
+      <div className="empty-state" role="alert">
+        <h3>Unable to load products</h3>
+        <button
+          className="button-primary"
+          onClick={() => void products.refetch()}
+        >
+          Try again
+        </button>
+      </div>
+    ) : (
+      <CatalogProductGrid products={productsToShow} />
+    );
   return (
     <>
       <section className="home-hero">
@@ -29,7 +63,8 @@ export function HomePage() {
               <em>everyday joy.</em>
             </h1>
             <p>
-              Discover useful, beautiful products selected for your everyday life.
+              Discover useful, beautiful products selected for your everyday
+              life.
             </p>
             <div className="hero-actions">
               <Link className="button-primary" to="/products">
@@ -38,16 +73,6 @@ export function HomePage() {
               <Link className="button-secondary" to="/categories">
                 Browse categories
               </Link>
-            </div>
-            <div className="hero-proof">
-              <div className="proof-avatars">
-                <span>N</span>
-                <span>A</span>
-                <span>M</span>
-              </div>
-              <span>
-                <strong>4.9/5</strong> from over 1,200 customers
-              </span>
             </div>
           </div>
           <div className="hero-art">
@@ -58,18 +83,23 @@ export function HomePage() {
                 <br />
                 ESSENTIALS
               </span>
-              <img src="/demo-products/lamp.svg" alt="Aurora table lamp" />
+              {artwork[0]?.image ? (
+                <img src={artwork[0].image.url} alt={artwork[0].name} />
+              ) : null}
             </div>
             <div className="hero-art-card hero-art-card-front">
-              <img
-                src="/demo-products/tote.svg"
-                alt="Everyday canvas tote"
-              />
-              <div>
-                <span>FAVORITE</span>
-                <strong>Canvas tote</strong>
-                <small>189.000 ₫</small>
-              </div>
+              {artwork[1]?.image ? (
+                <img src={artwork[1].image.url} alt={artwork[1].name} />
+              ) : null}
+              {artwork[1] ? (
+                <div>
+                  <span>FAVORITE</span>
+                  <strong>{artwork[1].name}</strong>
+                  {artwork[1].priceVnd !== null ? (
+                    <small>{formatVnd(artwork[1].priceVnd)}</small>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="hero-art-sticker">
               NEXORA
@@ -121,17 +151,15 @@ export function HomePage() {
             linkText="All categories"
           />
           <div className="category-grid">
-            {demoCategories.map((category, index) => (
+            {categories.map((category, index) => (
               <Link
                 to={`/categories/${category.id}`}
                 key={category.id}
-                className={`category-card category-${category.color}`}
+                className={`category-card category-${['mint', 'sand', 'blue', 'rose'][index]}`}
               >
                 <span className="category-number">0{index + 1}</span>
-                <div className="category-icon">{category.icon}</div>
                 <div>
                   <h3>{category.name}</h3>
-                  <p>{category.description}</p>
                 </div>
                 <ArrowRight className="category-arrow" />
               </Link>
@@ -141,11 +169,11 @@ export function HomePage() {
         <section className="home-section">
           <SectionHeading
             eyebrow="FAVORITES"
-            title="Popular picks"
-            description="Featured products this week."
-            link="/products?sort=popular"
+            title="Explore products"
+            description="Discover products from our catalog."
+            link="/products"
           />
-          <ProductGrid products={featured} />
+          {grid(featured)}
         </section>
         <section className="editorial-banner">
           <div>
@@ -156,14 +184,13 @@ export function HomePage() {
               deserves thoughtful touches.
             </h2>
             <p>Discover pieces that make your space more inviting.</p>
-            <Link className="button-secondary" to="/categories/home">
-              Explore home goods <ArrowRight size={16} />
+            <Link className="button-secondary" to="/products">
+              Explore products <ArrowRight size={16} />
             </Link>
           </div>
-          <img
-            src="/demo-products/lamp.svg"
-            alt="Aurora lamp in a cozy setting"
-          />
+          {artwork[2]?.image ? (
+            <img src={artwork[2].image.url} alt={artwork[2].name} />
+          ) : null}
         </section>
         <section className="home-section">
           <SectionHeading
@@ -171,7 +198,7 @@ export function HomePage() {
             title="A little more inspiration"
             link="/products"
           />
-          <ProductGrid products={demoProducts.slice(4)} />
+          {grid(items.slice(4, 8))}
         </section>
         <section className="newsletter">
           <div>

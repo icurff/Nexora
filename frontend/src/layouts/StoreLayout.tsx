@@ -1,29 +1,26 @@
 import { useState } from 'react';
 import { Heart, Menu, Search, ShoppingCart, UserRound, X } from 'lucide-react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { useDemoCommerceStore } from '../context/demo-commerce-store';
+import { useWishlist } from '../features/wishlist/wishlist-api';
 import type { ReactNode } from 'react';
 import { BrandLogo } from '../components/BrandLogo';
 import { useCart } from '../features/cart/hooks/useCart';
 import { useAuth } from '../features/auth/hooks/useAuth';
-import { NotificationBell } from '../features/notifications/components/NotificationBell';
-import { useNotificationStream } from '../features/notifications/hooks/useNotifications';
 
 export function StoreHeader() {
-  useNotificationStream();
   const [search, setSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
   const cartQuery = useCart();
-  const cartCount =
-    user
-      ? (cartQuery.data?.items ?? []).reduce(
-          (sum, item) => sum + item.quantity,
-          0,
-        )
-      : 0;
-  const wishlistCount = useDemoCommerceStore((state) => state.wishlist.length);
+  const cartCount = user
+    ? (cartQuery.data?.items ?? []).reduce(
+        (sum, item) => sum + item.quantity,
+        0,
+      )
+    : 0;
+  const wishlist = useWishlist();
+  const wishlistCount = wishlist.data?.length ?? 0;
   function submitSearch(event: React.FormEvent) {
     event.preventDefault();
     navigate(`/search?q=${encodeURIComponent(search.trim())}`);
@@ -46,7 +43,7 @@ export function StoreHeader() {
           <nav className="store-nav">
             <Link to="/products">Products</Link>
             <Link to="/categories">Categories</Link>
-            <Link to="/products?sort=popular">Best sellers</Link>
+            <Link to="/products">Shop all</Link>
           </nav>
           <form className="store-search" onSubmit={submitSearch}>
             <Search size={17} />
@@ -56,16 +53,21 @@ export function StoreHeader() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <kbd>↵</kbd>
           </form>
           <div className="store-actions">
             <Link
               className="icon-button wishlist-action"
               to="/wishlist"
-              aria-label={`Wishlist, ${wishlistCount} products`}
+              aria-label={
+                wishlist.data
+                  ? `Wishlist, ${wishlistCount} products`
+                  : 'Wishlist'
+              }
             >
               <Heart />
-              <span className="action-count">{wishlistCount}</span>
+              {wishlistCount > 0 ? (
+                <span className="action-count">{wishlistCount}</span>
+              ) : null}
             </Link>
             <Link
               className="icon-button"
@@ -77,7 +79,6 @@ export function StoreHeader() {
                 <span className="action-count">{cartCount}</span>
               ) : null}
             </Link>
-            <NotificationBell />
             <Link className="account-action" to="/account">
               <UserRound />
               <span>Account</span>
@@ -107,11 +108,6 @@ export function StoreHeader() {
             <Link to="/account" onClick={() => setMobileOpen(false)}>
               My account
             </Link>
-            {user ? (
-              <Link to="/notifications" onClick={() => setMobileOpen(false)}>
-                Notifications
-              </Link>
-            ) : null}
           </div>
         ) : null}
       </header>
@@ -146,10 +142,6 @@ function StoreFooter() {
           <p>Monday – Saturday · 08:00 – 20:00</p>
           <a href="mailto:hello@nexora.vn">hello@nexora.vn</a>
         </div>
-      </div>
-      <div className="store-footer-bottom">
-        <span>© 2026 Nexora. Demo interface.</span>
-        <span>Designed for the things you love.</span>
       </div>
     </footer>
   );
