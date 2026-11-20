@@ -92,7 +92,13 @@ export class AiRecommendationClient {
 
       const data = (await response.json()) as AiSessionResponse;
 
-      if (data.source !== 'lightgcn_session' || !Array.isArray(data.items)) {
+      if (
+        data.source !== 'lightgcn_session' ||
+        !Array.isArray(data.items) ||
+        !Array.isArray(data.unknown_recent_itemids) ||
+        (Boolean(payload.context_itemids?.length) &&
+          data.context_supported !== true)
+      ) {
         return null;
       }
 
@@ -110,7 +116,9 @@ export class AiRecommendationClient {
 }
 
 export type AiSessionRequest = {
+  retailrocket_visitorid?: number;
   recent_itemids: number[];
+  context_itemids?: number[];
   candidate_itemids: number[];
   exclude_itemids?: number[];
   limit: number;
@@ -118,7 +126,9 @@ export type AiSessionRequest = {
 
 export type AiSessionResponse = {
   source: 'lightgcn_session';
+  context_supported?: boolean;
   strategy: string;
+  unknown_recent_itemids: number[];
   items: Array<{
     retailrocket_itemid: number;
     score: number;

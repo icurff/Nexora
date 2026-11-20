@@ -47,6 +47,9 @@ function ProductDetail({ id }: { id: string }) {
   );
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [descriptionOverflows, setDescriptionOverflows] = useState(false);
+  const descriptionRef = useRef<HTMLParagraphElement>(null);
   const query = useQuery({
     queryKey: ['public-product', id],
     queryFn: () => getPublicProduct(id),
@@ -54,6 +57,16 @@ function ProductDetail({ id }: { id: string }) {
     retry: false,
   });
   const product = query.data;
+  useEffect(() => {
+    const element = descriptionRef.current;
+    if (!element || descriptionExpanded) return;
+    const measure = () =>
+      setDescriptionOverflows(element.scrollHeight > element.clientHeight + 1);
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    measure();
+    return () => observer.disconnect();
+  }, [product?.description, descriptionExpanded]);
   const options = useMemo(() => product?.optionConfig.options ?? [], [product]);
   const matchingVariants = useMemo(
     () =>
@@ -192,13 +205,27 @@ function ProductDetail({ id }: { id: string }) {
 
   return (
     <div className="page-container page-section">
-      <div className="breadcrumbs">
+      <nav className="breadcrumbs product-breadcrumbs" aria-label="Breadcrumb">
         <Link to="/">Home</Link>
         <ChevronRight />
         <Link to="/products">Products</Link>
         <ChevronRight />
-        <span>{product.name}</span>
-      </div>
+        <Link
+          className="breadcrumb-category"
+          to={`/categories/${product.category.id}`}
+          title={product.category.name}
+        >
+          {product.category.name}
+        </Link>
+        <ChevronRight />
+        <span
+          className="breadcrumb-current"
+          aria-current="page"
+          title={product.name}
+        >
+          {product.name}
+        </span>
+      </nav>
       <div className="product-detail-grid">
         <div className="detail-image">
           {heroImage &&
@@ -242,7 +269,13 @@ function ProductDetail({ id }: { id: string }) {
           ) : null}
         </div>
         <div className="detail-copy">
-          <span className="product-category">{product.category.name}</span>
+          <Link
+            className="detail-category"
+            to={`/categories/${product.category.id}`}
+          >
+            {product.category.name}{' '}
+            <ChevronRight size={15} aria-hidden="true" />
+          </Link>
           <h1>{product.name}</h1>
           <div className="detail-rating">
             <span>
@@ -284,7 +317,6 @@ function ProductDetail({ id }: { id: string }) {
                     : formatVnd(product.priceVnd)}
             </strong>
           </div>
-          <p className="detail-description">{product.description}</p>
           <div className="detail-divider" />
           {pendingAdd &&
           ((pendingAdd.productId &&
@@ -403,6 +435,32 @@ function ProductDetail({ id }: { id: string }) {
           </div>
         </div>
       </div>
+      <section
+        className="product-description-section"
+        aria-labelledby="product-description-heading"
+      >
+        <h2 id="product-description-heading">Product description</h2>
+        <div className="product-description-content">
+          <p
+            ref={descriptionRef}
+            className={`product-description-text${descriptionExpanded ? ' is-expanded' : descriptionOverflows ? ' is-faded' : ''}`}
+            id="product-description"
+          >
+            {product.description}
+          </p>
+          {descriptionOverflows || descriptionExpanded ? (
+            <button
+              type="button"
+              className="description-toggle"
+              aria-expanded={descriptionExpanded}
+              aria-controls="product-description"
+              onClick={() => setDescriptionExpanded((value) => !value)}
+            >
+              {descriptionExpanded ? 'View less' : 'View more'}
+            </button>
+          ) : null}
+        </div>
+      </section>
       {trackingReady ? (
         <Recommendations surface="detail" productId={product.id} />
       ) : null}

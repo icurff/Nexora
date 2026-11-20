@@ -275,10 +275,10 @@ export function CheckoutPage() {
                 <span>
                   <strong>{item.product.name}</strong>
                   <small>
-                    {item.variant
-                      ? Object.values(item.variant.options).join(' · ')
-                      : 'Product without variants'}{' '}
-                    · Qty {item.quantity}
+                    {item.variant && Object.values(item.variant.options).length > 0
+                      ? `${Object.values(item.variant.options).join(' · ')} · `
+                      : ''}
+                    Qty {item.quantity}
                   </small>
                 </span>
                 <b>

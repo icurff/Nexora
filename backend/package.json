@@ -19,6 +19,8 @@
     "db:push": "prisma db push",
     "seed:demo": "node --env-file-if-exists=.env prisma/seed.mjs",
     "seed:catalog": "node --env-file-if-exists=.env prisma/import-demo-catalog.mjs",
+    "seed:real-catalog": "node --env-file-if-exists=.env prisma/seed-real-catalog.mjs",
+    "seed:extra-catalog": "node --env-file-if-exists=.env prisma/seed-extra-catalog.mjs",
     "lint": "eslint src/",
     "test": "vitest run",
     "test:watch": "vitest",

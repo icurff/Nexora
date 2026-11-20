@@ -1,8 +1,9 @@
 ﻿import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, ChevronRight, Search } from 'lucide-react';
+import { ChevronRight, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CatalogProductGrid } from '../components/catalog-components.js';
+import { Pagination } from '../components/Pagination.js';
 import { getPublicProducts } from '../services/public-catalog-api.js';
 import { trackEvent } from '../../../services/tracking-api';
 
@@ -15,7 +16,7 @@ export function SearchPage() {
       ? requestedPage
       : 1;
 
-useEffect(() => {
+  useEffect(() => {
     if (submitted)
       void trackEvent({ eventType: 'search', queryLength: submitted.length });
   }, [submitted]);
@@ -48,7 +49,9 @@ useEffect(() => {
           className="large-search"
           onSubmit={(event) => {
             event.preventDefault();
-            const keyword = String(new FormData(event.currentTarget).get('q') ?? '').trim();
+            const keyword = String(
+              new FormData(event.currentTarget).get('q') ?? '',
+            ).trim();
             setParams(keyword ? { q: keyword } : {});
           }}
         >
@@ -87,34 +90,17 @@ useEffect(() => {
         ) : products.data.items.length ? (
           <>
             <CatalogProductGrid products={products.data.items} />
-            {products.data.totalPages > 1 ? (
-              <nav
-                className="pagination"
-                aria-label="Search results pagination"
-              >
-                <button
-                  className="page-next"
-                  disabled={page <= 1}
-                  onClick={() =>
-                    setParams({ q: submitted, page: String(page - 1) })
-                  }
-                >
-                  Previous
-                </button>
-                <span className="page-number active" aria-current="page">
-                  {page}
-                </span>
-                <button
-                  className="page-next"
-                  disabled={page >= products.data.totalPages}
-                  onClick={() =>
-                    setParams({ q: submitted, page: String(page + 1) })
-                  }
-                >
-                  Next <ArrowRight size={15} />
-                </button>
-              </nav>
-            ) : null}
+            <Pagination
+              page={page}
+              totalPages={products.data.totalPages}
+              label="Search results pagination"
+              onPageChange={(nextPage) => {
+                const next = new URLSearchParams(params);
+                if (nextPage === 1) next.delete('page');
+                else next.set('page', String(nextPage));
+                setParams(next);
+              }}
+            />
           </>
         ) : (
           <div className="empty-state">

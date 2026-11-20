@@ -161,7 +161,7 @@ export class RecommendationRepository {
 
   // Lấy tối đa 3 sản phẩm VIEW gần nhất của phiên hiện tại.
   // Chỉ sử dụng dữ liệu LIVE, không sử dụng RetailRocket visitor ID.
-  async recentSessionItemIds(visitorId: bigint): Promise<number[]> {
+  async recentSessionViews(visitorId: bigint) {
     const events = await this.prisma.interactionEvent.findMany({
       where: {
         visitorId,
@@ -172,8 +172,9 @@ export class RecommendationRepository {
         eventType: true,
         occurredAt: true,
         trackingSessionId: true,
+        productId: true,
         product: {
-          select: { retailrocketItemId: true },
+          select: { retailrocketItemId: true, categoryId: true },
         },
       },
       orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
@@ -190,7 +191,11 @@ export class RecommendationRepository {
     }
 
     const sessionId = events[0].trackingSessionId;
-    const itemIds: number[] = [];
+    const views: Array<{
+      productId: bigint;
+      categoryId: bigint;
+      sourceItemId: number | null;
+    }> = [];
     let previousTime = events[0].occurredAt.getTime();
 
     for (const event of events) {
@@ -205,20 +210,24 @@ export class RecommendationRepository {
 
       previousTime = currentTime;
 
-      if (event.eventType !== 'view') continue;
+      if (event.eventType !== 'view' || !event.productId || !event.product)
+        continue;
 
       const sourceId = event.product?.retailrocketItemId;
-      if (!sourceId) continue;
-
       const itemId = Number(sourceId);
-
-      if (Number.isSafeInteger(itemId) && itemId > 0) {
-        itemIds.push(itemId);
-      }
+      views.push({
+        productId: event.productId,
+        categoryId: event.product.categoryId,
+        sourceItemId:
+          sourceId && Number.isSafeInteger(itemId) && itemId > 0
+            ? itemId
+            : null,
+      });
+      if (views.length === 3) break;
     }
 
     // FastAPI yêu cầu thứ tự cũ -> mới.
-    return itemIds.reverse().slice(-3);
+    return views.reverse();
   }
 
   // Chỉ lấy các sản phẩm đang bán được và có RetailRocket ID.

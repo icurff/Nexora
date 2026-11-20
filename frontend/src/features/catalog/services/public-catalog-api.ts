@@ -60,12 +60,13 @@ export async function getPublicProducts(
   page = 1,
   q?: string,
   categoryId?: string,
+  pageSize = 20,
 ): Promise<ProductPage> {
   return (
     await apiClient.get<ProductPage>('/products', {
       params: {
         page,
-        pageSize: 20,
+        pageSize,
         ...(q ? { q } : {}),
         ...(categoryId ? { categoryId } : {}),
       },
