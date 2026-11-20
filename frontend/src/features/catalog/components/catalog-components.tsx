@@ -116,13 +116,16 @@ export function CatalogProductGrid({
                 }
               />
             </button>
-            {product.available === 0 ? (
-              <span className="product-badge">Out of stock</span>
-            ) : null}
           </div>
           <div className="product-info">
-            <span className="product-category">{product.category.name}</span>
-            <Link to={`/products/${product.id}`} className="product-name">
+            <span className="product-category" title={product.category.name}>
+              {product.category.name}
+            </span>
+            <Link
+              to={`/products/${product.id}`}
+              className="product-name"
+              title={product.name}
+            >
               {product.name}
             </Link>
             <div className="product-meta">
@@ -131,9 +134,11 @@ export function CatalogProductGrid({
                   ? 'Price unavailable'
                   : formatCatalogVnd(product.priceVnd)}
               </span>
-            </div>
-            <div className="product-rating">
-              <span>{product.available > 0 ? 'In stock' : 'Out of stock'}</span>
+              <span
+                className={`product-availability${product.available > 0 ? '' : ' is-unavailable'}`}
+              >
+                {product.available > 0 ? 'In stock' : 'Out of stock'}
+              </span>
             </div>
           </div>
         </article>

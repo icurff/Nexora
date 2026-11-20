@@ -8,6 +8,7 @@
   useParams,
 } from 'react-router-dom';
 import { LoaderCircle } from 'lucide-react';
+import { useEffect } from 'react';
 import { AuthLayout } from './layouts/AuthLayout';
 import { AuthProvider } from './context/AuthProvider';
 import { useAuth } from './features/auth/hooks/useAuth';
@@ -43,6 +44,14 @@ import GoogleCallbackPage from './features/auth/pages/GoogleCallbackPage.js';
 import './App.css';
 import './Store.css';
 import './Brand.css';
+
+function ScrollToTop() {
+  const { pathname, search, hash } = useLocation();
+  useEffect(() => {
+    if (!hash) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname, search, hash]);
+  return null;
+}
 
 function RequireAuth() {
   const { status } = useAuth();
@@ -92,6 +101,7 @@ function LegacyOrderRedirect() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AuthProvider>
         <Routes>
           <Route element={<StoreLayout />}>

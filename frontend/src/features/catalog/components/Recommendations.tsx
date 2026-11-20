@@ -17,11 +17,13 @@ type RecommendationResponse = {
 };
 
 const reasons: Record<string, string> = {
-  SIMILAR_TO_RECENT_VIEW: 'Phù hợp với sản phẩm bạn quan tâm',
-  recently_viewed_category: 'Cùng danh mục bạn vừa xem',
-  similar_category: 'Cùng danh mục sản phẩm',
-  cart_category: 'Cùng danh mục trong giỏ hàng',
-  new_arrival: 'Sản phẩm mới',
+  SIMILAR_TO_RECENT_VIEW: 'Based on your recent views',
+  SIMILAR_TO_PAGE_CONTEXT: 'Based on items on this page',
+  TRAINED_USER_PROFILE: '',
+  recently_viewed_category: 'From a category you viewed',
+  similar_category: 'From the same category',
+  cart_category: 'From a category in your cart',
+  new_arrival: 'New arrival',
 };
 
 export function Recommendations({
@@ -69,30 +71,25 @@ export function Recommendations({
   });
   const hasAI = items.some((item) => item.source === 'lightgcn_session');
   return (
-    <section className="home-section" aria-label="Đề xuất sản phẩm">
+    <section className="home-section" aria-label="Product recommendations">
       <SectionHeading
-        eyebrow={
-          hasAI
-            ? 'AI RECOMMENDATIONS · LIGHTGCN'
-            : 'RULE-BASED RECOMMENDATIONS'
-        }
         title={
           surface === 'home'
-            ? 'Dành riêng cho bạn'
+            ? 'Picked for you'
             : surface === 'detail'
-              ? 'Có thể bạn cũng thích'
-              : 'Có thể bạn cũng cần'
+              ? 'You may also like'
+              : 'You may also need'
         }
         description={
           hasAI
-            ? 'LightGCN xếp hạng theo ngữ cảnh và lịch sử xem trong phiên. Các mục bổ sung theo quy tắc được ghi nhãn riêng.'
-            : 'Khám phá sản phẩm cùng danh mục và những lựa chọn mới tại Nexora.'
+            ? 'Discover products selected for you.'
+            : 'Discover related products and new arrivals at Nexora.'
         }
       />
-      {query.isPending ? <p role="status">Đang tải đề xuất…</p> : null}
+      {query.isPending ? <p role="status">Loading recommendations…</p> : null}
       {query.isError || (!query.isPending && !items.length) ? (
         <p role="status">
-          Chưa có đề xuất lúc này. Bạn vẫn có thể tiếp tục mua sắm.
+          No recommendations are available right now. You can continue shopping.
         </p>
       ) : null}
       <div className="recommendation-grid">
@@ -102,16 +99,16 @@ export function Recommendations({
           return (
             <div key={item.productId}>
               <p className="product-category">
-                <strong>
-                  {item.source === 'lightgcn_session'
-                    ? 'AI - LightGCN'
-                    : 'Rule-based Recommendations'}
-                </strong>
-                <br />
+                {item.source === 'lightgcn_session' ? (
+                  <>
+                    <strong>LightGCN</strong>
+                    {item.reason !== 'TRAINED_USER_PROFILE' && <br />}
+                  </>
+                ) : null}
                 {reasons[item.reason] ??
                   (item.source === 'lightgcn_session'
-                    ? 'Được LightGCN xếp hạng theo phiên'
-                    : 'Sản phẩm liên quan')}
+                    ? 'Ranked for your browsing session'
+                    : 'Related product')}
               </p>
               <CatalogProductGrid
                 products={[
@@ -145,7 +142,7 @@ export function Recommendations({
       </div>
       {items.length > 0 && products.every((product) => product.isError) ? (
         <p role="status">
-          Không thể tải sản phẩm đề xuất. Vui lòng thử lại sau.
+          Could not load recommended products. Please try again later.
         </p>
       ) : null}
     </section>

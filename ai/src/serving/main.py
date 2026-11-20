@@ -95,10 +95,12 @@ def recommend(
 # ============================================================
 
 class SessionRequest(BaseModel):
+    retailrocket_visitorid: int | None = Field(default=None, gt=0)
     # RetailRocket item IDs, ordered oldest -> newest
     recent_itemids: list[int] = Field(
         default_factory=list, max_length=200
     )
+    context_itemids: list[int] = Field(default_factory=list, max_length=5000)
     # Only sellable Nexora products should be provided here
     candidate_itemids: list[int] = Field(
         min_length=1, max_length=5000
@@ -147,49 +149,62 @@ def recommend_session(payload: SessionRequest):
             detail="Missing Task 074 popularity_scores.npy",
         )
 
+    # Report unknown inputs so the caller can preserve their session context.
+    unknown_recent_itemids = list(dict.fromkeys(
+        itemid for itemid in payload.recent_itemids + payload.context_itemids
+        if itemid not in item_to_idx
+    ))
     # Use the 3 most recent known items (Task 075: Cold User)
     history = [
         item_to_idx[itemid]
         for itemid in payload.recent_itemids
         if itemid in item_to_idx
     ][-3:]
+    context = [item_to_idx[itemid] for itemid in dict.fromkeys(payload.context_itemids)
+               if itemid in item_to_idx]
 
-    if not history:
+    user_idx = None
+    if payload.retailrocket_visitorid is not None:
+        user_idx = visitor_to_idx.get(payload.retailrocket_visitorid)
+        if user_idx is None:
+            raise HTTPException(status_code=404, detail="RetailRocket visitor not found in model")
+
+    if not history and not context and user_idx is None:
         return {
             "source": "lightgcn_session",
+            "context_supported": True,
             "strategy": "no_known_session_items",
+            "unknown_recent_itemids": unknown_recent_itemids,
             "items": [],
         }
 
     # Normalize recent interaction weights, newest has weight 1
-    weights = np.power(
-        0.75,
-        np.arange(len(history) - 1, -1, -1),
-    ).astype(np.float32)
+    session_vectors = []
+    if history:
+        weights = np.power(
+            0.75, np.arange(len(history) - 1, -1, -1),
+        ).astype(np.float32)
+        session_vector = (item_unit[history] * weights[:, None]).sum(axis=0)
+        session_vector /= max(float(np.linalg.norm(session_vector)), 1e-12)
+        session_vectors.append(session_vector)
+    if context:
+        context_vector = item_unit[context].mean(axis=0)
+        context_vector /= max(float(np.linalg.norm(context_vector)), 1e-12)
+        session_vectors.append(context_vector)
+    if session_vectors:
+        session_scores = sum(item_unit @ vector for vector in session_vectors) / len(session_vectors)
 
-    session_vector = (
-        item_unit[history] * weights[:, None]
-    ).sum(axis=0)
-
-    session_vector /= max(
-        float(np.linalg.norm(session_vector)), 1e-12
-    )
-
-    # Score all 20k model items BEFORE selecting catalog candidates.
-    session_scores = item_unit @ session_vector
-
-    base_scores = np.log1p(popularity).copy()
-    base_scores -= (
-        np.arange(len(base_scores), dtype=np.float32) * 1e-9
-    )
-
-    # Locked Cold User policy: alpha=0.75
-    scores = (
-        0.25 * zscore(base_scores)
-        + 0.75 * zscore(session_scores)
-    )
+    if user_idx is not None:
+        user_scores = item_embeddings @ user_embeddings[user_idx]
+        scores = (0.5 * zscore(user_scores) + 0.5 * zscore(session_scores)
+                  if session_vectors else zscore(user_scores))
+    else:
+        base_scores = np.log1p(popularity).copy()
+        base_scores -= np.arange(len(base_scores), dtype=np.float32) * 1e-9
+        scores = 0.25 * zscore(base_scores) + 0.75 * zscore(session_scores)
 
     excluded = set(payload.recent_itemids)
+    excluded.update(payload.context_itemids)
     excluded.update(payload.exclude_itemids)
 
     candidate_ids = [
@@ -201,7 +216,9 @@ def recommend_session(payload: SessionRequest):
     if not candidate_ids:
         return {
             "source": "lightgcn_session",
+            "context_supported": True,
             "strategy": "no_eligible_candidates",
+            "unknown_recent_itemids": unknown_recent_itemids,
             "items": [],
         }
 
@@ -218,18 +235,22 @@ def recommend_session(payload: SessionRequest):
     for itemid in ranked:
         idx = item_to_idx[itemid]
 
-        similarities = item_unit[history] @ item_unit[idx]
-        best_pos = int(np.argmax(similarities))
-        best_similarity = float(similarities[best_pos])
+        evidence_items = history + context
+        similarities = item_unit[evidence_items] @ item_unit[idx]
+        best_pos = int(np.argmax(similarities)) if evidence_items else 0
+        best_similarity = float(similarities[best_pos]) if evidence_items else -1.0
 
         if best_similarity >= 0.15:
-            reason = "SIMILAR_TO_RECENT_VIEW"
+            reason = "SIMILAR_TO_RECENT_VIEW" if best_pos < len(history) else "SIMILAR_TO_PAGE_CONTEXT"
             evidence = {
                 "recent_source_item_id": idx_to_item[
-                    history[best_pos]
+                    evidence_items[best_pos]
                 ],
                 "cosine_similarity": round(best_similarity, 4),
             }
+        elif user_idx is not None:
+            reason = "TRAINED_USER_PROFILE"
+            evidence = {}
         else:
             reason = "POPULAR_TRAIN"
             evidence = {
@@ -245,12 +266,16 @@ def recommend_session(payload: SessionRequest):
 
     return {
         "source": "lightgcn_session",
-        "strategy": "cold_session_hybrid",
+        "context_supported": True,
+        "unknown_recent_itemids": unknown_recent_itemids,
+        "strategy": ("trained_user_session" if session_vectors else "trained_user") if user_idx is not None else "cold_session_hybrid",
         "model": "LightGCN_WeightedSampling",
         "policy": {
-            "alpha": 0.75,
             "history_length": 3,
             "recency_decay": 0.75,
+            **({"user_weight": 0.5, "session_weight": 0.5} if user_idx is not None and session_vectors else {}),
+            **({"recent_view_weight": 0.5, "page_context_weight": 0.5} if history and context else {}),
+            **({"alpha": 0.75} if user_idx is None else {}),
         },
         "items": items,
     }

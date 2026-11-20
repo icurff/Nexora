@@ -12,26 +12,63 @@ export class AdaptiveRecommendationService {
     private readonly ruleBased: RecommendationService,
   ) {}
 
-  async home(visitorId: bigint, requestedLimit = 10) {
-    return this.session(visitorId, requestedLimit, [], [], (limit, excluded) =>
-      this.ruleBased.home(visitorId, limit, excluded),
+  async home(visitorId: bigint, requestedLimit = 10, modelVisitorId?: number) {
+    return this.session(
+      visitorId,
+      requestedLimit,
+      [],
+      [],
+      (limit, excluded, views) =>
+        this.ruleBased.home(visitorId, limit, excluded, views),
+      modelVisitorId,
     );
   }
 
-  async detail(visitorId: bigint, productId: bigint, limit = 10) {
+  async detail(
+    visitorId: bigint,
+    productId: bigint,
+    limit = 10,
+    modelVisitorId?: number,
+  ) {
     const product = await this.repository.product(productId);
     if (!product) return this.ruleBased.similar(productId, limit);
+    if (
+      !product.retailrocketItemId ||
+      !Number.isSafeInteger(Number(product.retailrocketItemId)) ||
+      Number(product.retailrocketItemId) <= 0
+    )
+      return this.ruleBased.similar(productId, limit);
     return this.session(
       visitorId,
       limit,
       [productId],
       product.retailrocketItemId ? [Number(product.retailrocketItemId)] : [],
       (size, excluded) => this.ruleBased.similar(productId, size, excluded),
+      modelVisitorId,
+      productId,
     );
   }
 
-  async cart(visitorId: bigint, userId: bigint, limit = 10) {
+  async cart(
+    visitorId: bigint,
+    userId: bigint,
+    limit = 10,
+    modelVisitorId?: number,
+  ) {
     const products = await this.repository.cartProducts(userId);
+    // A mapped browsing history must not silently replace unmapped cart context.
+    if (
+      products.some((product) => {
+        const sourceId = Number(product.retailrocketItemId);
+        return (
+          !product.retailrocketItemId ||
+          !Number.isSafeInteger(sourceId) ||
+          sourceId <= 0
+        );
+      })
+    ) {
+      return this.ruleBased.cart(userId, limit);
+    }
     return this.session(
       visitorId,
       limit,
@@ -40,6 +77,7 @@ export class AdaptiveRecommendationService {
         p.retailrocketItemId ? [Number(p.retailrocketItemId)] : [],
       ),
       (size, excluded) => this.ruleBased.cart(userId, size, excluded),
+      modelVisitorId,
     );
   }
 
@@ -51,16 +89,28 @@ export class AdaptiveRecommendationService {
     fallbackFor: (
       limit: number,
       excluded?: bigint[],
+      sessionViews?: Array<{ productId: bigint; categoryId: bigint }>,
     ) => ReturnType<RecommendationService['home']>,
+    modelVisitorId?: number,
+    detailProductId?: bigint,
   ) {
     const limit = Math.min(Math.max(requestedLimit, 1), 20);
     const excluded = new Set(excludedProductIds.map(String));
-    const history = await this.repository.recentSessionItemIds(visitorId);
+    const history = await this.repository.recentSessionViews(visitorId);
+    const fallback = (size: number, excludedIds?: bigint[]) =>
+      fallbackFor(size, excludedIds, history);
+    if (history.some((view) => view.sourceItemId === null))
+      return fallback(limit);
     // Nexora visitor IDs never cross the AI boundary; only source item IDs do.
-    const recentItemIds = [...history, ...contextItemIds].filter(
-      (id) => Number.isSafeInteger(id) && id > 0,
-    );
-    if (!recentItemIds.length) return fallbackFor(limit);
+    const recentItemIds = history
+      .filter((view) => view.productId !== detailProductId)
+      .map((view) => view.sourceItemId)
+      .filter(
+        (id): id is number =>
+          typeof id === 'number' && Number.isSafeInteger(id) && id > 0,
+      );
+    if (!recentItemIds.length && !contextItemIds.length && !modelVisitorId)
+      return fallback(limit);
 
     // 2. Lấy các ứng viên ACTIVE + còn hàng từ PostgreSQL.
     const candidates = (await this.repository.sellableMappedProducts()).filter(
@@ -68,18 +118,22 @@ export class AdaptiveRecommendationService {
     );
 
     if (!candidates.length) {
-      return fallbackFor(limit);
+      return fallback(limit);
     }
 
     // 3. Chỉ gửi RetailRocket item IDs vào FastAPI.
     const aiResult = await this.ai.recommendSession({
+      ...(modelVisitorId ? { retailrocket_visitorid: modelVisitorId } : {}),
       recent_itemids: recentItemIds,
+      ...(contextItemIds.length
+        ? { context_itemids: [...new Set(contextItemIds)] }
+        : {}),
       candidate_itemids: candidates.map((item) => item.sourceItemId),
       limit,
     });
 
-    if (!aiResult?.items.length) {
-      return fallbackFor(limit);
+    if (!aiResult?.items.length || aiResult.unknown_recent_itemids.length) {
+      return fallback(limit);
     }
 
     // 4. Ánh xạ kết quả AI trở lại Product ID của Nexora.
@@ -129,18 +183,18 @@ export class AdaptiveRecommendationService {
     if (aiItems.length === limit) {
       return {
         source: 'lightgcn_session' as const,
-        strategy: 'lightgcn_session',
+        strategy: aiResult.strategy,
         items: aiItems,
       };
     }
 
     // 5. Nếu AI không đủ sản phẩm, bổ sung DACN-65.
-    const fallback = await fallbackFor(
+    const fallbackResult = await fallback(
       limit - aiItems.length,
       aiItems.map((item) => BigInt(item.productId)),
     );
 
-    const fallbackItems = fallback.items
+    const fallbackItems = fallbackResult.items
       .filter((item) => !usedIds.has(item.productId))
       .slice(0, limit - aiItems.length);
 

@@ -40,6 +40,19 @@ export class RecommendationController {
     private readonly adaptive: AdaptiveRecommendationService,
   ) {}
 
+  private modelVisitorId(actor?: { userId: string; role: string }) {
+    const configuredUser = process.env.DEMO_RECOMMENDATION_USER_ID;
+    const configuredVisitor = process.env.DEMO_RECOMMENDATION_VISITOR_ID;
+    const visitorId = Number(configuredVisitor);
+    return actor?.role === 'ADMIN' &&
+      actor.userId === configuredUser &&
+      configuredVisitor &&
+      /^[1-9]\d*$/.test(configuredVisitor) &&
+      Number.isSafeInteger(visitorId)
+      ? visitorId
+      : undefined;
+  }
+
   private async authenticate(req: Request) {
     const authorization = req.headers.authorization;
 
@@ -101,7 +114,11 @@ export class RecommendationController {
     );
 
     return this.safeRecommend('home', () =>
-      this.adaptive.home(context.visitorId, query.limit),
+      this.adaptive.home(
+        context.visitorId,
+        query.limit,
+        this.modelVisitorId(actor),
+      ),
     );
   }
 
@@ -157,7 +174,12 @@ export class RecommendationController {
         'Set-Cookie',
         this.identity.visitorCookie(context.visitorToken),
       );
-      return this.adaptive.detail(context.visitorId, BigInt(id), query.limit);
+      return this.adaptive.detail(
+        context.visitorId,
+        BigInt(id),
+        query.limit,
+        this.modelVisitorId(actor),
+      );
     });
   }
 
@@ -182,6 +204,7 @@ export class RecommendationController {
         context.visitorId,
         BigInt(actor.userId),
         query.limit,
+        this.modelVisitorId(actor),
       );
     });
   }

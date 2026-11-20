@@ -238,14 +238,14 @@ export function CartPage() {
                       >
                         {item.product.name}
                       </Link>
-                      <span>
-                        {item.variant
-                          ? optionSummary(
+                      {item.variant ? (
+                        <span>
+                          {optionSummary(
                               item.variant.options,
                               item.variant.optionLabels,
-                            ) || item.variant.sku
-                          : 'Product without variants'}
-                      </span>
+                            ) || item.variant.sku}
+                        </span>
+                      ) : null}
                       {message ? (
                         <strong className="cart-unavailable-message">
                           {message}
