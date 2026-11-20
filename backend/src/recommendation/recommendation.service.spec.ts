@@ -96,3 +96,26 @@ describe('RecommendationService', () => {
     expect(result.strategy).toBe('product_not_found');
   });
 });
+
+describe('Rule fallback exclusions', () => {
+  it.each(['home', 'similar', 'cart'] as const)(
+    '%s never refills AI products',
+    async (surface) => {
+      const repo = {
+        recentViews: vi.fn().mockResolvedValue([]),
+        product: vi.fn().mockResolvedValue({ id: 1n, categoryId: 10n }),
+        cartProducts: vi.fn().mockResolvedValue([{ id: 1n, categoryId: 10n }]),
+        byCategories: vi.fn().mockResolvedValue([]),
+        newest: vi.fn().mockResolvedValue([]),
+      };
+      const service = new RecommendationService(
+        repo as unknown as RecommendationRepository,
+      );
+      await service[surface](1n, 2, [2n, 3n]);
+      expect(repo.newest).toHaveBeenCalledWith(
+        2,
+        expect.arrayContaining([2n, 3n]),
+      );
+    },
+  );
+});

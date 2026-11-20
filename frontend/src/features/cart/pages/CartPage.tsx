@@ -1,3 +1,4 @@
+import { Recommendations } from '../../catalog/components/Recommendations';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -130,7 +131,8 @@ export function CartPage() {
           <span className="section-eyebrow">YOUR CART</span>
           <h1>Your selected items</h1>
           <p>
-            {items.reduce((sum, item) => sum + item.quantity, 0)} items in your cart
+            {items.reduce((sum, item) => sum + item.quantity, 0)} items in your
+            cart
           </p>
         </div>
       </div>
@@ -153,9 +155,7 @@ export function CartPage() {
           </Link>
         </div>
       ) : null}
-      {cartQuery.isError &&
-      status === 'authenticated' &&
-      user ? (
+      {cartQuery.isError && status === 'authenticated' && user ? (
         <div className="empty-state" role="alert">
           <h3>Unable to load your cart</h3>
           <p>Check your connection and try again.</p>
@@ -336,6 +336,14 @@ export function CartPage() {
             </aside>
           </div>
         </>
+      ) : null}
+      {cart && status === 'authenticated' ? (
+        <Recommendations
+          surface="cart"
+          revision={JSON.stringify(
+            items.map((item) => [item.product.id, item.quantity]),
+          )}
+        />
       ) : null}
     </div>
   );

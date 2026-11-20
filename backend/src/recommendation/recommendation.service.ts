@@ -38,7 +38,11 @@ export class RecommendationService {
   }
 
   // HOME: Phân tích danh mục từ lịch sử VIEW.
-  async home(visitorId: bigint, requestedLimit?: number) {
+  async home(
+    visitorId: bigint,
+    requestedLimit?: number,
+    excludeIds: bigint[] = [],
+  ) {
     const limit = this.normalizeLimit(requestedLimit);
 
     const views = await this.repository.recentViews(visitorId);
@@ -47,12 +51,12 @@ export class RecommendationService {
       return {
         source: 'rule_based' as const,
         strategy: 'new_arrivals',
-        items: await this.fallback(limit),
+        items: await this.fallback(limit, excludeIds),
       };
     }
 
     const categoryCounts = new Map<string, number>();
-    const viewedIds = new Set<string>();
+    const viewedIds = new Set<string>(excludeIds.map(String));
 
     for (const view of views) {
       if (view.productId) {
@@ -113,7 +117,11 @@ export class RecommendationService {
   }
 
   // DETAIL: Gợi ý sản phẩm cùng danh mục.
-  async similar(productId: bigint, requestedLimit?: number) {
+  async similar(
+    productId: bigint,
+    requestedLimit?: number,
+    excludeIds: bigint[] = [],
+  ) {
     const limit = this.normalizeLimit(requestedLimit);
 
     const product = await this.repository.product(productId);
@@ -129,7 +137,7 @@ export class RecommendationService {
     const related = await this.repository.byCategories(
       [product.categoryId],
       limit,
-      [product.id],
+      [product.id, ...excludeIds],
     );
 
     const remaining = limit - related.length;
@@ -138,6 +146,7 @@ export class RecommendationService {
       remaining > 0
         ? await this.fallback(remaining, [
             product.id,
+            ...excludeIds,
             ...related.map((item) => item.id),
           ])
         : [];
@@ -150,7 +159,11 @@ export class RecommendationService {
   }
 
   // CART: Gợi ý dựa trên danh mục trong giỏ hàng.
-  async cart(userId: bigint, requestedLimit?: number) {
+  async cart(
+    userId: bigint,
+    requestedLimit?: number,
+    excludeIds: bigint[] = [],
+  ) {
     const limit = this.normalizeLimit(requestedLimit);
 
     const cartProducts = await this.repository.cartProducts(userId);
@@ -159,12 +172,15 @@ export class RecommendationService {
       return {
         source: 'rule_based' as const,
         strategy: 'new_arrivals',
-        items: await this.fallback(limit),
+        items: await this.fallback(limit, excludeIds),
       };
     }
 
     const excludedIds = [
-      ...new Set(cartProducts.map((p) => p.id.toString())),
+      ...new Set([
+        ...excludeIds.map(String),
+        ...cartProducts.map((p) => p.id.toString()),
+      ]),
     ].map(BigInt);
 
     const categoryIds = [

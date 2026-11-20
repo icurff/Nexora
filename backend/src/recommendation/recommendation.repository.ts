@@ -103,7 +103,7 @@ export class RecommendationRepository {
   async product(id: bigint) {
     return this.prisma.product.findUnique({
       where: { id },
-      select: { id: true, categoryId: true },
+      select: { id: true, categoryId: true, retailrocketItemId: true },
     });
   }
 
@@ -136,12 +136,16 @@ export class RecommendationRepository {
         items: {
           include: {
             product: {
-              select: { id: true, categoryId: true },
+              select: { id: true, categoryId: true, retailrocketItemId: true },
             },
             variant: {
               include: {
                 product: {
-                  select: { id: true, categoryId: true },
+                  select: {
+                    id: true,
+                    categoryId: true,
+                    retailrocketItemId: true,
+                  },
                 },
               },
             },
@@ -153,5 +157,102 @@ export class RecommendationRepository {
     return (cart?.items ?? [])
       .map((item) => item.product ?? item.variant?.product)
       .filter((product) => product != null);
+  }
+
+  // Lấy tối đa 3 sản phẩm VIEW gần nhất của phiên hiện tại.
+  // Chỉ sử dụng dữ liệu LIVE, không sử dụng RetailRocket visitor ID.
+  async recentSessionItemIds(visitorId: bigint): Promise<number[]> {
+    const events = await this.prisma.interactionEvent.findMany({
+      where: {
+        visitorId,
+        dataOrigin: 'LIVE',
+        eventSource: 'FRONTEND',
+      },
+      select: {
+        eventType: true,
+        occurredAt: true,
+        trackingSessionId: true,
+        product: {
+          select: { retailrocketItemId: true },
+        },
+      },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: 200,
+    });
+
+    const timeout = 30 * 60 * 1000;
+
+    if (
+      events.length === 0 ||
+      Date.now() - events[0].occurredAt.getTime() > timeout
+    ) {
+      return [];
+    }
+
+    const sessionId = events[0].trackingSessionId;
+    const itemIds: number[] = [];
+    let previousTime = events[0].occurredAt.getTime();
+
+    for (const event of events) {
+      const currentTime = event.occurredAt.getTime();
+
+      if (
+        event.trackingSessionId !== sessionId ||
+        previousTime - currentTime > timeout
+      ) {
+        break;
+      }
+
+      previousTime = currentTime;
+
+      if (event.eventType !== 'view') continue;
+
+      const sourceId = event.product?.retailrocketItemId;
+      if (!sourceId) continue;
+
+      const itemId = Number(sourceId);
+
+      if (Number.isSafeInteger(itemId) && itemId > 0) {
+        itemIds.push(itemId);
+      }
+    }
+
+    // FastAPI yêu cầu thứ tự cũ -> mới.
+    return itemIds.reverse().slice(-3);
+  }
+
+  // Chỉ lấy các sản phẩm đang bán được và có RetailRocket ID.
+  // Sử dụng lại sellableSql hiện có, không bỏ qua tồn kho SKU.
+  async sellableMappedProducts(limit = 5000) {
+    const safeLimit = Math.min(Math.max(limit, 1), 5000);
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: bigint;
+        name: string;
+        categoryId: bigint;
+        retailrocketItemId: string;
+      }>
+    >`
+      SELECT
+        p.id,
+        p.name,
+        p.category_id AS "categoryId",
+        p.retailrocket_item_id AS "retailrocketItemId"
+      FROM products AS p
+      WHERE ${this.sellableSql}
+        AND p.retailrocket_item_id IS NOT NULL
+      ORDER BY p.id ASC
+      LIMIT ${safeLimit}
+    `;
+
+    return rows
+      .map((row) => ({
+        ...row,
+        sourceItemId: Number(row.retailrocketItemId),
+      }))
+      .filter(
+        (row) => Number.isSafeInteger(row.sourceItemId) && row.sourceItemId > 0,
+      );
   }
 }

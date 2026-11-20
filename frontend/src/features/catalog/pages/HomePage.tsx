@@ -1,3 +1,4 @@
+import { Recommendations } from '../components/Recommendations';
 import {
   ArrowRight,
   BadgeCheck,
@@ -142,6 +143,7 @@ export function HomePage() {
             </span>
           </div>
         </section>
+        <Recommendations surface="home" />
         <section className="home-section">
           <SectionHeading
             eyebrow="SHOP BY CATEGORY"
