@@ -19,6 +19,8 @@ import {
   TRACKING_VISITOR_COOKIE,
 } from '../tracking/tracking-identity.service.js';
 import { RecommendationService } from './recommendation.service.js';
+import { AiRecommendationClient } from './ai-recommendation.client.js';
+import { AdaptiveRecommendationService } from './adaptive-recommendation.service.js';
 
 class RecommendationQueryDto {
   @Type(() => Number)
@@ -34,6 +36,8 @@ export class RecommendationController {
     private readonly recommendations: RecommendationService,
     private readonly identity: TrackingIdentityService,
     private readonly auth: AuthService,
+    private readonly aiClient: AiRecommendationClient,
+    private readonly adaptive: AdaptiveRecommendationService,
   ) {}
 
   private async authenticate(req: Request) {
@@ -97,7 +101,7 @@ export class RecommendationController {
     );
 
     return this.safeRecommend('home', () =>
-      this.recommendations.home(context.visitorId, query.limit),
+      this.adaptive.home(context.visitorId, query.limit),
     );
   }
 
@@ -130,5 +134,65 @@ export class RecommendationController {
     return this.safeRecommend('cart', () =>
       this.recommendations.cart(BigInt(actor.userId), query.limit),
     );
+  }
+
+  // Contextual session ranking; original similar/cart routes remain DACN-65.
+  @Get('products/:id/session')
+  async productSession(
+    @Param('id') id: string,
+    @Query() query: RecommendationQueryDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!/^[1-9]\d*$/.test(id) || BigInt(id) > 9223372036854775807n) {
+      throw new BadRequestException('Invalid product ID');
+    }
+    const actor = await this.authenticate(req);
+    return this.safeRecommend('product-session', async () => {
+      const context = await this.identity.resolve(
+        this.visitorToken(req),
+        actor?.userId,
+      );
+      res.setHeader(
+        'Set-Cookie',
+        this.identity.visitorCookie(context.visitorToken),
+      );
+      return this.adaptive.detail(context.visitorId, BigInt(id), query.limit);
+    });
+  }
+
+  @Get('cart/session')
+  async cartSession(
+    @Query() query: RecommendationQueryDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const actor = await this.authenticate(req);
+    if (!actor) throw new UnauthorizedException();
+    return this.safeRecommend('cart-session', async () => {
+      const context = await this.identity.resolve(
+        this.visitorToken(req),
+        actor.userId,
+      );
+      res.setHeader(
+        'Set-Cookie',
+        this.identity.visitorCookie(context.visitorToken),
+      );
+      return this.adaptive.cart(
+        context.visitorId,
+        BigInt(actor.userId),
+        query.limit,
+      );
+    });
+  }
+
+  @Get('ai/health')
+  async aiHealth() {
+    const available = await this.aiClient.health();
+
+    return {
+      service: 'nexora-recommendation',
+      aiAvailable: available,
+    };
   }
 }

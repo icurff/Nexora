@@ -1,3 +1,4 @@
+import { Recommendations } from '../components/Recommendations';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -79,6 +80,7 @@ function ProductDetail({ id }: { id: string }) {
     );
   }, [options, preferredVariantId, product, selection]);
   // Log VIEW when show product successful
+  const [trackingReady, setTrackingReady] = useState(false);
   const trackedProductIds = useRef(new Set<string>());
 
   useEffect(() => {
@@ -91,7 +93,7 @@ function ProductDetail({ id }: { id: string }) {
     void trackEvent({
       eventType: 'view',
       productId: product.id,
-    });
+    }).finally(() => setTrackingReady(true));
   }, [product?.id]);
 
   const gallery = selectedVariant?.images.length
@@ -401,6 +403,9 @@ function ProductDetail({ id }: { id: string }) {
           </div>
         </div>
       </div>
+      {trackingReady ? (
+        <Recommendations surface="detail" productId={product.id} />
+      ) : null}
       <ProductReviews productId={product.id} />
     </div>
   );

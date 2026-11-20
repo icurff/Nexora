@@ -1,3 +1,11 @@
+# Python virtual environments
+.venv/
+venv/
+
+# Local AI model artifacts - do not commit
+/ai/artifacts/
+/ai/data/raw/
+/ai/data/processed/
 # Dependencies, builds and caches in every application
 node_modules/
 dist/

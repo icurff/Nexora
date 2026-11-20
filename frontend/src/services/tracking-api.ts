@@ -16,17 +16,24 @@ export async function trackEvent(event: TrackingEvent): Promise<void> {
   const token = storedAccessToken();
 
   try {
-    await apiClient.post(
+    const response = await apiClient.post(
       '/tracking/events',
       {
         eventId: crypto.randomUUID(),
         ...event,
       },
       {
+        timeout: 3000,
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       },
     );
-  } catch {
-    // Tracking lỗi không được chặn thao tác mua sắm.
+
+    if (import.meta.env.DEV) {
+      console.debug('[Tracking] Recorded:', event, response.data);
+    }
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[Tracking] Failed:', event, error);
+    }
   }
 }
