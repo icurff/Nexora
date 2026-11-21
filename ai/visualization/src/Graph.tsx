@@ -200,21 +200,21 @@ export function Graph(props: Props) {
         lastReset = p.reset;
       }
       controls.autoRotate = p.rotate;
-      meshes[0].mesh.visible = p.users && p.mode !== 'coldstart';
+      meshes[0].mesh.visible =
+        p.users && (p.mode !== 'coldstart' || !!p.session.groups);
       sessionNode.visible =
         p.mode === 'coldstart' &&
+        !p.session.groups &&
         p.session.historyKeys.length +
           p.session.recommendationKeys.length +
           (p.session.ruleRecommendationKeys?.length ?? 0) >
           0;
       meshes[1].mesh.visible = p.items;
-      const signature = `${p.selected}|${p.links}|${p.users}|${p.items}|${p.mode}|${p.session.historyKeys.join(',')}|${p.session.recommendationKeys.join(',')}|${p.session.ruleRecommendationKeys?.join(',')}`;
+      const signature = `${p.selected}|${p.links}|${p.users}|${p.items}|${p.mode}|${p.session.historyKeys.join(',')}|${p.session.recommendationKeys.join(',')}|${p.session.ruleRecommendationKeys?.join(',')}|${JSON.stringify(p.session.groups)}`;
       if (signature !== previous) {
         previous = signature;
         const node = p.selected ? byKey.get(p.selected) : undefined;
-        ring.visible =
-          !!node &&
-          (node.type === 'user' ? p.users && p.mode !== 'coldstart' : p.items);
+        ring.visible = !!node && (node.type === 'user' ? p.users : p.items);
         if (node) ring.position.set(...node.position);
         const positions: number[] = [];
         if (p.mode === 'interaction' && p.users && p.items)
@@ -238,17 +238,24 @@ export function Graph(props: Props) {
         );
         lineMaterial.color.set('#f3bd70');
         lineMaterial.opacity = p.links ? 0.55 : 0.8;
-        for (const [object, keys] of [
-          [historyLines, p.session.historyKeys],
-          [recommendationLines, p.session.recommendationKeys],
-          [ruleLines, p.session.ruleRecommendationKeys ?? []],
+        for (const [object, field] of [
+          [historyLines, 'historyKeys'],
+          [recommendationLines, 'recommendationKeys'],
+          [ruleLines, 'ruleRecommendationKeys'],
         ] as const) {
           const segments: number[] = [];
-          if (p.mode === 'coldstart' && p.items)
-            for (const key of new Set(keys)) {
-              const target = byKey.get(key);
-              if (target?.type === 'item')
-                segments.push(...sessionPosition.toArray(), ...target.position);
+          const groups = p.session.groups ?? [{ source: '', ...p.session }];
+          if (p.mode === 'coldstart' && p.items && p.users)
+            for (const group of groups) {
+              const origin = group.source
+                ? byKey.get(group.source)?.position
+                : sessionPosition.toArray();
+              if (!origin) continue;
+              for (const key of new Set(group[field] ?? [])) {
+                const target = byKey.get(key);
+                if (target?.type === 'item')
+                  segments.push(...origin, ...target.position);
+              }
             }
           object.geometry.dispose();
           object.geometry = new THREE.BufferGeometry();

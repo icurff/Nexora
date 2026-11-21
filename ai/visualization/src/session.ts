@@ -15,6 +15,12 @@ export interface SessionResult {
   items: SessionItem[];
 }
 export interface SessionScene {
+  groups?: {
+    source: string;
+    historyKeys: string[];
+    recommendationKeys: string[];
+    ruleRecommendationKeys: string[];
+  }[];
   historyKeys: string[];
   recommendationKeys: string[];
   ruleRecommendationKeys?: string[];

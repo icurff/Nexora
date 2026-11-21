@@ -397,3 +397,29 @@ Validation adds store tests for source/score fidelity, no response mutation,
 identity isolation, TTL, since-window filtering, empty-result clearing and cache
 bounds. LIVE integration checks compare graph payload with the real home API
 response, verify cookie isolation, and ensure polling does not recompute batches.
+
+## Shared database demo (no admin login)
+
+In **Phiên cold-start**, choose **Tất cả phiên · Database chung**. The separate
+read-only `GET /api/v1/tracking/shared-graph?since=<ISO>` endpoint returns up to
+20 active sessions (30-minute idle cutoff), up to 200 recent LIVE VIEW events per
+session, and the same transient actual recommendation response described above.
+It polls every 2.5 seconds. Initially the window includes the preceding 30 minutes;
+**Theo dõi từ bây giờ** advances that window. Sessions without new events still
+appear as session nodes. A node represents a TrackingSession, labeled with User
+ID if associated with a logged-in account; two devices are not merged into one
+session. Items are shared by Product ID, but each edge retains its source session.
+No email, name, visitor token or visitor ID is returned. This is an explicitly
+unauthenticated demo endpoint: anyone able to reach the enabled backend can read
+these session/product relationships.
+
+Set `NEXORA_SHARED_GRAPH=true` in `backend/.env`, then restart the backend. The
+flag defaults to false and the route is always forbidden in production. For
+Docker, pass that variable explicitly into the backend container if needed;
+Compose does not automatically forward arbitrary host variables. The local
+backend environment was enabled for this requested demo; no secret is committed.
+Both devices must use the same backend/database. On a second device use the
+host's LAN address or an existing deployed shop URL, not its own `127.0.0.1`.
+The graph itself can remain on the host at port 5174. This change does not publish
+ports or change existing frontend networking/authentication. Recommendation
+history is still transient, not persisted across restarts. No schema changes.

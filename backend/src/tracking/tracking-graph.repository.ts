@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { RecommendationGraphStore } from './recommendation-graph.store.js';
 import { PrismaService } from '../database/prisma.service.js';
@@ -29,9 +29,43 @@ export class TrackingGraphRepository {
       select: { id: true, startedAt: true },
     });
     if (!session) return empty;
+    return this.sessionSnapshot(session, visitor.id, since);
+  }
+
+  async shared(since: Date) {
+    if (
+      process.env.NEXORA_SHARED_GRAPH !== 'true' ||
+      process.env.NODE_ENV === 'production'
+    )
+      throw new ForbiddenException('Shared graph demo is disabled.');
+    const sessions = await this.prisma.trackingSession.findMany({
+      where: {
+        endedAt: null,
+        lastSeenAt: { gt: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+      orderBy: [{ lastSeenAt: 'desc' }, { id: 'desc' }],
+      take: 21,
+      select: { id: true, visitorId: true, userId: true, startedAt: true },
+    });
+    const snapshots = [];
+    // Bound both session count and per-session events; no identity/session writes.
+    for (const session of sessions.slice(0, 20)) {
+      snapshots.push({
+        ...(await this.sessionSnapshot(session, session.visitorId, since)),
+        userId: session.userId?.toString() ?? null,
+      });
+    }
+    return { sessions: snapshots, truncated: sessions.length > 20, limit: 20 };
+  }
+
+  private async sessionSnapshot(
+    session: { id: bigint; startedAt: Date },
+    visitorId: bigint,
+    since: Date,
+  ) {
     const rows = await this.prisma.interactionEvent.findMany({
       where: {
-        visitorId: visitor.id,
+        visitorId,
         trackingSessionId: session.id,
         dataOrigin: 'LIVE',
         eventType: 'view',

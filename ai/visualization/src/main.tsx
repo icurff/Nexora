@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { SharedSessions } from './SharedSessions';
 import { Graph } from './Graph';
 import { LiveSession } from './LiveSession';
 import { emptyLive, liveNodes, readCatalog } from './live-session';
@@ -11,6 +12,7 @@ const fmt = (v: number) => v.toLocaleString('vi-VN');
 const percent = (v: number) => `${(v * 100).toFixed(2)}%`;
 function App() {
   const [data, setData] = useState<GraphData | null>(null);
+  const [shared, setShared] = useState(false);
   const [mode, setMode] = useState<GraphMode>('interaction');
   const [live, setLive] = useState<LiveSnapshot>(emptyLive);
   // Owned by the app so unmounting the LIVE panel cannot reset the window.
@@ -253,7 +255,26 @@ function App() {
                 : 'VIEW từ PostgreSQL; dây đề xuất lấy từ kết quả API thực sự trả cho website trong cùng phiên.'}
             </p>
           </section>
-          <section className="workspace">
+          {mode === 'coldstart' && (
+            <section className="mode-switch">
+              <button aria-pressed={shared} onClick={() => setShared(!shared)}>
+                {shared
+                  ? 'Chỉ phiên trình duyệt này'
+                  : 'Tất cả phiên · Database chung'}
+              </button>
+            </section>
+          )}
+          {shared && (
+            <div style={mode !== 'coldstart' ? { display: 'none' } : undefined}>
+              <SharedSessions data={data!} active={mode === 'coldstart'} />
+            </div>
+          )}
+          <section
+            className="workspace"
+            style={
+              mode === 'coldstart' && shared ? { display: 'none' } : undefined
+            }
+          >
             <div className="graph-panel">
               <div className="graph-toolbar">
                 <div>
@@ -393,7 +414,7 @@ function App() {
                   </p>
                 </section>
               )}
-              {mode === 'coldstart' && (
+              {mode === 'coldstart' && !shared && (
                 <LiveSession
                   since={liveSince!}
                   snapshot={live}

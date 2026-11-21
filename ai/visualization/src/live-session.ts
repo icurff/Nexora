@@ -38,7 +38,12 @@ export async function readLiveSession(
     throw new Error(
       `Không đọc được tracking (HTTP ${response.status}). Kiểm tra backend tại cổng 3000.`,
     );
-  const data = (await response.json()) as LiveSnapshot;
+  return validateLiveSnapshot(await response.json());
+}
+export function validateLiveSnapshot(value: unknown): LiveSnapshot {
+  if (!value || typeof value !== 'object')
+    throw new Error('Dữ liệu tracking không hợp lệ.');
+  const data = value as LiveSnapshot;
   if (
     !Array.isArray(data.events) ||
     typeof data.truncated !== 'boolean' ||

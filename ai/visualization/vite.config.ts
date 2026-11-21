@@ -4,6 +4,10 @@ import { defineConfig } from 'vite';
 // Same path works for dev and built-app preview; no commerce/session credentials.
 const proxy = {
   '/api/v1/products': { target: 'http://127.0.0.1:3000', changeOrigin: false },
+  '/api/v1/tracking/shared-graph': {
+    target: 'http://127.0.0.1:3000',
+    changeOrigin: false,
+  },
   '/api/v1/tracking/session-graph': {
     target: 'http://127.0.0.1:3000',
     changeOrigin: false,

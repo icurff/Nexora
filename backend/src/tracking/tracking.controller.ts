@@ -34,6 +34,15 @@ export class TrackingController {
     private readonly graph: TrackingGraphRepository,
   ) {}
 
+  @Get('shared-graph')
+  async sharedGraph(
+    @Query() query: SessionGraphQuery,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    res.setHeader('Cache-Control', 'no-store');
+    return this.graph.shared(new Date(query.since));
+  }
+
   @Get('session-graph')
   async sessionGraph(
     @Query() query: SessionGraphQuery,
