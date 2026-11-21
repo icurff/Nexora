@@ -1,5 +1,7 @@
 import {
   Controller,
+  Get,
+  Query,
   Post,
   Body,
   Req,
@@ -7,6 +9,8 @@ import {
   HttpCode,
   UnauthorizedException,
 } from '@nestjs/common';
+import { IsDateString } from 'class-validator';
+import { TrackingGraphRepository } from './tracking-graph.repository.js';
 import type { Request, Response } from 'express';
 import { AuthService } from '../auth/auth.service.js';
 import { TrackingService } from './tracking.service.js';
@@ -16,13 +20,34 @@ import {
 } from './tracking-identity.service.js';
 import { TrackEventDto } from './dto/track-event.dto.js';
 
+class SessionGraphQuery {
+  @IsDateString({ strict: true })
+  since!: string;
+}
+
 @Controller('tracking')
 export class TrackingController {
   constructor(
     private readonly tracking: TrackingService,
     private readonly identity: TrackingIdentityService,
     private readonly auth: AuthService,
+    private readonly graph: TrackingGraphRepository,
   ) {}
+
+  @Get('session-graph')
+  async sessionGraph(
+    @Query() query: SessionGraphQuery,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    res.setHeader('Cache-Control', 'no-store');
+    const token = req.headers.cookie
+      ?.split(';')
+      .map((value) => value.trim())
+      .find((value) => value.startsWith(`${TRACKING_VISITOR_COOKIE}=`))
+      ?.slice(TRACKING_VISITOR_COOKIE.length + 1);
+    return this.graph.snapshot(token, new Date(query.since));
+  }
 
   @Post('events')
   @HttpCode(200)

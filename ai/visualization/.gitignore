@@ -1,0 +1,3 @@
+# Regenerate from local, ignored model artifacts; never publish source IDs accidentally.
+/public/data/*.json
+/public/projector/

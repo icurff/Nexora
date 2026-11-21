@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Logger,
+  Optional,
   Param,
   Query,
   Req,
@@ -18,6 +19,8 @@ import {
   TrackingIdentityService,
   TRACKING_VISITOR_COOKIE,
 } from '../tracking/tracking-identity.service.js';
+import { RecommendationGraphStore } from '../tracking/recommendation-graph.store.js';
+import type { GraphRecommendation } from '../tracking/recommendation-graph.store.js';
 import { RecommendationService } from './recommendation.service.js';
 import { AiRecommendationClient } from './ai-recommendation.client.js';
 import { AdaptiveRecommendationService } from './adaptive-recommendation.service.js';
@@ -38,6 +41,7 @@ export class RecommendationController {
     private readonly auth: AuthService,
     private readonly aiClient: AiRecommendationClient,
     private readonly adaptive: AdaptiveRecommendationService,
+    @Optional() private readonly graph?: RecommendationGraphStore,
   ) {}
 
   private async authenticate(req: Request) {
@@ -82,6 +86,17 @@ export class RecommendationController {
     }
   }
 
+  private async graphResponse(
+    sessionId: bigint,
+    surface: GraphRecommendation['surface'],
+    action: () => Promise<unknown>,
+    contextProductId?: string,
+  ) {
+    const result = await this.safeRecommend(surface, action);
+    this.graph?.record(sessionId, surface, result, contextProductId);
+    return result;
+  }
+
   @Get('home')
   async home(
     @Query() query: RecommendationQueryDto,
@@ -100,7 +115,7 @@ export class RecommendationController {
       this.identity.visitorCookie(context.visitorToken),
     );
 
-    return this.safeRecommend('home', () =>
+    return this.graphResponse(context.trackingSessionId, 'home', () =>
       this.adaptive.home(context.visitorId, query.limit),
     );
   }
@@ -157,7 +172,12 @@ export class RecommendationController {
         'Set-Cookie',
         this.identity.visitorCookie(context.visitorToken),
       );
-      return this.adaptive.detail(context.visitorId, BigInt(id), query.limit);
+      return this.graphResponse(
+        context.trackingSessionId,
+        'detail',
+        () => this.adaptive.detail(context.visitorId, BigInt(id), query.limit),
+        id,
+      );
     });
   }
 
@@ -178,10 +198,12 @@ export class RecommendationController {
         'Set-Cookie',
         this.identity.visitorCookie(context.visitorToken),
       );
-      return this.adaptive.cart(
-        context.visitorId,
-        BigInt(actor.userId),
-        query.limit,
+      return this.graphResponse(context.trackingSessionId, 'cart', () =>
+        this.adaptive.cart(
+          context.visitorId,
+          BigInt(actor.userId),
+          query.limit,
+        ),
       );
     });
   }
