@@ -37,17 +37,37 @@ export class RecommendationService {
     return this.format(products, 'new_arrival');
   }
 
+  private async rankedCategoryProducts(
+    categoryIds: bigint[],
+    limit: number,
+    excludedIds: bigint[],
+  ) {
+    const selected: ProductCandidate[] = [];
+    for (const categoryId of categoryIds) {
+      const remaining = limit - selected.length;
+      if (remaining <= 0) break;
+      const products = await this.repository.byCategories(
+        [categoryId],
+        remaining,
+        [...excludedIds, ...selected.map((product) => product.id)],
+      );
+      selected.push(...products);
+    }
+    return selected;
+  }
+
   // HOME: Phân tích danh mục từ lịch sử VIEW.
   async home(
     visitorId: bigint,
     requestedLimit?: number,
     excludeIds: bigint[] = [],
+    sessionViews: Array<{ productId: bigint; categoryId: bigint }> = [],
   ) {
     const limit = this.normalizeLimit(requestedLimit);
 
     const views = await this.repository.recentViews(visitorId);
 
-    if (!views.length) {
+    if (!views.length && !sessionViews.length) {
       return {
         source: 'rule_based' as const,
         strategy: 'new_arrivals',
@@ -71,30 +91,29 @@ export class RecommendationService {
       categoryCounts.set(key, (categoryCounts.get(key) ?? 0) + 1);
     }
 
+    const sessionCounts = new Map<string, number>();
+    for (const view of sessionViews) {
+      viewedIds.add(view.productId.toString());
+      const key = view.categoryId.toString();
+      sessionCounts.set(key, (sessionCounts.get(key) ?? 0) + 1);
+      if (!categoryCounts.has(key)) categoryCounts.set(key, 0);
+    }
+
     const rankedCategories = [...categoryCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
+      .sort(
+        (a, b) =>
+          (sessionCounts.get(b[0]) ?? 0) - (sessionCounts.get(a[0]) ?? 0) ||
+          b[1] - a[1],
+      )
       .map(([id]) => BigInt(id));
 
     const excludedIds = [...viewedIds].map(BigInt);
 
-    const related = await this.repository.byCategories(
+    const selected = await this.rankedCategoryProducts(
       rankedCategories,
-      limit * 5,
+      limit,
       excludedIds,
     );
-
-    const categoryRank = new Map(
-      rankedCategories.map((id, index) => [id.toString(), index]),
-    );
-
-    related.sort(
-      (a, b) =>
-        (categoryRank.get(a.categoryId.toString()) ?? 999) -
-          (categoryRank.get(b.categoryId.toString()) ?? 999) ||
-        Number(b.createdAt) - Number(a.createdAt),
-    );
-
-    const selected = related.slice(0, limit);
 
     const remaining = limit - selected.length;
 
@@ -183,11 +202,22 @@ export class RecommendationService {
       ]),
     ].map(BigInt);
 
-    const categoryIds = [
-      ...new Set(cartProducts.map((p) => p.categoryId.toString())),
-    ].map(BigInt);
+    const productsByCategory = new Map<string, Set<string>>();
+    for (const product of cartProducts) {
+      const categoryId = product.categoryId.toString();
+      const productIds =
+        productsByCategory.get(categoryId) ?? new Set<string>();
+      productIds.add(product.id.toString());
+      productsByCategory.set(categoryId, productIds);
+    }
+    const categoryIds = [...productsByCategory.entries()]
+      .sort(
+        (a, b) =>
+          b[1].size - a[1].size || (BigInt(a[0]) < BigInt(b[0]) ? -1 : 1),
+      )
+      .map(([id]) => BigInt(id));
 
-    const related = await this.repository.byCategories(
+    const related = await this.rankedCategoryProducts(
       categoryIds,
       limit,
       excludedIds,

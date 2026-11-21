@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CatalogProductGrid } from '../components/catalog-components.js';
+import { Pagination } from '../components/Pagination.js';
 import { getPublicProducts } from '../services/public-catalog-api.js';
 
 export function ProductsPage() {
@@ -54,29 +55,17 @@ export function ProductsPage() {
             <strong>{result?.total ?? 0}</strong> products
           </div>
           <CatalogProductGrid products={result?.items ?? []} />
-          {(result?.totalPages ?? 0) > 1 ? (
-            <nav className="pagination" aria-label="Product pagination">
-              <button
-                className="page-next"
-                disabled={page <= 1}
-                onClick={() =>
-                  setParams(page <= 2 ? {} : { page: String(page - 1) })
-                }
-              >
-                Previous
-              </button>
-              <span className="page-number active" aria-current="page">
-                {page}
-              </span>
-              <button
-                className="page-next"
-                disabled={page >= (result?.totalPages ?? 1)}
-                onClick={() => setParams({ page: String(page + 1) })}
-              >
-                Next <ArrowRight size={15} />
-              </button>
-            </nav>
-          ) : null}
+          <Pagination
+            page={page}
+            totalPages={result?.totalPages ?? 0}
+            label="Product pagination"
+            onPageChange={(nextPage) => {
+              const next = new URLSearchParams(params);
+              if (nextPage === 1) next.delete('page');
+              else next.set('page', String(nextPage));
+              setParams(next);
+            }}
+          />
         </>
       )}
     </div>

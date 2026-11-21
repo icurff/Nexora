@@ -7,13 +7,15 @@ import {
   Truck,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { CategoryImage } from '../components/CategoryImage.js';
 import {
   SectionHeading,
   CatalogProductGrid,
 } from '../components/catalog-components.js';
 import {
   formatVnd,
+  getPublicCategories,
   getPublicProducts,
 } from '../services/public-catalog-api.js';
 
@@ -28,9 +30,29 @@ export function HomePage() {
   const artwork = items.filter((item) =>
     item.image?.contentType.startsWith('image/'),
   );
-  const categories = [
-    ...new Map(items.map((item) => [item.category.id, item.category])).values(),
-  ].slice(0, 4);
+  const categoryQuery = useQuery({
+    queryKey: ['public-categories'],
+    queryFn: getPublicCategories,
+    retry: false,
+  });
+  const rootCategories = (categoryQuery.data ?? []).filter(
+    (category) => !category.parentId,
+  );
+  const categories = [...rootCategories]
+    .sort(
+      (a, b) =>
+        Number(a.name.toLowerCase() === 'other') -
+        Number(b.name.toLowerCase() === 'other'),
+    )
+    .slice(0, 4);
+  const categoryPreviews = useQueries({
+    queries: categories.map((category) => ({
+      queryKey: ['category-preview', category.id],
+      queryFn: () => getPublicProducts(1, undefined, category.id, 8),
+      staleTime: 5 * 60 * 1000,
+      retry: false,
+    })),
+  });
   const grid = (productsToShow: typeof items) =>
     products.isPending ? (
       <div className="empty-state" role="status">
@@ -144,7 +166,7 @@ export function HomePage() {
           </div>
         </section>
         <Recommendations surface="home" />
-        <section className="home-section">
+        <section className="home-section" id="shop-categories">
           <SectionHeading
             eyebrow="SHOP BY CATEGORY"
             title="Find what you need"
@@ -152,18 +174,39 @@ export function HomePage() {
             link="/categories"
             linkText="All categories"
           />
-          <div className="category-grid">
+          {categoryQuery.isPending ? (
+            <p role="status">Loading categories…</p>
+          ) : null}
+          {categoryQuery.isError ? (
+            <p role="alert">
+              Unable to load categories.{' '}
+              <button
+                className="button-secondary"
+                onClick={() => void categoryQuery.refetch()}
+              >
+                Try again
+              </button>
+            </p>
+          ) : null}
+          {categoryQuery.isSuccess && !categories.length ? (
+            <p>No categories available.</p>
+          ) : null}
+          <div className="home-category-grid">
             {categories.map((category, index) => (
               <Link
                 to={`/categories/${category.id}`}
                 key={category.id}
-                className={`category-card category-${['mint', 'sand', 'blue', 'rose'][index]}`}
+                className="home-category-card"
               >
-                <span className="category-number">0{index + 1}</span>
-                <div>
-                  <h3>{category.name}</h3>
-                </div>
-                <ArrowRight className="category-arrow" />
+                <CategoryImage
+                  url={
+                    categoryPreviews[index]?.data?.items.find((product) =>
+                      product.image?.contentType.startsWith('image/'),
+                    )?.image?.url
+                  }
+                />
+                <span className="home-category-name">{category.name}</span>
+                <ArrowRight size={19} aria-hidden="true" />
               </Link>
             ))}
           </div>

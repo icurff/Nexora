@@ -50,14 +50,24 @@ describe('RecommendationService', () => {
       { productId: 3n, product: { categoryId: 20n } },
     ]);
 
-    repo.byCategories.mockResolvedValue([product(5, 20), product(4, 10)]);
+    repo.byCategories.mockImplementation((categories: bigint[]) =>
+      Promise.resolve(
+        categories[0] === 10n ? [product(4, 10)] : [product(5, 20)],
+      ),
+    );
 
     const result = await service.home(5n, 2);
 
-    expect(repo.byCategories).toHaveBeenCalledWith([10n, 20n], 10, [
+    expect(repo.byCategories).toHaveBeenNthCalledWith(1, [10n], 2, [
       1n,
       2n,
       3n,
+    ]);
+    expect(repo.byCategories).toHaveBeenNthCalledWith(2, [20n], 1, [
+      1n,
+      2n,
+      3n,
+      4n,
     ]);
 
     expect(result.items.map((x) => x.productId)).toEqual(['4', '5']);
@@ -81,10 +91,84 @@ describe('RecommendationService', () => {
 
     const result = await service.cart(7n, 1);
 
-    expect(repo.byCategories).toHaveBeenCalledWith([10n, 20n], 1, [1n, 2n]);
+    expect(repo.byCategories).toHaveBeenCalledWith([10n], 1, [1n, 2n]);
 
     expect(result.items[0].productId).toBe('3');
     expect(result.items[0].reason).toBe('cart_category');
+  });
+
+  it('Cart: ranks categories by distinct cart products, then fills from other categories', async () => {
+    repo.cartProducts.mockResolvedValue([
+      product(1, 20),
+      product(2, 10),
+      product(3, 10),
+      product(3, 10),
+    ]);
+    repo.byCategories.mockImplementation((categories: bigint[]) =>
+      Promise.resolve(
+        categories[0] === 10n ? [product(4, 10)] : [product(5, 20)],
+      ),
+    );
+    const result = await service.cart(7n, 2, [9n]);
+    expect(result.items.map((item) => item.productId)).toEqual(['4', '5']);
+    expect(repo.byCategories).toHaveBeenNthCalledWith(1, [10n], 2, [
+      9n,
+      1n,
+      2n,
+      3n,
+    ]);
+    expect(repo.byCategories).toHaveBeenNthCalledWith(2, [20n], 1, [
+      9n,
+      1n,
+      2n,
+      3n,
+      4n,
+    ]);
+  });
+
+  it('Home: does not let newer products in less viewed categories crowd out the preferred category', async () => {
+    repo.recentViews.mockResolvedValue([
+      { productId: 1n, product: { categoryId: 10n } },
+      { productId: 2n, product: { categoryId: 10n } },
+      { productId: 3n, product: { categoryId: 20n } },
+    ]);
+    repo.byCategories.mockImplementation((categories: bigint[]) =>
+      Promise.resolve(
+        categories[0] === 10n
+          ? [product(4, 10), product(5, 10)]
+          : [product(6, 20)],
+      ),
+    );
+    const result = await service.home(5n, 2);
+    expect(result.items.map((item) => item.categoryId)).toEqual(['10', '10']);
+    expect(repo.byCategories).toHaveBeenCalledTimes(1);
+  });
+
+  it('Home: current session categories take priority over older frequent views', async () => {
+    repo.recentViews.mockResolvedValue([
+      ...Array.from({ length: 10 }, (_, i) => ({
+        productId: BigInt(i + 1),
+        product: { categoryId: 10n },
+      })),
+      { productId: 11n, product: { categoryId: 20n } },
+    ]);
+    repo.byCategories.mockImplementation((categories: bigint[]) =>
+      Promise.resolve(
+        categories[0] === 20n ? [product(12, 20)] : [product(13, 10)],
+      ),
+    );
+    const result = await service.home(
+      5n,
+      1,
+      [],
+      [{ productId: 11n, categoryId: 20n }],
+    );
+    expect(result.items.map((item) => item.productId)).toEqual(['12']);
+    expect(repo.byCategories).toHaveBeenCalledWith(
+      [20n],
+      1,
+      expect.arrayContaining([11n]),
+    );
   });
 
   it('Detail: sản phẩm không tồn tại trả danh sách rỗng', async () => {

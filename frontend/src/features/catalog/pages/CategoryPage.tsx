@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { CatalogProductGrid } from '../components/catalog-components.js';
+import { Pagination } from '../components/Pagination.js';
 import {
   getPublicCategories,
   getPublicProducts,
@@ -69,27 +70,15 @@ function CategoryContent({ id }: { id: string }) {
             </div>
           </div>
           <CatalogProductGrid products={products.data.items} />
-          {products.data.totalPages > 1 ? (
-            <nav className="pagination" aria-label="Category pagination">
-              <button
-                className="page-next"
-                disabled={page <= 1}
-                onClick={() => setPage((value) => value - 1)}
-              >
-                Previous
-              </button>
-              <span>
-                Page {page} / {products.data.totalPages}
-              </span>
-              <button
-                className="page-next"
-                disabled={page >= products.data.totalPages}
-                onClick={() => setPage((value) => value + 1)}
-              >
-                Next
-              </button>
-            </nav>
-          ) : null}
+          <Pagination
+            page={page}
+            totalPages={products.data.totalPages}
+            label="Category pagination"
+            onPageChange={(nextPage) => {
+              setPage(nextPage);
+              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            }}
+          />
         </>
       ) : null}
     </div>
