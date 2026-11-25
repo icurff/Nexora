@@ -4,6 +4,15 @@ import type { GraphData, GraphNode } from './data';
 import { liveNodes, validateLiveSnapshot } from './live-session';
 import type { LiveSnapshot } from './live-session';
 type SharedSession = LiveSnapshot & { userId: string | null };
+
+function productUrl(productId: string) {
+  return `http://${window.location.hostname}:5173/products/${productId}`;
+}
+
+function recommendationSource(source: 'lightgcn_session' | 'rule_based') {
+  return source === 'lightgcn_session' ? 'AI · LightGCN' : 'Quy tắc';
+}
+
 export function SharedSessions({
   data,
   active,
@@ -15,6 +24,7 @@ export function SharedSessions({
   const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [focusedSessionId, setFocusedSessionId] = useState<string | null>(null);
   const [rotate, setRotate] = useState(true);
   const [reset, setReset] = useState(0);
   const [since, setSince] = useState(() =>
@@ -123,7 +133,47 @@ export function SharedSessions({
       session: { historyKeys: [], recommendationKeys: [], groups },
     };
   }, [data, snapshot]);
+  useEffect(() => {
+    if (!snapshot.length) return;
+    const selectedSessionExists =
+      selected?.startsWith('session:') &&
+      snapshot.some((entry) => `session:${entry.session!.id}` === selected);
+    if (
+      !focusedSessionId ||
+      (selected?.startsWith('session:') && !selectedSessionExists)
+    )
+      setFocusedSessionId(snapshot[0].session!.id);
+    if (!selected || (selected.startsWith('session:') && !selectedSessionExists))
+      setSelected(`session:${snapshot[0].session!.id}`);
+  }, [focusedSessionId, selected, snapshot]);
   const node = scene.data.nodes.find((n) => n.key === selected);
+  const selectedSession = selected?.startsWith('session:')
+    ? snapshot.find((entry) => `session:${entry.session!.id}` === selected)
+    : undefined;
+  const activeSession =
+    selectedSession ??
+    snapshot.find((entry) => entry.session!.id === focusedSessionId) ??
+    snapshot[0];
+  const activeItems = activeSession
+    ? [
+        ...activeSession.events.map((event) => ({
+          id: event.product.id,
+          name: event.product.name,
+          kind: 'VIEW' as const,
+        })),
+        ...(activeSession.recommendation?.items ?? []).map((item) => ({
+          id: item.product.id,
+          name: item.product.name,
+          kind:
+            item.source === 'lightgcn_session'
+              ? ('AI' as const)
+              : ('Quy tắc' as const),
+        })),
+      ].filter(
+        (item, index, all) =>
+          index === all.findIndex((candidate) => candidate.id === item.id),
+      )
+    : [];
   return (
     <section className="workspace">
       <div className="graph-panel">
@@ -161,6 +211,36 @@ export function SharedSessions({
           <span>┄ AI đề xuất · vàng</span>
           <span>┄ Gợi ý quy tắc · xanh lam</span>
         </div>
+        {activeSession && (
+          <div className="active-items" aria-live="polite">
+            <div>
+              <strong>
+                {activeSession.userId
+                  ? `User #${activeSession.userId}`
+                  : 'Khách'}{' '}
+                · Phiên #{activeSession.session!.id}
+              </strong>
+              <small>Item liên quan trong phiên đang chọn</small>
+            </div>
+            <div className="item-chips">
+              {activeItems.length ? (
+                activeItems.map((item) => (
+                  <button
+                    key={item.id}
+                    className={`item-chip ${item.kind.toLowerCase()}`}
+                    onClick={() => setSelected(`product:${item.id}`)}
+                    title={`Product #${item.id}`}
+                  >
+                    <span>{item.kind}</span>
+                    {item.name}
+                  </button>
+                ))
+              ) : (
+                <small>Chưa có lượt xem hoặc đề xuất mới.</small>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       <aside>
         <section className="panel">
@@ -204,7 +284,10 @@ export function SharedSessions({
             {snapshot.map((entry) => (
               <button
                 key={entry.session!.id}
-                onClick={() => setSelected(`session:${entry.session!.id}`)}
+                onClick={() => {
+                  setFocusedSessionId(entry.session!.id);
+                  setSelected(`session:${entry.session!.id}`);
+                }}
               >
                 {entry.userId ? `User #${entry.userId}` : 'Khách'} · Phiên #
                 {entry.session!.id}
@@ -216,15 +299,115 @@ export function SharedSessions({
             ))}
           </div>
         </section>
+        <section className="panel session-inspector">
+          <h2>Hành vi & đề xuất</h2>
+          {!activeSession ? (
+            <p>Chọn một phiên để xem tên sản phẩm và hành động tiếp theo.</p>
+          ) : (
+            <>
+              <p className="hint">
+                {activeSession.userId
+                  ? `User #${activeSession.userId}`
+                  : 'Khách'}{' '}
+                · Phiên #{activeSession.session!.id}
+              </p>
+              <h3>Đã xem · {activeSession.events.length}</h3>
+              {activeSession.events.length ? (
+                <div className="session-records">
+                  {activeSession.events
+                    .slice()
+                    .reverse()
+                    .map((event) => (
+                      <div className="session-record" key={event.eventId}>
+                        <button
+                          onClick={() =>
+                            setSelected(`product:${event.product.id}`)
+                          }
+                        >
+                          <strong>{event.product.name}</strong>
+                          <small>
+                            Product #{event.product.id} ·{' '}
+                            {new Date(event.receivedAt).toLocaleTimeString(
+                              'vi-VN',
+                            )}
+                          </small>
+                        </button>
+                        <a
+                          href={productUrl(event.product.id)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Mở
+                        </a>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="hint">Chưa có VIEW mới trong cửa sổ theo dõi.</p>
+              )}
+              <h3>Đề xuất gần nhất · {activeSession.recommendation?.items.length ?? 0}</h3>
+              {activeSession.recommendation ? (
+                <p className="hint">
+                  API {activeSession.recommendation.surface} ·{' '}
+                  {new Date(
+                    activeSession.recommendation.generatedAt,
+                  ).toLocaleTimeString('vi-VN')}
+                </p>
+              ) : null}
+              {(activeSession.recommendation?.items.length ?? 0) ? (
+                <div className="session-records">
+                  {activeSession.recommendation!.items.map((item) => (
+                    <div className="session-record" key={item.product.id}>
+                      <button
+                        onClick={() => setSelected(`product:${item.product.id}`)}
+                      >
+                        <strong>{item.product.name}</strong>
+                        <small>
+                          {recommendationSource(item.source)} · {item.reason}
+                          {item.score !== undefined
+                            ? ` · điểm ${item.score.toFixed(3)}`
+                            : ''}
+                        </small>
+                      </button>
+                      <a
+                        href={productUrl(item.product.id)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Mở
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="hint">
+                  Chưa có lô đề xuất mới cho phiên này.
+                </p>
+              )}
+            </>
+          )}
+        </section>
         <section className="panel">
           <h2>Node đang chọn</h2>
           <p>{node?.name ?? 'Bấm node hoặc chọn phiên để kiểm tra.'}</p>
           {node && (
-            <p>
-              {node.type === 'item'
-                ? `Product #${node.productId} · RetailRocket ${node.sourceId || 'chưa mapping'}`
-                : `Tracking session #${node.sourceId}`}
-            </p>
+            <>
+              <p>
+                {node.type === 'item'
+                  ? `Product #${node.productId} · RetailRocket ${node.sourceId || 'chưa mapping'}`
+                  : `Tracking session #${node.sourceId}`}
+              </p>
+              {node.type === 'item' && node.productId && (
+                <a
+                  className="product-open-link"
+                  href={productUrl(node.productId)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Mở trang sản phẩm
+                </a>
+              )}
+            </>
           )}
         </section>
       </aside>

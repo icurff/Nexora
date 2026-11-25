@@ -423,3 +423,9 @@ host's LAN address or an existing deployed shop URL, not its own `127.0.0.1`.
 The graph itself can remain on the host at port 5174. This change does not publish
 ports or change existing frontend networking/authentication. Recommendation
 history is still transient, not persisted across restarts. No schema changes.
+
+Selecting a session now shows an **Hành vi & đề xuất** panel with product names,
+Product IDs, VIEW times, recommendation source/reason/score, and a link to the
+store product page. The item chips beneath the graph retain the selected session
+while inspecting an item, so a demo can connect each visible edge to an actual
+catalog product without labelling every 3D node.
