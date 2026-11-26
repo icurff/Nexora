@@ -135,6 +135,16 @@ export function ScoreBreakdown({
     ),
   );
 
+  const delta = b ? a.breakdown.final_score - b.breakdown.final_score : 0;
+  const winner = delta >= 0 ? a : b;
+  const loser = delta >= 0 ? b : a;
+  const advantages = winner && loser
+    ? metrics.filter((m) => winner.breakdown[m.key] - loser.breakdown[m.key] > 1e-8)
+    : [];
+  const disadvantages = winner && loser
+    ? metrics.filter((m) => winner.breakdown[m.key] - loser.breakdown[m.key] < -1e-8)
+    : [];
+
   const samePolicy = ranked.every((item) =>
     metrics.every(
       (m) => item.breakdown[m.weight] === policy[m.weight],
@@ -164,74 +174,82 @@ export function ScoreBreakdown({
         </div>
       )}
 
-      <div className="ranking-items">
-        {ranked.map((item, index) => (
-          <div className="ranking-item" key={item.id}>
-            <div className="ranking-title">
-              <strong>
-                #{item.rank ?? index + 1}
-                {' · '}
-                {item.name ?? `Item ${item.id}`}
-              </strong>
-              <b>{item.breakdown.final_score.toFixed(4)}</b>
-            </div>
-
-            {metrics
-              .filter((m) => item.breakdown[m.weight] > 0)
-              .map((m) => {
-                const value = item.breakdown[m.key];
-                const width = Math.abs(value) / scale * 50;
-
-                return (
-                  <div className="ranking-metric" key={m.key}>
-                    <small>{m.label}</small>
-
-                    <div className="ranking-track">
-                      <div
-                        className="ranking-fill"
-                        style={{
+      <div className="ranking-table-scroll">
+        <table className="ranking-table">
+          <thead>
+            <tr>
+              <th scope="col">Hạng</th>
+              <th scope="col">Sản phẩm</th>
+              {metrics.filter((m) => ranked.some((i) => i.breakdown[m.weight] > 0)).map((m) => (
+                <th scope="col" key={m.key}>{m.label}</th>
+              ))}
+              <th scope="col">Tổng điểm</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ranked.map((item, index) => (
+              <tr key={item.id}>
+                <td>#{item.rank ?? index + 1}</td>
+                <td>
+                  <div className="ranking-product-name" title={item.name ?? `Item ${item.id}`}>
+                    {item.name ?? `Item ${item.id}`}
+                  </div>
+                  {item.name && <small>ID #{item.id}</small>}
+                </td>
+                {metrics.filter((m) => ranked.some((i) => i.breakdown[m.weight] > 0)).map((m) => {
+                  const value = item.breakdown[m.key];
+                  const width = Math.abs(value) / scale * 50;
+                  return (
+                    <td key={m.key}>
+                      <strong style={{ color: m.color }}>{value.toFixed(4)}</strong>
+                      <div className="ranking-track" aria-hidden="true">
+                        <div className="ranking-fill" style={{
                           background: m.color,
                           width: `${width}%`,
-                          left: value >= 0
-                            ? '50%'
-                            : `${50 - width}%`,
-                        }}
-                      />
-                    </div>
-
-                    <small>{value.toFixed(4)}</small>
-                  </div>
-                );
-              })}
-          </div>
-        ))}
+                          left: value >= 0 ? '50%' : `${50 - width}%`,
+                        }} />
+                      </div>
+                    </td>
+                  );
+                })}
+                <td className="ranking-final">{item.breakdown.final_score.toFixed(4)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+      <p className="hint">Các cột thành phần là điểm đã nhân trọng số. Vạch giữa biểu thị 0.</p>
 
       {ranked.length >= 2 && b && (
         <div className="ranking-comparison">
           <h3>Vì sao thứ hạng khác nhau?</h3>
 
+          <div className="ranking-selects">
+          <label>Sản phẩm A
           <select
             value={a.id}
             onChange={(e) => setFirst(e.target.value)}
           >
             {ranked.map((i) => (
               <option key={i.id} value={i.id}>
-                {i.name ?? `Item ${i.id}`}
+                #{i.rank ?? ranked.indexOf(i) + 1} · {i.id} · {i.name ? i.name.slice(0, 65) : 'Item'}
               </option>
             ))}
           </select>
-
+          </label>
+          <label>Sản phẩm B
           <select
             value={b.id}
             onChange={(e) => setSecond(e.target.value)}
           >
             {ranked.map((i) => (
               <option key={i.id} value={i.id}>
-                {i.name ?? `Item ${i.id}`}
+                #{i.rank ?? ranked.indexOf(i) + 1} · {i.id} · {i.name ? i.name.slice(0, 65) : 'Item'}
               </option>
             ))}
           </select>
+          </label>
+          </div>
 
           {metrics.map((m) => {
             const delta =
@@ -260,9 +278,9 @@ export function ScoreBreakdown({
             {a.id === b.id
               ? 'Hãy chọn hai sản phẩm khác nhau.'
               : a.breakdown.final_score > b.breakdown.final_score
-                ? 'Sản phẩm A xếp trên B vì tổng đóng góp cao hơn.'
+                ? `A xếp trên B nhờ ${advantages.map((m) => m.label).join(', ')}${disadvantages.length ? `, bù lại bất lợi ở ${disadvantages.map((m) => m.label).join(', ')}` : ''}.`
                 : a.breakdown.final_score < b.breakdown.final_score
-                  ? 'Sản phẩm B xếp trên A vì tổng đóng góp cao hơn.'
+                  ? `B xếp trên A nhờ ${advantages.map((m) => m.label).join(', ')}${disadvantages.length ? `, bù lại bất lợi ở ${disadvantages.map((m) => m.label).join(', ')}` : ''}.`
                   : 'Hai sản phẩm có cùng tổng điểm; thứ tự phụ thuộc quy tắc xử lý đồng hạng.'}
           </p>
         </div>

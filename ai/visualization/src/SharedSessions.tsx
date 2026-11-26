@@ -179,7 +179,8 @@ export function SharedSessions({
       )
     : [];
   return (
-    <section className="workspace">
+    <section className="workspace live-workspace">
+      <div className="workspace-primary">
       <div className="graph-panel">
         <div className="graph-toolbar">
           <h2>
@@ -244,6 +245,22 @@ export function SharedSessions({
               )}
             </div>
           </div>
+        )}
+      </div>
+        {activeSession && (
+          <ScoreBreakdown
+            items={(activeSession.recommendation?.items ?? [])
+              .filter((item) => item.source === 'lightgcn_session')
+              .map((item) => ({
+                id: item.product.id,
+                name: item.product.name,
+                rank: item.rank,
+                breakdown:
+                  typeof item.score === 'number'
+                    ? parseBreakdown(item.score_breakdown, item.score)
+                    : undefined,
+              }))}
+          />
         )}
       </div>
       <aside>
@@ -349,19 +366,6 @@ export function SharedSessions({
               ) : (
                 <p className="hint">Chưa có VIEW mới trong cửa sổ theo dõi.</p>
               )}
-              <ScoreBreakdown
-                items={(activeSession.recommendation?.items ?? [])
-                  .filter((item) => item.source === 'lightgcn_session')
-                  .map((item) => ({
-                    id: item.product.id,
-                    name: item.product.name,
-                    rank: item.rank,
-                    breakdown:
-                      typeof item.score === 'number'
-                        ? parseBreakdown(item.score_breakdown, item.score)
-                        : undefined,
-                  }))}
-              />
 
               <h3>Đề xuất gần nhất · {activeSession.recommendation?.items.length ?? 0}</h3>
               {activeSession.recommendation ? (

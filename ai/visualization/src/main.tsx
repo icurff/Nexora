@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { SharedSessions } from './SharedSessions';
 import { Graph } from './Graph';
 import { LiveSession } from './LiveSession';
+import { ScoreBreakdown, parseBreakdown } from './ScoreBreakdown';
 import { emptyLive, liveNodes, readCatalog } from './live-session';
 import type { CatalogProduct, LiveSnapshot } from './live-session';
 import { loadData } from './data';
@@ -270,11 +271,12 @@ function App() {
             </div>
           )}
           <section
-            className="workspace"
+            className={`workspace ${mode === 'coldstart' ? 'live-workspace' : ''}`}
             style={
               mode === 'coldstart' && shared ? { display: 'none' } : undefined
             }
           >
+            <div className="workspace-primary">
             <div className="graph-panel">
               <div className="graph-toolbar">
                 <div>
@@ -386,6 +388,22 @@ function App() {
                 )}
                 <small>Kéo: xoay · Cuộn: zoom · Chuột phải: pan</small>
               </div>
+            </div>
+              {mode === 'coldstart' && !shared && (
+                <ScoreBreakdown
+                  items={(live.recommendation?.items ?? [])
+                    .filter((item) => item.source === 'lightgcn_session')
+                    .map((item) => ({
+                      id: item.product.id,
+                      name: item.product.name,
+                      rank: item.rank,
+                      breakdown:
+                        typeof item.score === 'number'
+                          ? parseBreakdown(item.score_breakdown, item.score)
+                          : undefined,
+                    }))}
+                />
+              )}
             </div>
             <aside>
               {mode === 'coldstart' && showAllItems && (

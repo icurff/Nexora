@@ -1,7 +1,3 @@
-import {
-  ScoreBreakdown,
-  parseBreakdown,
-} from './ScoreBreakdown';
 import { useEffect, useState } from 'react';
 import { readLiveSession } from './live-session';
 import type { LiveSnapshot } from './live-session';
@@ -150,19 +146,6 @@ export function LiveSession({
               </button>
             ))}
           </div>
-          <ScoreBreakdown
-            items={snapshot.recommendation.items
-              .filter((item) => item.source === 'lightgcn_session')
-              .map((item) => ({
-                id: item.product.id,
-                name: item.product.name,
-                rank: item.rank,
-                breakdown:
-                  typeof item.score === 'number'
-                    ? parseBreakdown(item.score_breakdown, item.score)
-                    : undefined,
-              }))}
-          />
           {!snapshot.recommendation.items.length && (
             <p className="hint">
               API gần nhất trả danh sách rỗng; không vẽ dây đề xuất cũ.
