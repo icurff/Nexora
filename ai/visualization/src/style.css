@@ -903,3 +903,126 @@ button:disabled {
 .rule-line {
   color: #7c9eff;
 }
+
+/* Explainable recommendation ranking */
+
+.ranking-breakdown {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(148, 163, 184, .22);
+}
+
+.ranking-weights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.ranking-weights > div {
+  flex: 1;
+  min-width: 90px;
+  padding: 12px;
+  background: rgba(148, 163, 184, .07);
+  border: 1px solid rgba(148, 163, 184, .16);
+  border-radius: 8px;
+}
+
+.ranking-weights small,
+.ranking-weights strong {
+  display: block;
+}
+
+.ranking-weights strong {
+  margin-top: 6px;
+  font-size: 24px;
+}
+
+.ranking-item {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, .12);
+}
+
+.ranking-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.ranking-title strong {
+  overflow-wrap: anywhere;
+}
+
+.ranking-title b {
+  color: #f1cc79;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-metric {
+  display: grid;
+  grid-template-columns: 100px minmax(40px, 1fr) 65px;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.ranking-metric small {
+  font-size: 11px;
+}
+
+.ranking-track {
+  position: relative;
+  height: 10px;
+  background: rgba(148, 163, 184, .1);
+  border-radius: 4px;
+}
+
+.ranking-track::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  height: 100%;
+  width: 1px;
+  background: rgba(255, 255, 255, .4);
+}
+
+.ranking-fill {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.ranking-comparison {
+  padding: 14px;
+  margin-top: 16px;
+  border: 1px solid rgba(148, 163, 184, .2);
+  border-radius: 8px;
+  background: rgba(148, 163, 184, .05);
+}
+
+.ranking-comparison select {
+  width: 100%;
+  padding: 9px;
+  margin: 5px 0;
+  color: inherit;
+  background: #172033;
+  border: 1px solid #334155;
+  border-radius: 5px;
+}
+
+.ranking-delta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+.ranking-comparison hr {
+  opacity: .2;
+}
+

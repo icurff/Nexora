@@ -175,6 +175,8 @@ export class AdaptiveRecommendationService {
             reason: item.reason_code,
             score: item.score,
             evidence: item.evidence,
+            rank: item.rank,
+            score_breakdown: item.score_breakdown,
           },
         ];
       })

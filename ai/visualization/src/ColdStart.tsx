@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GraphNode } from './data';
+import { ScoreBreakdown } from './ScoreBreakdown';
 import { itemId, recommendSession } from './session';
 import type { SessionResult, SessionScene } from './session';
 
@@ -225,6 +226,13 @@ export function ColdStart({
                   </button>
                 ))}
               </div>
+              <ScoreBreakdown
+                items={state.result.items.map((n) => ({
+                  id: n.sourceId,
+                  rank: n.rank,
+                  breakdown: n.breakdown,
+                }))}
+              />
               {!state.result.items.length && (
                 <p>AI chưa trả được đề xuất cho tập ứng viên này.</p>
               )}

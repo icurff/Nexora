@@ -18,6 +18,8 @@ export interface LiveSnapshot {
       source: 'lightgcn_session' | 'rule_based';
       reason: string;
       score?: number;
+      rank?: number;
+      score_breakdown?: unknown;
     }[];
   };
 }

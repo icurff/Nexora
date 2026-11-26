@@ -194,14 +194,42 @@ def recommend_session(payload: SessionRequest):
     if session_vectors:
         session_scores = sum(item_unit @ vector for vector in session_vectors) / len(session_vectors)
 
+    # Explainable ranking: preserve the original scoring policy.
+    session_z = (
+        zscore(session_scores) if session_vectors else None
+    )
+    popularity_z = None
+    user_z = None
+
     if user_idx is not None:
         user_scores = item_embeddings @ user_embeddings[user_idx]
-        scores = (0.5 * zscore(user_scores) + 0.5 * zscore(session_scores)
-                  if session_vectors else zscore(user_scores))
+        user_z = zscore(user_scores)
+
+        session_weight = 0.5 if session_vectors else 0.0
+        user_weight = 1.0 - session_weight
+        popularity_weight = 0.0
+
+        scores = user_weight * user_z
+
+        if session_z is not None:
+            scores = scores + session_weight * session_z
+
     else:
         base_scores = np.log1p(popularity).copy()
-        base_scores -= np.arange(len(base_scores), dtype=np.float32) * 1e-9
-        scores = 0.25 * zscore(base_scores) + 0.75 * zscore(session_scores)
+        base_scores -= (
+            np.arange(len(base_scores), dtype=np.float32) * 1e-9
+        )
+
+        popularity_z = zscore(base_scores)
+
+        session_weight = 0.75
+        popularity_weight = 0.25
+        user_weight = 0.0
+
+        scores = (
+            popularity_weight * popularity_z
+            + session_weight * session_z
+        )
 
     excluded = set(payload.recent_itemids)
     excluded.update(payload.context_itemids)
@@ -232,7 +260,7 @@ def recommend_session(payload: SessionRequest):
 
     items = []
 
-    for itemid in ranked:
+    for rank, itemid in enumerate(ranked, start=1):
         idx = item_to_idx[itemid]
 
         evidence_items = history + context
@@ -262,6 +290,37 @@ def recommend_session(payload: SessionRequest):
             "score": float(scores[idx]),
             "reason_code": reason,
             "evidence": evidence,
+            "rank": rank,
+            "score_breakdown": {
+                "session_score": (
+                    float(session_z[idx])
+                    if session_z is not None else None
+                ),
+                "popularity_score": (
+                    float(popularity_z[idx])
+                    if popularity_z is not None else None
+                ),
+                "user_score": (
+                    float(user_z[idx])
+                    if user_z is not None else None
+                ),
+                "session_weight": session_weight,
+                "popularity_weight": popularity_weight,
+                "user_weight": user_weight,
+                "session_contribution": (
+                    float(session_weight * session_z[idx])
+                    if session_z is not None else 0.0
+                ),
+                "popularity_contribution": (
+                    float(popularity_weight * popularity_z[idx])
+                    if popularity_z is not None else 0.0
+                ),
+                "user_contribution": (
+                    float(user_weight * user_z[idx])
+                    if user_z is not None else 0.0
+                ),
+                "final_score": float(scores[idx]),
+            },
         })
 
     return {

@@ -1,3 +1,7 @@
+import {
+  ScoreBreakdown,
+  parseBreakdown,
+} from './ScoreBreakdown';
 import { useEffect, useMemo, useState } from 'react';
 import { Graph } from './Graph';
 import type { GraphData, GraphNode } from './data';
@@ -345,6 +349,20 @@ export function SharedSessions({
               ) : (
                 <p className="hint">Chưa có VIEW mới trong cửa sổ theo dõi.</p>
               )}
+              <ScoreBreakdown
+                items={(activeSession.recommendation?.items ?? [])
+                  .filter((item) => item.source === 'lightgcn_session')
+                  .map((item) => ({
+                    id: item.product.id,
+                    name: item.product.name,
+                    rank: item.rank,
+                    breakdown:
+                      typeof item.score === 'number'
+                        ? parseBreakdown(item.score_breakdown, item.score)
+                        : undefined,
+                  }))}
+              />
+
               <h3>Đề xuất gần nhất · {activeSession.recommendation?.items.length ?? 0}</h3>
               {activeSession.recommendation ? (
                 <p className="hint">

@@ -1,6 +1,10 @@
+import { parseBreakdown } from './ScoreBreakdown';
+import type { RankingBreakdown } from './ScoreBreakdown';
 import type { GraphNode } from './data';
 
 export interface SessionItem {
+  rank?: number;
+  breakdown?: RankingBreakdown;
   sourceId: string;
   key: string;
   score: number;
@@ -117,6 +121,12 @@ export async function recommendSession(
           sourceId,
           key: node.key,
           score: entry.score,
+          rank: typeof entry.rank === 'number'
+            ? entry.rank : undefined,
+          breakdown: parseBreakdown(
+            entry.score_breakdown,
+            entry.score,
+          ),
           reason: entry.reason_code,
           recentSourceId: String(evidence.recent_source_item_id),
           cosine: evidence.cosine_similarity,
@@ -134,6 +144,12 @@ export async function recommendSession(
         sourceId,
         key: node.key,
         score: entry.score,
+          rank: typeof entry.rank === 'number'
+            ? entry.rank : undefined,
+          breakdown: parseBreakdown(
+            entry.score_breakdown,
+            entry.score,
+          ),
         reason: entry.reason_code,
         popularity: evidence.train_user_count,
       };

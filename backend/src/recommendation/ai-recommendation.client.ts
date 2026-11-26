@@ -124,6 +124,19 @@ export type AiSessionRequest = {
   limit: number;
 };
 
+export type AiScoreBreakdown = {
+  session_score: number | null;
+  popularity_score: number | null;
+  user_score: number | null;
+  session_weight: number;
+  popularity_weight: number;
+  user_weight: number;
+  session_contribution: number;
+  popularity_contribution: number;
+  user_contribution: number;
+  final_score: number;
+};
+
 export type AiSessionResponse = {
   source: 'lightgcn_session';
   context_supported?: boolean;
@@ -132,6 +145,8 @@ export type AiSessionResponse = {
   items: Array<{
     retailrocket_itemid: number;
     score: number;
+    rank?: number;
+    score_breakdown?: AiScoreBreakdown;
     reason_code: string;
     evidence: Record<string, unknown>;
   }>;

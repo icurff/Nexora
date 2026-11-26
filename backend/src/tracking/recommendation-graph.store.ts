@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AiScoreBreakdown } from '../recommendation/ai-recommendation.client.js';
 
 export interface GraphRecommendation {
   id: string;
@@ -11,6 +12,8 @@ export interface GraphRecommendation {
     source: 'lightgcn_session' | 'rule_based';
     reason: string;
     score?: number;
+    rank?: number;
+    score_breakdown?: AiScoreBreakdown;
   }[];
 }
 
@@ -51,11 +54,25 @@ export class RecommendationGraphStore {
       )
         continue;
       seen.add(row.productId);
+      const breakdown =
+        row.source === 'lightgcn_session'
+          ? validatedBreakdown(row.score_breakdown, row.score)
+          : undefined;
+
       items.push({
         productId: row.productId,
         name: row.name,
         source: row.source,
         reason: row.reason,
+        ...(row.source === 'lightgcn_session' &&
+        typeof row.rank === 'number' &&
+        Number.isSafeInteger(row.rank) &&
+        row.rank > 0
+          ? { rank: row.rank }
+          : {}),
+        ...(breakdown
+          ? { score_breakdown: breakdown }
+          : {}),
         ...(typeof row.score === 'number' && Number.isFinite(row.score)
           ? { score: row.score }
           : {}),
@@ -90,4 +107,65 @@ export class RecommendationGraphStore {
     if (Date.parse(entry.generatedAt) <= since.getTime()) return undefined;
     return entry;
   }
+}
+
+
+function validatedBreakdown(
+  value: unknown,
+  score: unknown,
+): AiScoreBreakdown | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  if (typeof score !== 'number' || !Number.isFinite(score))
+    return undefined;
+
+  const b = value as AiScoreBreakdown;
+
+  const parts = [
+    [b.session_score, b.session_weight, b.session_contribution],
+    [b.popularity_score, b.popularity_weight, b.popularity_contribution],
+    [b.user_score, b.user_weight, b.user_contribution],
+  ] as const;
+
+  let total = 0;
+  let weights = 0;
+
+  for (const [raw, weight, contribution] of parts) {
+    if (
+      !Number.isFinite(weight) ||
+      weight < 0 ||
+      weight > 1 ||
+      !Number.isFinite(contribution)
+    ) return undefined;
+
+    if (raw === null) {
+      if (weight !== 0 || contribution !== 0)
+        return undefined;
+    } else if (
+      !Number.isFinite(raw) ||
+      Math.abs(raw * weight - contribution) > 1e-5
+    ) return undefined;
+
+    weights += weight;
+    total += contribution;
+  }
+
+  if (
+    !Number.isFinite(b.final_score) ||
+    Math.abs(weights - 1) > 1e-5 ||
+    Math.abs(total - b.final_score) > 1e-5 ||
+    Math.abs(score - b.final_score) > 1e-5
+  ) return undefined;
+
+  return {
+    session_score: b.session_score,
+    popularity_score: b.popularity_score,
+    user_score: b.user_score,
+    session_weight: b.session_weight,
+    popularity_weight: b.popularity_weight,
+    user_weight: b.user_weight,
+    session_contribution: b.session_contribution,
+    popularity_contribution: b.popularity_contribution,
+    user_contribution: b.user_contribution,
+    final_score: b.final_score,
+  };
 }
