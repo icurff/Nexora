@@ -1,4 +1,7 @@
-import type { GraphNode } from './data';
+import type { GraphData, GraphNode } from './data';
+import {
+  CATALOG500_RUN, CATALOG500_HISTORY, CATALOG500_DECAY, CATALOG500_MAPPING,
+} from './catalog500-map';
 export interface LiveSnapshot {
   session: { id: string; startedAt: string } | null;
   events: {
@@ -83,6 +86,7 @@ export function validateLiveSnapshot(value: unknown): LiveSnapshot {
 export interface CatalogProduct {
   id: string;
   name: string;
+  retailrocketItemId?: string | null;
 }
 interface CatalogPage {
   items: CatalogProduct[];
@@ -156,56 +160,149 @@ export async function readCatalog(
     BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0,
   );
 }
+// Same coordinates and full-dimensional vectors as the verified training export.
+function itemIndex(data: GraphData): Map<string, GraphNode> {
+  return new Map(data.nodes.filter((n) => n.type === 'item').map((n) => [n.sourceId, n]));
+}
+
 export function liveNodes(
   snapshot: LiveSnapshot,
   catalog: CatalogProduct[] = [],
+  data: GraphData | null = null,
 ): GraphNode[] {
+  if (!data) return [];
+  const indexed = itemIndex(data);
+  const fallbackMapping =
+    data.model.runId === CATALOG500_RUN &&
+    indexed.size === 500 &&
+    Object.values(CATALOG500_MAPPING).every((id) => indexed.has(id));
+
   const viewed = new Map(
     snapshot.events.map((event) => [event.product.id, event.product]),
   );
   const products = new Map(
     catalog.map((product) => [
       product.id,
-      { ...product, retailrocketItemId: null as string | null },
+      {
+        ...product,
+        retailrocketItemId: product.retailrocketItemId === undefined
+          ? (fallbackMapping ? CATALOG500_MAPPING[product.id] ?? null : null)
+          : product.retailrocketItemId,
+      },
     ]),
   );
   const recommended = new Map(
-    (snapshot.recommendation?.items ?? []).map((item) => [
-      item.product.id,
-      item,
-    ]),
+    (snapshot.recommendation?.items ?? []).map((item) => [item.product.id, item]),
   );
   for (const [id, item] of recommended) products.set(id, item.product);
   for (const [id, product] of viewed) products.set(id, product);
-  return [...products.values()].map((product, index) => {
-    // Product-ID based placement remains unchanged when all-items is toggled.
-    let hash = 2166136261;
-    for (const char of product.id)
-      hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
-    const angle = hash * 2.399963229728653;
-    const z = ((Math.imul(hash, 2654435761) >>> 0) / 4294967295) * 2 - 1;
-    const radius = 25 + (hash % 40);
-    const plane = Math.sqrt(Math.max(0, 1 - z * z));
-    return {
+
+  return [...products.values()].flatMap((product): GraphNode[] => {
+    const trained = product.retailrocketItemId
+      ? indexed.get(product.retailrocketItemId) : undefined;
+    // Never invent a position for a product without a trained vector.
+    if (!trained) return [];
+    return [{
+      ...trained,
       key: `product:${product.id}`,
-      type: 'item',
-      index,
-      sourceId: product.retailrocketItemId ?? '',
       productId: product.id,
       name: product.name,
-      layout: 'schematic',
+      layout: 'pca',
       observed: viewed.has(product.id),
-      mappingUnknown: !viewed.has(product.id) && !recommended.has(product.id),
+      mappingUnknown: false,
       recommendationSource: recommended.get(product.id)?.source,
-      position: [
-        Math.cos(angle) * radius * plane,
-        z * radius,
-        Math.sin(angle) * radius * plane,
-      ],
-      vector: [],
-      norm: 0,
-      popularity: null,
-      trainDegree: null,
-    };
+    }];
   });
+}
+
+export function projectVector(
+  vector: number[], data: GraphData,
+): [number, number, number] | null {
+  const { mean, components, displayScale } = data.projection;
+  const dim = data.model.config.embedding_dim;
+  if (!Array.isArray(mean) || mean.length !== dim ||
+      !Array.isArray(components) || components.length !== 3 ||
+      components.some((axis) => !Array.isArray(axis) || axis.length !== dim ||
+        !axis.every(Number.isFinite)) ||
+      !mean.every(Number.isFinite) ||
+      !Number.isFinite(displayScale) || displayScale <= 0 ||
+      vector.length !== dim || !vector.every(Number.isFinite)) return null;
+  const position = components.map((axis) =>
+    axis.reduce((sum, value, i) => sum + value * (vector[i] - mean[i]), 0)
+      / displayScale * 90);
+  return position.every(Number.isFinite)
+    ? position as [number, number, number] : null;
+}
+
+function unit(vector: number[]): number[] {
+  const norm = Math.max(Math.hypot(...vector), 1e-12);
+  return vector.map((v) => v / norm);
+}
+
+export function liveSessionNode(
+  snapshot: LiveSnapshot, data: GraphData | null,
+): GraphNode | null {
+  if (!snapshot.session || !data) return null;
+  let vector: number[] | null = null;
+  let provenance: 'inference' | 'view-only' = 'view-only';
+  const recommendation = snapshot.recommendation;
+  // Do not attach the previous recommendation vector to a newer VIEW state.
+  const generated = Date.parse(recommendation?.generatedAt ?? '');
+  const fresh = Number.isFinite(generated) && snapshot.events.every(
+    (event) => Date.parse(event.receivedAt) <= generated,
+  );
+  if (fresh) {
+    for (const entry of recommendation?.items ?? []) {
+      if (entry.source !== 'lightgcn_session') continue;
+      const breakdown = entry.score_breakdown as {
+        session_geometry?: { model_run_id?: string; vector?: unknown };
+      } | undefined;
+      const geometry = breakdown?.session_geometry;
+      if (geometry?.model_run_id === data.model.runId &&
+          Array.isArray(geometry.vector) &&
+          geometry.vector.length === data.model.config.embedding_dim &&
+          geometry.vector.every((v) => typeof v === 'number' && Number.isFinite(v))) {
+        vector = geometry.vector as number[];
+        provenance = 'inference';
+        break;
+      }
+    }
+  }
+  // A separately labelled reconstruction from observed VIEWs, not an assertion
+  // that these are the exact inputs to the website's most recent inference.
+  if (!vector && data.model.runId === CATALOG500_RUN) {
+    const indexed = itemIndex(data);
+    const history = snapshot.events.slice().sort(
+      (a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt),
+    ).flatMap((event) => {
+      const id = event.product.retailrocketItemId;
+      const node = id ? indexed.get(id) : undefined;
+      return node ? [node.vector] : [];
+    }).slice(-CATALOG500_HISTORY);
+    if (history.length) {
+      const sum = Array.from({ length: data.model.config.embedding_dim }, () => 0);
+      history.forEach((v, index) => {
+        const weight = CATALOG500_DECAY ** (history.length - 1 - index);
+        unit(v).forEach((value, dim) => { sum[dim] += weight * value; });
+      });
+      vector = unit(sum);
+    }
+  }
+  if (!vector) return null;
+  const position = projectVector(vector, data);
+  if (!position) return null;
+  return {
+    key: `session:${snapshot.session.id}`,
+    type: 'user',
+    index: -1,
+    sourceId: snapshot.session.id,
+    name: `Phiên #${snapshot.session.id} · ${provenance === 'inference' ? 'AI vector' : 'VIEW-only'}`,
+    layout: 'pca',
+    sessionGeometry: provenance,
+    position,
+    vector,
+    norm: Math.hypot(...vector),
+    popularity: null,
+    trainDegree: null,
+  };
 }

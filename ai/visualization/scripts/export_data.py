@@ -98,8 +98,100 @@ def main():
     require(not missing, 'Required input files missing:\n' + '\n'.join(missing))
     hashes = {name: digest(root / name) for name in files}
     serving = json.loads((root / 'selected_model_for_serving.json').read_text())
-    checkpoint = read_checkpoint(root / 'best.pt')
-    config = checkpoint['signature']['config']
+    manifest_path = root / 'manifest_sha256.json'
+
+    if manifest_path.is_file():
+        # Catalog500 checkpoint format.
+        import torch
+
+        manifest = json.loads(manifest_path.read_text())
+
+        for name in files + ['train_binary.npz', 'train_weighted.npz']:
+            require(name in manifest, f'Missing manifest entry: {name}')
+            require(
+                digest(root / name) == manifest[name],
+                f'Artifact checksum mismatch: {name}'
+            )
+
+        raw_checkpoint = torch.load(
+            root / 'best.pt',
+            map_location='cpu',
+            weights_only=True
+        )
+
+        meta = raw_checkpoint['meta']
+
+        require(meta['family'] == 'LightGCN', 'Unexpected checkpoint family')
+        require(meta['config'] == serving['config'], 'Config mismatch')
+        require(meta['seed'] == serving['seed'], 'Seed mismatch')
+        require(meta['best_epoch'] == serving['best_epoch'], 'Epoch mismatch')
+        require(
+            meta['source_sha256'] == serving['source_sha256'],
+            'Training source metadata mismatch'
+        )
+
+        require(
+            digest(root / 'train_weighted.npz')
+            == meta['source_sha256']['train_weighted.npz'],
+            'Weighted training graph checksum mismatch'
+        )
+
+        expected_users = (
+            serving['n_users'], serving['embedding_dim']
+        )
+        expected_items = (
+            serving['n_items'], serving['embedding_dim']
+        )
+
+        require(
+            tuple(raw_checkpoint['state_dict']['u.weight'].shape)
+            == expected_users,
+            'Checkpoint user embedding shape mismatch'
+        )
+
+        require(
+            tuple(raw_checkpoint['state_dict']['i.weight'].shape)
+            == expected_items,
+            'Checkpoint item embedding shape mismatch'
+        )
+
+        require(
+            np.load(root / files[0], mmap_mode='r').shape
+            == expected_users,
+            'Serving user embedding shape mismatch'
+        )
+
+        require(
+            np.load(root / files[1], mmap_mode='r').shape
+            == expected_items,
+            'Serving item embedding shape mismatch'
+        )
+
+        # Normalize metadata in memory for the existing exporter.
+        config = dict(meta['config'])
+        require(
+            config['positive_sampling'] == 'sqrt_weight'
+            and serving['family'] == 'LightGCN_WeightedSampling',
+            'Serving model family mismatch'
+        )
+
+        config['family'] = serving['family']
+
+        checkpoint = {
+            'best_epoch': meta['best_epoch'],
+            'signature': {
+                'config': config,
+                'seed': meta['seed'],
+                'source_sha256': meta['source_sha256']
+            }
+        }
+
+        print('PASS: Catalog500 checkpoint metadata verified')
+
+    else:
+        # Preserve the original LightGCN v2 checkpoint format.
+        checkpoint = read_checkpoint(root / 'best.pt')
+        config = checkpoint['signature']['config']
     for name, field in [('user_mapping.parquet', 'user_mapping_sha256'), ('item_mapping.parquet', 'item_mapping_sha256')]:
         require(hashes[name] == serving[field] == checkpoint['signature']['source_sha256'][name], f'{name}: checksum mismatch')
     require(config['family'] == serving['family'] and config['embedding_dim'] == serving['embedding_dim'], 'Model metadata mismatch')

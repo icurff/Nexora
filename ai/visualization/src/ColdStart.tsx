@@ -209,7 +209,8 @@ export function ColdStart({
               Không còn ứng viên hợp lệ trong mẫu sau khi loại Item đã xem.
             </p>
           )}
-          {state.result?.strategy === 'cold_session_hybrid' && (
+          {(state.result?.strategy === 'cold_session_hybrid' ||
+            state.result?.strategy === 'popularity_only') && (
             <>
               <h4>AI đề xuất ({state.result.items.length})</h4>
               <div className="neighbors">
@@ -242,8 +243,13 @@ export function ColdStart({
       )}
       <p className="hint">
         Ứng viên: {items.length} Item trong mẫu, chưa lọc theo catalog/tồn kho
-        Nexora. AI chuẩn hóa điểm trên toàn bộ 20.000 Item; α=0,75 · 3 Item gần
-        nhất · decay=0,75. Không tạo embedding User mới hay retrain.
+        Nexora. AI chuẩn hóa điểm trên toàn bộ Item của model đang chạy.
+        {state.result?.policy && (
+          <> Alpha = {state.result.policy.alpha} ·
+          {state.result.policy.history_length} Item gần nhất ·
+          decay = {state.result.policy.recency_decay}. </>
+        )}
+        Không tạo embedding User mới hay retrain.
       </p>
     </section>
   );

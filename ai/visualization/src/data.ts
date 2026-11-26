@@ -10,7 +10,8 @@ export interface GraphNode {
   trainDegree: number | null;
   productId?: string;
   name?: string;
-  layout?: 'schematic';
+  layout?: 'schematic' | 'pca';
+  sessionGeometry?: 'inference' | 'view-only';
   observed?: boolean;
   recommendationSource?: 'lightgcn_session' | 'rule_based';
   mappingUnknown?: boolean;
@@ -41,7 +42,13 @@ export interface GraphData {
   };
   totals: { users: number; items: number };
   sample: { users: number; items: number; seed: number };
-  projection: { method: string; explainedVariance: number[] };
+  projection: {
+    method: string;
+    explainedVariance: number[];
+    mean: number[];
+    components: number[][];
+    displayScale: number;
+  };
   provenance: {
     sha256: Record<string, string>;
     interactionEdgesExported: boolean;

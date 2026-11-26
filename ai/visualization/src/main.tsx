@@ -4,7 +4,7 @@ import { SharedSessions } from './SharedSessions';
 import { Graph } from './Graph';
 import { LiveSession } from './LiveSession';
 import { ScoreBreakdown, parseBreakdown } from './ScoreBreakdown';
-import { emptyLive, liveNodes, readCatalog } from './live-session';
+import { emptyLive, liveNodes, liveSessionNode, readCatalog } from './live-session';
 import type { CatalogProduct, LiveSnapshot } from './live-session';
 import { loadData } from './data';
 import type { GraphData, GraphNode, GraphMode } from './data';
@@ -67,28 +67,34 @@ function App() {
     };
   }, [mode, showAllItems, catalog]);
   const viewedItems = useMemo(
-    () => liveNodes(live).filter((n) => n.observed),
-    [live],
+    () => liveNodes(live, [], data).filter((n) => n.observed),
+    [live, data],
   );
   const liveItems = useMemo(
-    () => liveNodes(live, showAllItems ? (catalog ?? []) : []),
-    [live, showAllItems, catalog],
+    () => liveNodes(live, showAllItems ? (catalog ?? []) : [], data),
+    [live, showAllItems, catalog, data],
   );
-  const session = useMemo(
-    () => ({
-      historyKeys: viewedItems.map((n) => n.key),
-      recommendationKeys: (live.recommendation?.items ?? [])
-        .filter((n) => n.source === 'lightgcn_session')
-        .map((n) => `product:${n.product.id}`),
-      ruleRecommendationKeys: (live.recommendation?.items ?? [])
-        .filter((n) => n.source === 'rule_based')
-        .map((n) => `product:${n.product.id}`),
-    }),
-    [viewedItems, live.recommendation],
-  );
+  const livePoint = useMemo(() => liveSessionNode(live, data), [live, data]);
+  const session = useMemo(() => {
+    const keys = new Set(liveItems.map((n) => n.key));
+    const historyKeys = viewedItems.map((n) => n.key);
+    const recommendationKeys = (live.recommendation?.items ?? [])
+      .filter((n) => n.source === 'lightgcn_session')
+      .map((n) => `product:${n.product.id}`).filter((key) => keys.has(key));
+    const ruleRecommendationKeys = (live.recommendation?.items ?? [])
+      .filter((n) => n.source === 'rule_based')
+      .map((n) => `product:${n.product.id}`).filter((key) => keys.has(key));
+    return {
+      historyKeys, recommendationKeys, ruleRecommendationKeys,
+      groups: livePoint ? [{ source: livePoint.key, historyKeys,
+        recommendationKeys, ruleRecommendationKeys }] : [],
+    };
+  }, [viewedItems, live.recommendation, liveItems, livePoint]);
   const displayedData = useMemo(
-    () => (mode === 'coldstart' && data ? { ...data, nodes: liveItems } : data),
-    [data, mode, liveItems],
+    () => (mode === 'coldstart' && data
+      ? { ...data, nodes: [...(livePoint ? [livePoint] : []), ...liveItems] }
+      : data),
+    [data, mode, liveItems, livePoint],
   );
   const [error, setError] = useState('');
   const [users, setUsers] = useState(true),
@@ -107,7 +113,7 @@ function App() {
         setData(value);
         if (value.interactions) {
           setMode('interaction');
-          setLinks(true);
+          setLinks(false);
         }
       })
       .catch((e) => setError(String(e.message)));
@@ -138,7 +144,7 @@ function App() {
     viewedItems.length > 0 || (live.recommendation?.items.length ?? 0) > 0;
   const visibleCount =
     mode === 'coldstart'
-      ? (hasLiveActivity ? 1 : 0) + (items ? liveItems.length : 0)
+      ? (livePoint ? 1 : 0) + (items ? liveItems.length : 0)
       : data
         ? (users ? data.sample.users : 0) + (items ? data.sample.items : 0)
         : 0;
@@ -320,9 +326,10 @@ function App() {
               <div className="plot">
                 <Graph
                   data={displayedData!}
+                  referenceData={data!}
                   mode={mode}
                   session={session}
-                  users={users}
+                  users={mode === 'coldstart' ? true : users}
                   items={items}
                   rotate={rotate}
                   links={links}
@@ -332,14 +339,14 @@ function App() {
                 />
                 <div className="plot-label">
                   {mode === 'coldstart'
-                    ? 'PHIÊN LIVE / SƠ ĐỒ TƯƠNG TÁC'
+                    ? 'PHIÊN LIVE / PCA 01 / 02 / 03'
                     : 'PCA 01 / 02 / 03'}
                   <br />
                   <span>
                     {fmt(visibleCount)} node ·{' '}
                     {fmt(
                       mode === 'coldstart'
-                        ? items
+                        ? items && livePoint
                           ? new Set(session.historyKeys).size +
                             session.recommendationKeys.length +
                             session.ruleRecommendationKeys.length
@@ -353,9 +360,9 @@ function App() {
                 </div>
                 <div className="axis-note">
                   {mode === 'coldstart'
-                    ? hasLiveActivity
-                      ? `Phiên tracking #${live.session?.id} · vị trí sơ đồ minh họa`
-                      : 'Chờ bạn xem sản phẩm trên website…'
+                    ? livePoint
+                      ? `Phiên #${live.session?.id} · ${livePoint.sessionGeometry === 'inference' ? 'vector AI tại inference' : 'vector dựng từ VIEW (không phải inference)'}`
+                      : hasLiveActivity ? 'Chưa có vector phiên để chiếu PCA' : 'Chờ bạn xem sản phẩm trên website…'
                     : 'Khoảng cách 3D chỉ là xấp xỉ sau chiếu PCA'}
                 </div>
               </div>
@@ -420,7 +427,7 @@ function App() {
                   {catalog !== null && (
                     <p>
                       {fmt(catalog.length)} sản phẩm công khai được tải từ DB.{' '}
-                      {fmt(viewedItems.length)} sản phẩm có VIEW trong khung
+                      {fmt(viewedItems.length)} sản phẩm có VIEW và embedding trong khung
                       theo dõi.
                     </p>
                   )}
@@ -514,7 +521,7 @@ function App() {
                 <p className="hint">
                   {mode === 'interaction'
                     ? `Nguồn train_binary.npz đã khớp checksum checkpoint. ${fmt(data.interactions!.edges.length)} cạnh export / ${fmt(data.interactions!.sampledEligibleEdges)} cạnh giữa các node trong mẫu. Cặp được gộp, không tách view / giỏ hàng / mua.`
-                    : 'Node sản phẩm dùng Product ID Nexora và mapping RetailRocket đọc từ DB. Vị trí là sơ đồ, không phải tọa độ embedding. Không giới hạn vào mẫu 900 Item.'}
+                    : 'Item dùng tọa độ PCA thật theo mapping RetailRocket; sản phẩm chưa có embedding không được vẽ. Node phiên dùng vector AI hoặc vector dựng từ VIEW có ghi nhãn.'}
                 </p>
               </section>
               <section className="panel inspector">
@@ -527,19 +534,19 @@ function App() {
                 {node ? (
                   <>
                     <span className={`node-type ${node.type}`}>
-                      {node.type === 'user' ? 'USER / VISITOR' : 'ITEM'}
+                      {node.sessionGeometry ? 'SESSION VECTOR' : node.type === 'user' ? 'USER / VISITOR' : 'ITEM'}
                     </span>
                     <h3>{node.name ?? node.sourceId}</h3>
                     <dl>
                       <dt>ID nguồn</dt>
                       <dd>
-                        RetailRocket{' '}
+                        {node.sessionGeometry ? 'Tracking session ' : 'RetailRocket '}
                         {node.sourceId ||
                           (node.mappingUnknown
                             ? 'chưa lấy mapping'
                             : 'chưa mapping')}
                       </dd>
-                      {node.layout === 'schematic' && (
+                      {node.productId && (
                         <>
                           <dt>VIEW trong khung</dt>
                           <dd>{node.observed ? 'Đã xem' : 'Chưa xem'}</dd>
@@ -553,8 +560,8 @@ function App() {
                       )}
                       {node.layout !== 'schematic' && (
                         <>
-                          <dt>Chỉ số embedding</dt>
-                          <dd>{node.index}</dd>
+                          <dt>{node.sessionGeometry ? 'Nguồn vector' : 'Chỉ số embedding'}</dt>
+                          <dd>{node.sessionGeometry ?? node.index}</dd>
                           <dt>Số chiều</dt>
                           <dd>{node.vector.length}</dd>
                           {node.trainDegree !== null && (
@@ -657,7 +664,7 @@ function App() {
                   : ''}
                 {mode === 'interaction'
                   ? 'Các cạnh màu vàng là cặp tương tác train đã khớp checksum checkpoint.'
-                  : 'Dây xanh liền là VIEW đã lưu DB; dây vàng nét đứt là AI đề xuất; dây xanh lam nét đứt là gợi ý quy tắc. Đề xuất là kết quả API trả cho web, không chứng minh người dùng đã xem hoặc mua. Vị trí node là sơ đồ minh họa.'}{' '}
+                  : 'Dây xanh liền là VIEW đã lưu DB; dây vàng nét đứt là AI đề xuất; dây xanh lam nét đứt là gợi ý quy tắc. Đề xuất là kết quả API trả cho web, không chứng minh người dùng đã xem hoặc mua. Vị trí Item là PCA thật; node phiên dùng vector inference hoặc VIEW-only có ghi nhãn. Đường tím nối các vị trí phiên đã quan sát.'}{' '}
                 Không mô phỏng lan truyền qua lớp.
               </p>
             </div>
@@ -685,7 +692,7 @@ function App() {
                 </p>
                 <p>
                   {data.interactions
-                    ? 'Adjacency đã khôi phục theo notebook Task 073 từ events_clean.parquet; SHA-256 của train_binary.npz khớp checkpoint, không huấn luyện lại. '
+                    ? 'Adjacency từ tập train; SHA-256 của train_binary.npz khớp checkpoint. '
                     : 'Chưa nạp adjacency đã xác minh. '}
                   Mapping được đối chiếu checksum với metadata serving và
                   checkpoint. Checksum embedding ghi lại bản dùng để export;

@@ -160,11 +160,11 @@ export function LiveSession({
         </p>
       )}
       <p className="hint">
-        Node tím là phiên thực. Dây xanh liền: VIEW đã lưu DB. Dây vàng nét đứt:
+        Node tím là vector phiên chiếu PCA; nhãn phân biệt vector AI tại inference và vector dựng từ VIEW. Dây xanh liền: VIEW đã lưu DB. Dây vàng nét đứt:
         AI đề xuất. Dây xanh lam nét đứt: gợi ý quy tắc. Chỉ hiển thị lô API gần
         nhất của phiên; đây không phải log impression/click hay toàn bộ lịch sử
         đề xuất. Bản sao đề xuất tạm được giữ tối đa 30 phút và mất khi backend
-        khởi động lại. Vị trí node là sơ đồ minh họa.
+        khởi động lại. Phiên chưa có vector không được vẽ; khoảng cách 3D chỉ là xấp xỉ PCA.
       </p>
       <p className="hint">
         “Theo dõi từ bây giờ” chỉ xóa cửa sổ hiển thị, không xóa dữ liệu hoặc

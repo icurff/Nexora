@@ -15,7 +15,13 @@ export interface SessionItem {
 }
 export interface SessionResult {
   strategy:
-    'cold_session_hybrid' | 'no_known_session_items' | 'no_eligible_candidates';
+    'cold_session_hybrid' | 'popularity_only' |
+    'no_known_session_items' | 'no_eligible_candidates';
+  policy?: {
+    alpha: number;
+    history_length: number;
+    recency_decay: number;
+  };
   items: SessionItem[];
 }
 export interface SessionScene {
@@ -45,7 +51,7 @@ export function sessionPayload(history: string[], items: GraphNode[]) {
     limit: 5,
   };
 }
-// Scoring is performed by the real serving endpoint over all 20k embeddings.
+// Scoring is performed by the real serving endpoint over all active model item embeddings.
 // Only the final candidate pool is restricted to the displayed item sample.
 export async function recommendSession(
   history: string[],
@@ -66,6 +72,7 @@ export async function recommendSession(
   const result = await response.json();
   const strategies = [
     'cold_session_hybrid',
+    'popularity_only',
     'no_known_session_items',
     'no_eligible_candidates',
   ];
@@ -75,18 +82,31 @@ export async function recommendSession(
     !Array.isArray(result.items)
   )
     throw new Error('AI trả về dữ liệu không đúng hợp đồng session.');
+  const rankedStrategy =
+    result.strategy === 'cold_session_hybrid' ||
+    result.strategy === 'popularity_only';
+
+  const policy = result.policy;
+
   if (
-    result.strategy === 'cold_session_hybrid' &&
-    (result.policy?.alpha !== 0.75 ||
-      result.policy?.history_length !== 3 ||
-      result.policy?.recency_decay !== 0.75)
+    rankedStrategy &&
+    (!policy ||
+      !Number.isFinite(policy.alpha) ||
+      policy.alpha < 0 ||
+      policy.alpha > 1 ||
+      !Number.isInteger(policy.history_length) ||
+      policy.history_length < 1 ||
+      !Number.isFinite(policy.recency_decay) ||
+      policy.recency_decay <= 0 ||
+      policy.recency_decay > 1 ||
+      (result.strategy === 'popularity_only' && policy.alpha !== 0))
   )
     throw new Error(
       'Chính sách AI đã thay đổi so với chế độ demo. Cần đối chiếu serving trước khi hiển thị.',
     );
   if (
     result.items.length > payload.limit ||
-    (result.strategy !== 'cold_session_hybrid' && result.items.length)
+    (!rankedStrategy && result.items.length)
   )
     throw new Error('Kết quả AI không nhất quán với trạng thái phiên.');
   const byId = new Map(items.map((n) => [n.sourceId, n]));
@@ -155,5 +175,9 @@ export async function recommendSession(
       };
     },
   );
-  return { strategy: result.strategy, items: mapped };
+  return {
+    strategy: result.strategy,
+    items: mapped,
+    policy: result.policy,
+  };
 }

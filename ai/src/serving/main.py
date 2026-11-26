@@ -1,4 +1,6 @@
 from pathlib import Path
+import os
+import json
 
 from pydantic import BaseModel, Field
 import numpy as np
@@ -7,7 +9,36 @@ from fastapi import FastAPI, HTTPException, Query
 
 app = FastAPI(title="Nexora AI Recommendation", version="0.2.0")
 
-ROOT = Path(__file__).resolve().parents[2] / "artifacts/lightgcn_v2"
+AI_ROOT = Path(__file__).resolve().parents[2]
+
+ROOT = Path(os.environ.get(
+    "NEXORA_MODEL_DIR",
+    str(AI_ROOT / "artifacts/lightgcn_v2"),
+)).expanduser().resolve()
+
+MODEL_META = json.loads(
+    (ROOT / "selected_model_for_serving.json").read_text()
+)
+
+POLICY_PATH = ROOT / "hybrid_policy.json"
+
+HYBRID_POLICY = (
+    json.loads(POLICY_PATH.read_text())
+    if POLICY_PATH.exists() else {}
+)
+
+MODEL_NAME = MODEL_META["family"]
+EMBEDDING_DIM = int(MODEL_META["embedding_dim"])
+HISTORY_LENGTH = int(HYBRID_POLICY.get("history_length", 3))
+RECENCY_DECAY = float(HYBRID_POLICY.get("recency_decay", 0.75))
+COLD_ALPHA = float(HYBRID_POLICY.get("cold", {}).get("alpha", 0.75))
+WARM_ALPHA = float(HYBRID_POLICY.get("warm", {}).get("alpha", 0.5))
+POPULARITY_FALLBACK = POLICY_PATH.exists()
+
+assert HISTORY_LENGTH > 0
+assert 0 < RECENCY_DECAY <= 1
+assert 0 <= COLD_ALPHA <= 1
+assert 0 <= WARM_ALPHA <= 1
 
 user_embeddings = np.load(ROOT / "selected_user_embeddings.npy")
 item_embeddings = np.load(ROOT / "selected_item_embeddings.npy")
@@ -15,8 +46,19 @@ item_embeddings = np.load(ROOT / "selected_item_embeddings.npy")
 user_mapping = pd.read_parquet(ROOT / "user_mapping.parquet")
 item_mapping = pd.read_parquet(ROOT / "item_mapping.parquet")
 
-assert user_embeddings.shape == (43583, 64)
-assert item_embeddings.shape == (20000, 64)
+assert user_embeddings.ndim == item_embeddings.ndim == 2
+assert user_embeddings.shape[1] == EMBEDDING_DIM
+assert item_embeddings.shape[1] == EMBEDDING_DIM
+
+assert len(user_embeddings) == int(
+    MODEL_META.get("n_users", len(user_embeddings))
+)
+assert len(item_embeddings) == int(
+    MODEL_META.get("n_items", len(item_embeddings))
+)
+
+assert np.isfinite(user_embeddings).all()
+assert np.isfinite(item_embeddings).all()
 
 visitor_to_idx = dict(
     zip(
@@ -42,9 +84,18 @@ def health():
         "status": "ok",
         "service": "nexora-ai",
         "model_loaded": True,
-        "model": "LightGCN_WeightedSampling",
+        "model": MODEL_NAME,
         "users": len(user_embeddings),
         "items": len(item_embeddings),
+        "embedding_dim": EMBEDDING_DIM,
+        "model_directory": ROOT.name,
+        "run_id": MODEL_META.get("run_id"),
+        "policy": {
+            "history_length": HISTORY_LENGTH,
+            "recency_decay": RECENCY_DECAY,
+            "cold_alpha": COLD_ALPHA,
+            "warm_alpha": WARM_ALPHA,
+        },
     }
 
 
@@ -83,7 +134,7 @@ def recommend(
 
     return {
         "source": "lightgcn",
-        "model": "LightGCN_WeightedSampling",
+        "model": MODEL_NAME,
         "visitorid": visitorid,
         "items": items,
     }
@@ -159,7 +210,7 @@ def recommend_session(payload: SessionRequest):
         item_to_idx[itemid]
         for itemid in payload.recent_itemids
         if itemid in item_to_idx
-    ][-3:]
+    ][-HISTORY_LENGTH:]
     context = [item_to_idx[itemid] for itemid in dict.fromkeys(payload.context_itemids)
                if itemid in item_to_idx]
 
@@ -169,7 +220,8 @@ def recommend_session(payload: SessionRequest):
         if user_idx is None:
             raise HTTPException(status_code=404, detail="RetailRocket visitor not found in model")
 
-    if not history and not context and user_idx is None:
+    if (not history and not context and user_idx is None
+            and not POPULARITY_FALLBACK):
         return {
             "source": "lightgcn_session",
             "context_supported": True,
@@ -182,7 +234,7 @@ def recommend_session(payload: SessionRequest):
     session_vectors = []
     if history:
         weights = np.power(
-            0.75, np.arange(len(history) - 1, -1, -1),
+            RECENCY_DECAY, np.arange(len(history) - 1, -1, -1),
         ).astype(np.float32)
         session_vector = (item_unit[history] * weights[:, None]).sum(axis=0)
         session_vector /= max(float(np.linalg.norm(session_vector)), 1e-12)
@@ -193,6 +245,16 @@ def recommend_session(payload: SessionRequest):
         session_vectors.append(context_vector)
     if session_vectors:
         session_scores = sum(item_unit @ vector for vector in session_vectors) / len(session_vectors)
+
+    # The mean of the exact vectors used in session_scores. Do not normalize
+    # it again: with history + context, inference uses the mean of their scores.
+    session_geometry = (
+        {
+            "model_run_id": MODEL_META.get("run_id"),
+            "vector": np.mean(session_vectors, axis=0).tolist(),
+        }
+        if session_vectors else None
+    )
 
     # Explainable ranking: preserve the original scoring policy.
     session_z = (
@@ -205,7 +267,7 @@ def recommend_session(payload: SessionRequest):
         user_scores = item_embeddings @ user_embeddings[user_idx]
         user_z = zscore(user_scores)
 
-        session_weight = 0.5 if session_vectors else 0.0
+        session_weight = WARM_ALPHA if session_vectors else 0.0
         user_weight = 1.0 - session_weight
         popularity_weight = 0.0
 
@@ -222,14 +284,14 @@ def recommend_session(payload: SessionRequest):
 
         popularity_z = zscore(base_scores)
 
-        session_weight = 0.75
-        popularity_weight = 0.25
+        session_weight = COLD_ALPHA if session_vectors else 0.0
+        popularity_weight = 1.0 - session_weight
         user_weight = 0.0
 
-        scores = (
-            popularity_weight * popularity_z
-            + session_weight * session_z
-        )
+        scores = popularity_weight * popularity_z
+
+        if session_z is not None:
+            scores = scores + session_weight * session_z
 
     excluded = set(payload.recent_itemids)
     excluded.update(payload.context_itemids)
@@ -268,7 +330,7 @@ def recommend_session(payload: SessionRequest):
         best_pos = int(np.argmax(similarities)) if evidence_items else 0
         best_similarity = float(similarities[best_pos]) if evidence_items else -1.0
 
-        if best_similarity >= 0.15:
+        if session_weight > 0 and best_similarity >= 0.15:
             reason = "SIMILAR_TO_RECENT_VIEW" if best_pos < len(history) else "SIMILAR_TO_PAGE_CONTEXT"
             evidence = {
                 "recent_source_item_id": idx_to_item[
@@ -276,7 +338,7 @@ def recommend_session(payload: SessionRequest):
                 ],
                 "cosine_similarity": round(best_similarity, 4),
             }
-        elif user_idx is not None:
+        elif user_weight > 0 and user_idx is not None:
             reason = "TRAINED_USER_PROFILE"
             evidence = {}
         else:
@@ -320,6 +382,7 @@ def recommend_session(payload: SessionRequest):
                     if user_z is not None else 0.0
                 ),
                 "final_score": float(scores[idx]),
+                "session_geometry": session_geometry,
             },
         })
 
@@ -327,14 +390,18 @@ def recommend_session(payload: SessionRequest):
         "source": "lightgcn_session",
         "context_supported": True,
         "unknown_recent_itemids": unknown_recent_itemids,
-        "strategy": ("trained_user_session" if session_vectors else "trained_user") if user_idx is not None else "cold_session_hybrid",
-        "model": "LightGCN_WeightedSampling",
+        "strategy": (
+            ("trained_user_session" if session_vectors else "trained_user")
+            if user_idx is not None
+            else ("cold_session_hybrid" if session_vectors else "popularity_only")
+        ),
+        "model": MODEL_NAME,
         "policy": {
-            "history_length": 3,
-            "recency_decay": 0.75,
-            **({"user_weight": 0.5, "session_weight": 0.5} if user_idx is not None and session_vectors else {}),
+            "history_length": HISTORY_LENGTH,
+            "recency_decay": RECENCY_DECAY,
+            **({"user_weight": user_weight, "session_weight": session_weight} if user_idx is not None else {}),
             **({"recent_view_weight": 0.5, "page_context_weight": 0.5} if history and context else {}),
-            **({"alpha": 0.75} if user_idx is None else {}),
+            **({"alpha": session_weight} if user_idx is None else {}),
         },
         "items": items,
     }

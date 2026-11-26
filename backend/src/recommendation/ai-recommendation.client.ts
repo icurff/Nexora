@@ -135,6 +135,8 @@ export type AiScoreBreakdown = {
   popularity_contribution: number;
   user_contribution: number;
   final_score: number;
+  // Exact vector used by the session component, not the final hybrid score.
+  session_geometry?: { model_run_id: string; vector: number[] } | null;
 };
 
 export type AiSessionResponse = {

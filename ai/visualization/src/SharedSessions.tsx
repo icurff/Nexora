@@ -5,7 +5,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { Graph } from './Graph';
 import type { GraphData, GraphNode } from './data';
-import { liveNodes, validateLiveSnapshot } from './live-session';
+import { liveNodes, liveSessionNode, validateLiveSnapshot } from './live-session';
 import type { LiveSnapshot } from './live-session';
 type SharedSession = LiveSnapshot & { userId: string | null };
 
@@ -92,31 +92,14 @@ export function SharedSessions({
     const nodes = new Map<string, GraphNode>();
     const groups = snapshot.map((entry) => {
       const source = `session:${entry.session!.id}`;
-      const angle = Number(BigInt(entry.session!.id) % 97n) * 2.399963;
-      nodes.set(source, {
-        key: source,
-        type: 'user',
-        index: nodes.size,
-        sourceId: entry.session!.id,
-        name: entry.userId
-          ? `User #${entry.userId} · Phiên #${entry.session!.id}`
-          : `Khách · Phiên #${entry.session!.id}`,
-        layout: 'schematic',
-        position: [
-          Math.cos(angle) * 80,
-          20 + Math.sin(angle) * 30,
-          Math.sin(angle) * 80,
-        ],
-        vector: [],
-        norm: 0,
-        popularity: null,
-        trainDegree: null,
-      });
-      for (const node of liveNodes(entry)) {
+      const point = liveSessionNode(entry, data);
+      if (point) nodes.set(source, point);
+      for (const node of liveNodes(entry, [], data)) {
         const previous = nodes.get(node.key);
         nodes.set(node.key, {
           ...node,
           observed: node.observed || previous?.observed,
+          recommendationSource: node.recommendationSource ?? previous?.recommendationSource,
         });
       }
       return {
@@ -198,6 +181,7 @@ export function SharedSessions({
         <div className="plot">
           <Graph
             data={scene.data}
+            referenceData={data}
             mode="coldstart"
             session={scene.session}
             users
@@ -210,7 +194,7 @@ export function SharedSessions({
           />
         </div>
         <div className="legend">
-          <span>● users / phiên</span>
+          <span>● Phiên PCA · tím</span>
           <span>● Items</span>
           <span>━ VIEW đã lưu DB · xanh lá</span>
           <span>┄ AI đề xuất · vàng</span>
@@ -267,7 +251,7 @@ export function SharedSessions({
         <section className="panel">
           <h2>Database chung · {snapshot.length} phiên</h2>
           <p>
-            Không cần đăng nhập admin trong bản demo. Mỗi node xanh dương là một
+            Không cần đăng nhập admin trong bản demo. Mỗi node tím là một
             phiên thật; user đăng nhập được ghi bằng mã User. Hai thiết bị có
             thể là hai phiên của cùng user.
           </p>
@@ -275,7 +259,7 @@ export function SharedSessions({
             Tối đa 20 phiên đang hoạt động trong 30 phút gần nhất, 200
             VIEW/phiên kể từ {new Date(since).toLocaleString('vi-VN')}. Cập nhật
             mỗi 2,5 giây. Đề xuất chỉ là lô API gần nhất còn trong bộ nhớ
-            backend; vị trí là sơ đồ minh họa.
+            backend; vị trí Item là PCA thật. Phiên dùng vector AI hoặc VIEW-only; phiên chưa có vector không có node.
           </p>
           <button
             onClick={() => {
@@ -417,7 +401,7 @@ export function SharedSessions({
               <p>
                 {node.type === 'item'
                   ? `Product #${node.productId} · RetailRocket ${node.sourceId || 'chưa mapping'}`
-                  : `Tracking session #${node.sourceId}`}
+                  : `Tracking session #${node.sourceId} · ${node.sessionGeometry === 'inference' ? 'vector AI' : 'VIEW-only'}`}
               </p>
               {node.type === 'item' && node.productId && (
                 <a

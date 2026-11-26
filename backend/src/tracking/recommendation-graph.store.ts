@@ -167,5 +167,17 @@ function validatedBreakdown(
     popularity_contribution: b.popularity_contribution,
     user_contribution: b.user_contribution,
     final_score: b.final_score,
+    ...(b.session_geometry &&
+    typeof b.session_geometry.model_run_id === 'string' &&
+    b.session_geometry.model_run_id.length <= 200 &&
+    Array.isArray(b.session_geometry.vector) &&
+    b.session_geometry.vector.length > 0 &&
+    b.session_geometry.vector.length <= 512 &&
+    b.session_geometry.vector.every((v) => typeof v === 'number' && Number.isFinite(v))
+      ? { session_geometry: {
+          model_run_id: b.session_geometry.model_run_id,
+          vector: [...b.session_geometry.vector],
+        } }
+      : {}),
   };
 }
