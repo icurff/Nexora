@@ -25,6 +25,7 @@ export class CheckoutLineDto {
 
 export class PlaceOrderDto {
   @IsUUID() idempotencyKey!: string;
+  @IsOptional() @IsIn(['COD', 'PAYOS']) paymentMethod?: 'COD' | 'PAYOS';
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

@@ -8,6 +8,8 @@ import {
   confirmAdminOrder,
   getAdminOrder,
   getAdminOrders,
+  getAdminPayosTransactions,
+  getAdminPayosExceptions,
   transitionAdminOrder,
 } from '../../orders/services/order-api.js';
 import './AdminOrdersPage.css';
@@ -113,6 +115,18 @@ export function AdminOrdersPage() {
     enabled: Boolean(id),
     retry: false,
   });
+  const transactions = useQuery({
+    queryKey: ['admin-payos-transactions', id],
+    queryFn: () => getAdminPayosTransactions(id!),
+    enabled: Boolean(id && detail.data?.paymentMethod === 'PAYOS'),
+    retry: false,
+  });
+  const paymentExceptions = useQuery({
+    queryKey: ['admin-payos-exceptions'],
+    queryFn: getAdminPayosExceptions,
+    enabled: !id,
+    retry: false,
+  });
   const beginAttempt = (action: string) => {
     const value =
       attemptRef.current?.action === action
@@ -180,7 +194,9 @@ export function AdminOrdersPage() {
         idempotencyKey: beginAttempt(action),
         expectedVersion: detail.data!.version,
         ...(actionReason ? { reason: actionReason } : {}),
-        ...(action === 'deliver' ? { codCollected: true as const } : {}),
+        ...(action === 'deliver' && detail.data!.paymentMethod === 'COD'
+          ? { codCollected: true as const }
+          : {}),
         ...(action === 'receive-return'
           ? { allItemsReceived: true as const }
           : {}),
@@ -242,6 +258,23 @@ export function AdminOrdersPage() {
             <p>Review new orders, confirm or cancel before delivery.</p>
           </div>
         </header>
+        {paymentExceptions.isError ? (
+          <p role="alert">Unable to load payOS reconciliation cases.</p>
+        ) : null}
+        {paymentExceptions.data?.length ? (
+          <section className="admin-panel">
+            <h2>payOS payments requiring review</h2>
+            {paymentExceptions.data.map((item) => (
+              <p key={item.reference}>
+                <Link to={`/admin/orders/${item.orderId}`}>
+                  Order {item.orderId}
+                </Link>{' '}
+                · {formatVnd(item.amount)} · {item.reference} ·{' '}
+                {date(item.receivedAt)} · {item.reviewReason}
+              </p>
+            ))}
+          </section>
+        ) : null}
         <div className="order-tabs">
           {filters.map(([value, label]) => (
             <button
@@ -385,7 +418,9 @@ export function AdminOrdersPage() {
           <strong>{formatVnd(order.shippingFee)}</strong>
         </div>
         <div className="checkout-total-row checkout-grand-total">
-          <span>COD total</span>
+          <span>
+            {order.paymentMethod === 'PAYOS' ? 'payOS total' : 'COD total'}
+          </span>
           <strong>{formatVnd(order.totalAmount)}</strong>
         </div>
         {order.customerNote ? <p>Note: {order.customerNote}</p> : null}
@@ -396,6 +431,18 @@ export function AdminOrdersPage() {
           <span>Payment</span>
           <strong>{order.paymentStatus === 'PAID' ? 'Paid' : 'Unpaid'}</strong>
         </div>
+        {transactions.isError ? (
+          <p role="alert">Unable to load payOS transactions.</p>
+        ) : null}
+        {transactions.data?.map((item) => (
+          <p key={item.reference}>
+            payOS · {formatVnd(item.amount)} · {item.reference} ·{' '}
+            {item.outcome === 'REVIEW' ? 'Requires review' : 'Verified'} ·{' '}
+            {item.evidenceSource === 'PAYOS_API' ? 'payOS API' : 'Webhook'} ·{' '}
+            {date(item.receivedAt)}{' '}
+            {item.reviewReason ? `· ${item.reviewReason}` : ''}
+          </p>
+        ))}
         {order.firstShippedAt ? (
           <p>Dispatched: {date(order.firstShippedAt)}</p>
         ) : null}
@@ -404,20 +451,26 @@ export function AdminOrdersPage() {
           <div className="checkout-actions">
             <button
               className="button-primary"
-              disabled={actionBusy}
+              disabled={
+                actionBusy ||
+                (order.paymentMethod === 'PAYOS' &&
+                  order.paymentStatus !== 'PAID')
+              }
               onClick={() => setPendingAction('confirm')}
             >
               {confirm.isPending ? 'Confirming…' : 'Confirm order'}
             </button>
-            <button
-              className="button-secondary"
-              disabled={actionBusy}
-              onClick={() => setPendingAction('cancel')}
-            >
-              Cancel order
-            </button>
+            {order.paymentStatus === 'UNPAID' ? (
+              <button
+                className="button-secondary"
+                disabled={actionBusy}
+                onClick={() => setPendingAction('cancel')}
+              >
+                Cancel order
+              </button>
+            ) : null}
           </div>
-        ) : order.status === 'CONFIRMED' ? (
+        ) : order.status === 'CONFIRMED' && order.paymentStatus === 'UNPAID' ? (
           <div className="checkout-actions">
             <button
               className="button-secondary"
@@ -446,7 +499,9 @@ export function AdminOrdersPage() {
               disabled={actionBusy}
               onClick={() => setPendingAction('deliver')}
             >
-              Delivered and COD collected
+              {order.paymentMethod === 'COD'
+                ? 'Delivered and COD collected'
+                : 'Confirm delivery'}
             </button>
             <button
               className="button-secondary"
@@ -466,13 +521,21 @@ export function AdminOrdersPage() {
             >
               Redeliver
             </button>
-            <button
-              className="button-secondary"
-              disabled={actionBusy}
-              onClick={() => setPendingAction('receive-return')}
-            >
-              All items returned to stock
-            </button>
+            {order.paymentStatus === 'UNPAID' ? (
+              <button
+                className="button-secondary"
+                disabled={actionBusy}
+                onClick={() => setPendingAction('receive-return')}
+              >
+                All items returned to stock
+              </button>
+            ) : null}
+            {order.paymentStatus === 'PAID' ? (
+              <p>
+                For prepaid orders, review the returned items and arrange
+                reimbursement manually.
+              </p>
+            ) : null}
           </div>
         ) : null}
         {error ? <p role="alert">{error}</p> : null}
@@ -498,7 +561,11 @@ export function AdminOrdersPage() {
             }}
           >
             <h2 id="order-action-title">{actionText[pendingAction].title}</h2>
-            <p>{actionText[pendingAction].description}</p>
+            <p>
+              {pendingAction === 'deliver' && order.paymentMethod === 'PAYOS'
+                ? 'Confirm that the customer received the order.'
+                : actionText[pendingAction].description}
+            </p>
             {pendingAction === 'deliver' ? (
               <p className="order-dialog-impact">
                 COD amount to collect:{' '}
@@ -532,8 +599,10 @@ export function AdminOrdersPage() {
             ) : null}
             {pendingAction === 'deliver' ? (
               <label className="order-dialog-check">
-                <input type="checkbox" required />I confirm delivery and
-                collection of the full COD amount.
+                <input type="checkbox" required />
+                {order.paymentMethod === 'COD'
+                  ? 'I confirm delivery and collection of the full COD amount.'
+                  : 'I confirm delivery.'}
               </label>
             ) : null}
             <div className="order-dialog-actions">
@@ -553,7 +622,12 @@ export function AdminOrdersPage() {
                 className="button-primary"
                 disabled={actionBusy}
               >
-                {actionBusy ? 'Processing…' : actionText[pendingAction].submit}
+                {actionBusy
+                  ? 'Processing…'
+                  : pendingAction === 'deliver' &&
+                      order.paymentMethod === 'PAYOS'
+                    ? 'Confirm delivery'
+                    : actionText[pendingAction].submit}
               </button>
             </div>
           </form>

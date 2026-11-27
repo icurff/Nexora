@@ -85,6 +85,7 @@ export function placeOrder(input: {
   addressId: string;
   addressUpdatedAt: string;
   customerNote: string;
+  paymentMethod?: 'COD' | 'PAYOS';
 }) {
   return authorized(
     async (token) =>
@@ -92,6 +93,71 @@ export function placeOrder(input: {
         await apiClient.post<Order>('/orders', input, {
           headers: headers(token),
         })
+      ).data,
+  );
+}
+export function createPayosLink(id: string) {
+  return authorized(
+    async (token) =>
+      (
+        await apiClient.post<{
+          checkoutUrl: string;
+          paymentDetails: {
+            qrCode: string;
+            bin: string;
+            accountNumber: string;
+            accountName: string;
+            description: string;
+          } | null;
+        }>(`/orders/${id}/payments/payos`, {}, { headers: headers(token) })
+      ).data,
+  );
+}
+export function reconcilePayosPayment(id: string) {
+  return authorized(
+    async (token) =>
+      (
+        await apiClient.post<{ status: string }>(
+          `/orders/${id}/payments/payos/reconcile`,
+          {},
+          { headers: headers(token) },
+        )
+      ).data,
+  );
+}
+export function getAdminPayosTransactions(id: string) {
+  return authorized(
+    async (token) =>
+      (
+        await apiClient.get<
+          Array<{
+            reference: string;
+            amount: string;
+            providerTime: string;
+            receivedAt: string;
+            outcome: string;
+            reviewReason: string | null;
+            evidenceSource: string;
+          }>
+        >(`/admin/orders/${id}/payments/payos`, { headers: headers(token) })
+      ).data,
+  );
+}
+export function getAdminPayosExceptions() {
+  return authorized(
+    async (token) =>
+      (
+        await apiClient.get<
+          Array<{
+            orderId: string;
+            reference: string;
+            amount: string;
+            providerTime: string;
+            receivedAt: string;
+            reviewReason: string | null;
+            evidenceSource: string;
+          }>
+        >('/admin/payments/payos/exceptions', { headers: headers(token) })
       ).data,
   );
 }

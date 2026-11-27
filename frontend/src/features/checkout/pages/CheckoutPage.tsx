@@ -9,10 +9,21 @@ import { useCart, cartKey } from '../../cart/hooks/useCart.js';
 import type { CartItem } from '../../cart/services/cart-api.js';
 import { formatVnd } from '../../catalog/services/public-catalog-api.js';
 import { ApiError } from '../../../services/api-client.js';
-import { getOrderByKey, placeOrder } from '../../orders/services/order-api.js';
+import {
+  getOrderByKey,
+  placeOrder,
+  type Order,
+} from '../../orders/services/order-api.js';
 import '../CheckoutAddress.css';
 
-const SHIPPING_FEE = 30_000n;
+const SHIPPING_FEE = 1_000n;
+function orderDestination(order: Order) {
+  return order.paymentMethod === 'PAYOS' &&
+    order.paymentStatus === 'UNPAID' &&
+    order.status === 'PENDING'
+    ? `/checkout/payment/${order.id}`
+    : `/account/orders/${order.id}`;
+}
 const attemptStorageKey = (userId: string) => `nexora_checkout_key_${userId}`;
 async function payloadFingerprint(value: unknown) {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
@@ -34,6 +45,7 @@ export function CheckoutPage() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [customerNote, setCustomerNote] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PAYOS'>('COD');
   const [activeAttemptKey, setActiveAttemptKey] = useState<string | null>(null);
   const [resolvedAttemptKey, setResolvedAttemptKey] = useState<string | null>(
     null,
@@ -77,7 +89,7 @@ export function CheckoutPage() {
     let cancelled = false;
     void getOrderByKey(key)
       .then((order) => {
-        if (!cancelled) navigate(`/orders/${order.id}`, { replace: true });
+        if (!cancelled) navigate(orderDestination(order), { replace: true });
       })
       .catch((cause: unknown) => {
         if (cancelled) return;
@@ -124,6 +136,7 @@ export function CheckoutPage() {
           .sort(),
         address: [activeAddress.id, activeAddress.updatedAt],
         customerNote,
+        paymentMethod,
       });
       const existing = saved
         ? (JSON.parse(saved) as { key: string; signature: string })
@@ -131,7 +144,7 @@ export function CheckoutPage() {
       if (existing && existing.signature !== signature) {
         try {
           const prior = await getOrderByKey(existing.key);
-          navigate(`/orders/${prior.id}`, { replace: true });
+          navigate(orderDestination(prior), { replace: true });
           return;
         } catch (cause) {
           if (cause instanceof ApiError && cause.status === 404) {
@@ -167,6 +180,7 @@ export function CheckoutPage() {
         addressId: activeAddress.id,
         addressUpdatedAt: activeAddress.updatedAt,
         customerNote,
+        paymentMethod,
       });
       try {
         sessionStorage.removeItem(attemptStorageKey(user.id));
@@ -175,7 +189,7 @@ export function CheckoutPage() {
       }
       setActiveAttemptKey(null);
       await client.invalidateQueries({ queryKey: cartKey(user.id) });
-      navigate(`/orders/${order.id}`, { replace: true });
+      navigate(orderDestination(order), { replace: true });
     } catch (cause) {
       if (
         cause instanceof ApiError &&
@@ -242,7 +256,9 @@ export function CheckoutPage() {
               <span className="checkout-number">2</span>
               <div>
                 <h2>Order items</h2>
-                <p>Prices and quantities are checked when you place the order.</p>
+                <p>
+                  Prices and quantities are checked when you place the order.
+                </p>
               </div>
             </div>
             {cart.isPending ? <p role="status">Loading cart…</p> : null}
@@ -275,7 +291,8 @@ export function CheckoutPage() {
                 <span>
                   <strong>{item.product.name}</strong>
                   <small>
-                    {item.variant && Object.values(item.variant.options).length > 0
+                    {item.variant &&
+                    Object.values(item.variant.options).length > 0
                       ? `${Object.values(item.variant.options).join(' · ')} · `
                       : ''}
                     Qty {item.quantity}
@@ -288,7 +305,8 @@ export function CheckoutPage() {
             ))}
             {cart.data?.items.some((item) => item.unavailableReason) ? (
               <p role="alert">
-                Some unavailable items were excluded from checkout. Please review your cart.
+                Some unavailable items were excluded from checkout. Please
+                review your cart.
               </p>
             ) : null}
           </section>
@@ -296,10 +314,28 @@ export function CheckoutPage() {
             <div className="panel-heading">
               <span className="checkout-number">3</span>
               <div>
-                <h2>Cash on delivery</h2>
-                <p>Pay the delivery agent when your order arrives.</p>
+                <h2>Payment method</h2>
+                <p>Choose how you would like to pay.</p>
               </div>
             </div>
+            <label>
+              <input
+                type="radio"
+                name="paymentMethod"
+                checked={paymentMethod === 'COD'}
+                onChange={() => setPaymentMethod('COD')}
+              />{' '}
+              Cash on delivery
+            </label>{' '}
+            <label>
+              <input
+                type="radio"
+                name="paymentMethod"
+                checked={paymentMethod === 'PAYOS'}
+                onChange={() => setPaymentMethod('PAYOS')}
+              />{' '}
+              payOS
+            </label>
             <label className="checkout-note">
               Delivery note (optional)
               <textarea
@@ -338,7 +374,8 @@ export function CheckoutPage() {
           {addresses.length === 0 ? (
             <p className="inline-error">
               Add an address in your{' '}
-              <Link to="/account?section=addresses">address book</Link> before placing your order.
+              <Link to="/account?section=addresses">address book</Link> before
+              placing your order.
             </p>
           ) : null}
           {pendingRecovery ? (
@@ -362,7 +399,7 @@ export function CheckoutPage() {
                 ? 'Checking previous order…'
                 : pending
                   ? 'Placing order…'
-                  : 'Place cash-on-delivery order'}
+                  : 'Place order'}
             </button>
           </div>
         </main>

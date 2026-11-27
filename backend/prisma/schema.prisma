@@ -353,10 +353,44 @@ model Order {
   events         OrderEvent[]
   notifications  UserNotification[]
   emailOutbox    EmailOutbox[]
+  payosRequest   PayosPaymentRequest?
+  payosTransactions PayosPaymentTransaction[]
 
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)], map: "orders_user_created_idx")
   @@index([status, expiresAt], map: "orders_status_expires_idx")
   @@map("orders")
+}
+
+model PayosPaymentRequest {
+  id            Int       @id @default(autoincrement())
+  orderId       BigInt    @unique @map("order_id")
+  amount        BigInt
+  paymentLinkId String?   @unique @map("payment_link_id") @db.VarChar(100)
+  checkoutUrl   String?   @map("checkout_url") @db.VarChar(2048)
+  paymentDetails Json?    @map("payment_details")
+  attemptedAt   DateTime? @map("attempted_at") @db.Timestamptz(6)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("payos_payment_requests")
+}
+
+model PayosPaymentTransaction {
+  id            BigInt    @id @default(autoincrement())
+  orderId       BigInt    @map("order_id")
+  reference     String    @unique @db.VarChar(100)
+  paymentLinkId String    @map("payment_link_id") @db.VarChar(100)
+  amount        BigInt
+  providerTime  String    @map("provider_time") @db.VarChar(50)
+  receivedAt    DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  outcome       String    @db.VarChar(32)
+  evidenceSource String   @default("WEBHOOK") @map("evidence_source") @db.VarChar(20)
+  reviewReason  String?   @map("review_reason") @db.VarChar(50)
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([orderId, receivedAt])
+  @@map("payos_payment_transactions")
 }
 
 model UserNotification {
