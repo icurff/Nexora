@@ -79,7 +79,7 @@ Tác vụ tự hủy đơn hết hạn là hành vi của hệ thống, không p
 - Product ghi thông tin chung trong mô tả; SKU có lựa chọn tùy ngành hàng như màu/cỡ/dung lượng. Tìm kiếm, lọc theo lựa chọn SKU, chi tiết sản phẩm, ảnh chung/ảnh SKU và trạng thái hết hàng.
 - Giỏ hàng gắn với tài khoản Customer; yêu cầu đăng nhập để thêm, xem hoặc cập nhật giỏ và checkout theo dòng được chọn.
 - Sổ địa chỉ với tỉnh/thành và đơn vị cấp xã từ bộ dữ liệu local.
-- Đơn COD hoặc payOS, phí ship 30.000đ/đơn, giữ hàng, hủy đơn chưa thanh toán, hết hạn, giao thất bại và giao lại.
+- Đơn COD hoặc payOS, phí ship 1.000đ/đơn, giữ hàng, hủy đơn chưa thanh toán, hết hạn, giao thất bại và giao lại.
 - Tạo liên kết thanh toán payOS và cập nhật tự động sau khi backend xác minh webhook hợp lệ; không dùng đường dẫn quay lại trình duyệt làm bằng chứng thanh toán.
 - Quản trị catalog, upload nhiều ảnh/video, Customer và tồn kho từng SKU. Quản trị đơn và dashboard là giai đoạn sau.
 - Gửi email khôi phục mật khẩu và thông báo giao dịch/đơn hàng; không gửi SMS.
@@ -176,7 +176,7 @@ Nhập hàng/điều chỉnh kiểm kê có lý do và lịch sử theo từng S
 | BR-05  | SKU đã có reservation/đơn được chấp nhận không được đổi ý nghĩa lựa chọn; bản chụp mã, nhãn và giá trị lựa chọn trong đơn không đổi theo catalog                                                                                                             |
 | BR-06  | Chỉ Customer đã đăng nhập mới có thể xem hoặc sửa giỏ; thêm giỏ không giữ hàng/giá                                                                                                                                                                           |
 | BR-07  | Checkout theo dòng chọn; mọi dòng phải hợp lệ; Customer phải đăng nhập và đang hoạt động                                                                                                                                                                     |
-| BR-08  | Giá, số lượng, địa chỉ và phí ship được kiểm tra phía server; tiền là số nguyên VND; ship 30.000đ/đơn                                                                                                                                                        |
+| BR-08  | Giá, số lượng, địa chỉ và phí ship được kiểm tra phía server; tiền là số nguyên VND; ship 1.000đ/đơn                                                                                                                                                        |
 | BR-09  | Tạo đơn giữ hàng ngay; một đơn được giao toàn bộ; không giới hạn số đơn chờ mỗi Customer                                                                                                                                                                     |
 | BR-10  | Có thể bán = hàng trong kho − hàng đang giữ; các đại lượng không được âm                                                                                                                                                                                     |
 | BR-11  | Customer chỉ hủy PENDING UNPAID; Admin chỉ hủy đơn UNPAID trước giao có lý do; không sửa trực tiếp đơn                                                                                                                                                       |

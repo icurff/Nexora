@@ -25,7 +25,7 @@ import { OrderRepository } from './order.repository.js';
 import { NotificationService } from '../notification/notification.service.js';
 import { CodPaymentService } from '../payment/cod-payment.service.js';
 
-const SHIPPING_FEE = 30_000n;
+const SHIPPING_FEE = 1_000n;
 const INCLUDE = {
   items: { orderBy: { id: 'asc' as const } },
   history: {
@@ -142,6 +142,9 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
       addressId: body.addressId,
       addressUpdatedAt: body.addressUpdatedAt,
       customerNote: body.customerNote ?? '',
+      ...(body.paymentMethod && body.paymentMethod !== 'COD'
+        ? { paymentMethod: body.paymentMethod }
+        : {}),
     };
     const placed = await this.idempotentTransaction(
       userId,
@@ -210,6 +213,7 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
         const order = await tx.order.create({
           data: {
             userId,
+            paymentMethod: body.paymentMethod ?? 'COD',
             subtotal,
             shippingFee: SHIPPING_FEE,
             totalAmount: subtotal + SHIPPING_FEE,
@@ -537,10 +541,13 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
             code: 'ORDER_VERSION_CONFLICT',
             currentVersion: order.version.toString(),
           });
-        if (order.status !== 'PENDING' || order.paymentStatus !== 'UNPAID')
+        const canConfirm =
+          (order.paymentMethod === 'COD' && order.paymentStatus === 'UNPAID') ||
+          (order.paymentMethod === 'PAYOS' && order.paymentStatus === 'PAID');
+        if (order.status !== 'PENDING' || !canConfirm)
           throw new ConflictException({ code: 'ORDER_CANNOT_CONFIRM' });
         const checkTime = await this.databaseNow(tx);
-        if (order.expiresAt <= checkTime) {
+        if (order.paymentStatus === 'UNPAID' && order.expiresAt <= checkTime) {
           const now = checkTime;
           await this.catalog.releaseOrderReservation(
             tx,
@@ -633,10 +640,6 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
     const reason = body.reason?.trim() ?? '';
     if (action === 'DELIVERY_FAIL' && !reason)
       throw new BadRequestException({ code: 'DELIVERY_REASON_REQUIRED' });
-    if (action === 'DELIVER' && body.codCollected !== true)
-      throw new BadRequestException({
-        code: 'COD_COLLECTION_CONFIRMATION_REQUIRED',
-      });
     if (action === 'RECEIVE_RETURN' && body.allItemsReceived !== true)
       throw new BadRequestException({
         code: 'RETURN_RECEIPT_CONFIRMATION_REQUIRED',
@@ -676,20 +679,25 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
             currentVersion: order.version.toString(),
           });
 
+        if (
+          action === 'DELIVER' &&
+          order.paymentMethod === 'COD' &&
+          body.codCollected !== true
+        )
+          throw new BadRequestException({
+            code: 'COD_COLLECTION_CONFIRMATION_REQUIRED',
+          });
+
+        const readyForDelivery =
+          (order.paymentMethod === 'COD' && order.paymentStatus === 'UNPAID') ||
+          (order.paymentMethod === 'PAYOS' && order.paymentStatus === 'PAID');
+
         const allowed = {
           SHIP: order.status === 'CONFIRMED',
-          DELIVER:
-            order.status === 'SHIPPING' &&
-            order.paymentMethod === 'COD' &&
-            order.paymentStatus === 'UNPAID',
-          DELIVERY_FAIL:
-            order.status === 'SHIPPING' &&
-            order.paymentMethod === 'COD' &&
-            order.paymentStatus === 'UNPAID',
+          DELIVER: order.status === 'SHIPPING' && readyForDelivery,
+          DELIVERY_FAIL: order.status === 'SHIPPING' && readyForDelivery,
           RETRY_DELIVERY:
-            order.status === 'DELIVERY_FAILED' &&
-            order.paymentMethod === 'COD' &&
-            order.paymentStatus === 'UNPAID',
+            order.status === 'DELIVERY_FAILED' && readyForDelivery,
           RECEIVE_RETURN:
             order.status === 'DELIVERY_FAILED' &&
             order.paymentMethod === 'COD' &&
@@ -712,7 +720,8 @@ export class OrderService implements OnModuleInit, OnModuleDestroy {
           toStatus = 'SHIPPING';
           changes.firstShippedAt = order.firstShippedAt ?? now;
         } else if (action === 'DELIVER') {
-          await this.payments.settleAtDelivery(tx, order, now);
+          if (order.paymentMethod === 'COD')
+            await this.payments.settleAtDelivery(tx, order, now);
           toStatus = 'DELIVERED';
           changes.deliveredAt = now;
         } else if (action === 'DELIVERY_FAIL') {

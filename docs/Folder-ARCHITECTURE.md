@@ -1,5 +1,13 @@
 # Kiến trúc modular monolith — Nexora
 
+> Cập nhật payOS: PaymentModule tạo link thanh toán, xác minh webhook và lưu yêu cầu, giao dịch cùng các trường hợp cần đối soát trong PostgreSQL. Đơn PAYOS đã thanh toán có thể được Admin xác nhận và giao. Thông tin về payOS chưa triển khai tại các mục cũ bên dưới chưa được cập nhật; việc kiểm chứng webhook từ nhà cung cấp và database thực vẫn cần thực hiện.
+
+Backend host đọc `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY` và `FRONTEND_URL` từ `backend/.env`. Docker Compose đọc các biến tương ứng từ root `.env`. Khách xem mã QR và thông tin chuyển khoản do payOS trả về tại `/checkout/payment/:id`; với link cũ chưa lưu QR, khách mở link thanh toán đã có. Phí giao cố định là 1.000 VND cho đơn mới, còn đơn cũ giữ phí snapshot. Webhook phải truy cập được từ payOS, do đó localhost cần một URL công khai chuyển tiếp khi kiểm thử thật. Không ghi khóa hay payload webhook vào log.
+
+Schema Prisma bổ sung `payos_payment_requests` và `payos_payment_transactions`. Việc đồng bộ chỉ được thực hiện thủ công trên database local sau khi kiểm tra đích và dữ liệu cần giữ. Khoản sai tiền, trùng giao dịch khác tham chiếu hoặc đến khi đơn không còn khả dụng được hiển thị cho Admin đối soát thủ công. Link tạo lỗi có thể tra lại bằng mã payOS để phục hồi. Tính năng hoàn tiền tự động chưa có.
+
+Khách có thể chọn kiểm tra lại trạng thái trên trang thanh toán. Backend tra cứu trực tiếp payOS bằng thông tin server, kiểm tra mã link, số tiền và giao dịch trước khi ghi nhận, dùng cùng khóa đơn và quy tắc idempotency của webhook. `evidence_source` cho biết giao dịch được xác nhận từ `WEBHOOK` hay `PAYOS_API`; trường hợp đơn không còn đủ điều kiện được chuyển đối soát. Trạng thái trình duyệt quay về không tự đánh dấu đã thanh toán.
+
 | Thông tin           | Giá trị                                                                                     |
 | ------------------- | ------------------------------------------------------------------------------------------- |
 | Phiên bản           | 3.2                                                                                         |

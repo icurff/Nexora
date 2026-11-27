@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, PackageCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { formatVnd } from '../../catalog/services/public-catalog-api.js';
 import { getOrder, cancelOrder } from '../services/order-api.js';
 import { useAuth } from '../../auth/hooks/useAuth.js';
@@ -24,12 +24,19 @@ function date(value: string) {
 
 export function OrderDetailPage({ id }: { id: string }) {
   const { user } = useAuth();
+  const location = useLocation();
   const client = useQueryClient();
   const query = useQuery({
     queryKey: ['order', id],
     queryFn: () => getOrder(id),
     enabled: Boolean(id && user),
     retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.paymentMethod === 'PAYOS' &&
+      query.state.data?.paymentStatus === 'UNPAID' &&
+      query.state.data?.status === 'PENDING'
+        ? 1000
+        : false,
   });
   const [error, setError] = useState('');
   const cancelKey = useRef<string | null>(null);
@@ -66,6 +73,17 @@ export function OrderDetailPage({ id }: { id: string }) {
       </div>
     );
   const order = query.data;
+  const paymentReturn = new URLSearchParams(location.search).get('payment');
+  if (
+    order.paymentMethod === 'PAYOS' &&
+    (paymentReturn === 'return' || paymentReturn === 'cancel')
+  )
+    return (
+      <Navigate
+        to={`/checkout/payment/${order.id}?payment=${paymentReturn}`}
+        replace
+      />
+    );
   return (
     <div className="account-panel account-order-detail">
       <div className="order-detail-title">
@@ -124,15 +142,16 @@ export function OrderDetailPage({ id }: { id: string }) {
             <strong>{formatVnd(order.shippingFee)}</strong>
           </div>
           <div className="checkout-total-row checkout-grand-total">
-            <span>Total · Cash on delivery</span>
+            <span>
+              Total ·{' '}
+              {order.paymentMethod === 'PAYOS' ? 'payOS' : 'Cash on delivery'}
+            </span>
             <strong>{formatVnd(order.totalAmount)}</strong>
           </div>
           <div className="checkout-total-row">
             <span>Payment status</span>
             <strong>
-              {order.paymentStatus === 'PAID'
-                ? 'Paid'
-                : 'Unpaid'}
+              {order.paymentStatus === 'PAID' ? 'Paid' : 'Unpaid'}
             </strong>
           </div>
           {order.firstShippedAt ? (
@@ -142,7 +161,19 @@ export function OrderDetailPage({ id }: { id: string }) {
             <p>Delivered: {date(order.deliveredAt)}</p>
           ) : null}
           {order.customerNote ? <p>Note: {order.customerNote}</p> : null}
-          {order.cancelReason ? <p>Cancellation reason: {order.cancelReason}</p> : null}
+          {order.cancelReason ? (
+            <p>Cancellation reason: {order.cancelReason}</p>
+          ) : null}
+          {order.paymentMethod === 'PAYOS' &&
+          order.paymentStatus === 'UNPAID' &&
+          order.status === 'PENDING' ? (
+            <Link
+              className="button-primary"
+              to={`/checkout/payment/${order.id}`}
+            >
+              Continue payment
+            </Link>
+          ) : null}
           {order.status === 'PENDING' && order.paymentStatus === 'UNPAID' ? (
             <button
               className="button-secondary"

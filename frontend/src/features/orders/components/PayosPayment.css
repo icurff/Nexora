@@ -1,0 +1,84 @@
+.payos-payment {
+  margin: 22px 0;
+  padding: 22px;
+  border: 1px solid #d7e5da;
+  border-radius: 10px;
+  background: #f7faf7;
+}
+.payos-payment-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.payos-payment-heading h2 {
+  margin: 4px 0;
+}
+.payos-payment-heading p {
+  margin: 0;
+  color: #64766a;
+}
+.payos-payment-heading > strong {
+  font-size: 20px;
+  color: #294f3a;
+}
+.payos-payment-content {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 18px;
+}
+.payos-qr {
+  flex: none;
+  background: white;
+  border: 1px solid #e0eae1;
+  border-radius: 8px;
+}
+.payos-qr svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.payos-payment-details {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  min-width: 0;
+}
+.payos-payment-details dt {
+  color: #6e7e73;
+  font-size: 12px;
+}
+.payos-payment-details dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0 0;
+  color: #263d30;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.payos-payment-details button {
+  display: inline-flex;
+  padding: 5px;
+  border: 0;
+  background: transparent;
+  color: #4f735d;
+  cursor: pointer;
+}
+.payos-payment-status,
+.payos-payment-feedback {
+  margin: 16px 0 0;
+  color: #64766a;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .payos-payment-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .payos-qr {
+    align-self: center;
+  }
+}

@@ -41,6 +41,7 @@ import { AdminInventoryPage } from './features/catalog/pages/AdminInventoryPage.
 import { AdminOrdersPage } from './features/admin/pages/AdminOrdersPage.js';
 import { AdminCustomersPage } from './features/admin/pages/AdminCustomersPage.js';
 import GoogleCallbackPage from './features/auth/pages/GoogleCallbackPage.js';
+import { CheckoutPaymentPage } from './features/checkout/pages/CheckoutPaymentPage.js';
 import './App.css';
 import './Store.css';
 import './Brand.css';
@@ -95,7 +96,9 @@ function GuestOnly() {
 
 function LegacyOrderRedirect() {
   const { id } = useParams();
-  return <Navigate to={id ? `/account/orders/${id}` : '/account/orders'} replace />;
+  return (
+    <Navigate to={id ? `/account/orders/${id}` : '/account/orders'} replace />
+  );
 }
 
 export default function App() {
@@ -130,6 +133,10 @@ export default function App() {
           />
           <Route element={<RequireAuth />}>
             <Route element={<StoreLayout />}>
+              <Route
+                path="/checkout/payment/:id"
+                element={<CheckoutPaymentPage />}
+              />
               <Route path="/account" element={<AccountPage />} />
               <Route path="/account/orders" element={<AccountPage />} />
               <Route path="/account/orders/:id" element={<AccountPage />} />

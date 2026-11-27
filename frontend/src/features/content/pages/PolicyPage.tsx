@@ -18,7 +18,7 @@ export function PolicyPage() {
         ],
         [
           'Shipping fees',
-          'Orders of at least 500,000 ₫ qualify for free delivery. A standard 30,000 ₫ fee applies to other orders.',
+          'A standard 1,000 ₫ delivery fee applies to each order.',
         ],
         [
           'Order tracking',

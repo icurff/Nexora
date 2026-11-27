@@ -133,9 +133,11 @@ describe('OrderService COD lifecycle', () => {
     await expect(service.get(admin, '21')).rejects.toMatchObject({
       response: { code: 'ORDER_NOT_FOUND' },
     });
-    await expect(service.cancel(admin, '21', request(4))).rejects.toMatchObject({
-      response: { code: 'ORDER_NOT_FOUND' },
-    });
+    await expect(service.cancel(admin, '21', request(4))).rejects.toMatchObject(
+      {
+        response: { code: 'ORDER_NOT_FOUND' },
+      },
+    );
     expect(orders.findOrder).toHaveBeenCalled();
   });
 
@@ -191,5 +193,35 @@ describe('OrderService COD lifecycle', () => {
     expect(delivered.status).toBe('DELIVERED');
     expect(delivered.paymentStatus).toBe('PAID');
     expect(order.paidAt).toEqual(order.deliveredAt);
+  });
+
+  it('delivers a prepaid payOS order without collecting COD again', async () => {
+    const { service, order, tx } = fixture();
+    order.paymentMethod = 'PAYOS';
+    order.paymentStatus = 'PAID';
+    const paidAt = new Date('2026-11-01T03:00:00.000Z');
+    order.paidAt = paidAt;
+    await service.lifecycle(admin, '21', 'SHIP', request(4));
+    const delivered = await service.lifecycle(
+      admin,
+      '21',
+      'DELIVER',
+      request(5),
+    );
+    expect(delivered.status).toBe('DELIVERED');
+    expect(delivered.paymentStatus).toBe('PAID');
+    expect(order.paidAt).toEqual(paidAt);
+    expect(tx.order.update).not.toHaveBeenCalled();
+  });
+
+  it('does not deliver a payOS order that is still unpaid', async () => {
+    const { service, order } = fixture();
+    order.status = 'SHIPPING';
+    order.paymentMethod = 'PAYOS';
+    await expect(
+      service.lifecycle(admin, '21', 'DELIVER', request(4)),
+    ).rejects.toMatchObject({
+      response: { code: 'ORDER_ACTION_NOT_ALLOWED' },
+    });
   });
 });

@@ -503,7 +503,7 @@ Không cache toàn bộ response chứa địa chỉ/token. Retry tạo đơn tr
 | payos_reference           | varchar(100)  | NULL, UQ     | Mã giao dịch do payOS trả về sau khi trả tiền                            |
 | currency                  | char(3)       | NN, VND      | CHECK chỉ VND                                                            |
 | subtotal                  | numeric(14,0) | NN           | Tổng tiền hàng snapshot                                                  |
-| shipping_fee              | numeric(14,0) | NN           | 30000 tại lúc tạo                                                        |
+| shipping_fee              | numeric(14,0) | NN           | 1000 cho đơn mới; giữ snapshot của đơn cũ                                                        |
 | total_amount              | numeric(14,0) | NN           | subtotal + shipping_fee                                                  |
 | recipient_name            | varchar(100)  | NN           | Snapshot người nhận                                                      |
 | recipient_phone           | varchar(16)   | NN           | Snapshot điện thoại                                                      |
@@ -529,7 +529,7 @@ Mã đơn dùng sequence riêng `order_code_seq`, cùng nguyên tắc không c�
 
 CHECK cùng dòng:
 
-- `subtotal > 0`, `shipping_fee = 30000`, `total_amount = subtotal + shipping_fee`, version >= 0.
+- `subtotal > 0`, `shipping_fee` là phí tại lúc đặt (đơn mới 1000 VND), `total_amount = subtotal + shipping_fee`, version >= 0.
 - `expires_at = created_at + interval '24 hours'`; tất cả thời điểm thực hiện nếu có không trước created_at. Chỉ PENDING UNPAID hết hạn; đơn PAID không tự hết hạn.
 - DELIVERED bắt buộc PAID và có delivered_at/paid_at. Với COD, paid_at = delivered_at; payOS/webhook thuộc phạm vi tương lai. COD hiện chưa ghi event tracking `transaction`.
 - COD PAID chỉ khi DELIVERED; PAYOS PAID chỉ khi xác minh webhook thành công và payment reference có giá trị. CANCELLED bắt buộc UNPAID.
@@ -591,7 +591,7 @@ Ví dụ sau khi mua 2 áo Đen/M:
 }
 ```
 
-Đây là **JSON minh họa response**. Trong PostgreSQL, tên/mã SKU/giá/số lượng là cột riêng; riêng options_snapshot là JSONB để giữ các lựa chọn đa ngành. Nếu ngày mai áo đổi tên, nhãn thuộc tính đổi hoặc giá lên 219000đ, đơn này vẫn giữ tên/nhãn/giá lúc đặt, 199000đ/chiếc. Đơn có subtotal 398000, ship 30000, total 428000. Không cần chụp toàn bộ thông số Product vào đơn trong phạm vi hiện tại.
+Đây là **JSON minh họa response**. Trong PostgreSQL, tên/mã SKU/giá/số lượng là cột riêng; riêng options_snapshot là JSONB để giữ các lựa chọn đa ngành. Nếu ngày mai áo đổi tên, nhãn thuộc tính đổi hoặc giá lên 219000đ, đơn này vẫn giữ tên/nhãn/giá lúc đặt, 199000đ/chiếc. Ví dụ một đơn cũ có subtotal 398000, ship 30000, total 428000. Không cần chụp toàn bộ thông số Product vào đơn trong phạm vi hiện tại.
 
 ### 6.3. `order_status_history`
 
@@ -824,7 +824,7 @@ Nếu có deadlock/serialization failure, rollback toàn bộ và retry có gi�
 2. Khóa user, địa chỉ đã lưu và giỏ; kiểm tra quyền sở hữu, phiên bản địa chỉ và các dòng/quantity vừa xác nhận.
 3. Khóa Product → SKU → Inventory theo ID tăng dần; Catalog đọc lại trạng thái bán, giá và available. Giá client chỉ dùng đối chiếu, tổng tiền được tính từ dữ liệu Catalog trong transaction.
 4. Khi giá/dòng/địa chỉ thay đổi hoặc thiếu hàng, rollback và yêu cầu Customer tải lại/xác nhận; không giữ một phần.
-5. Tạo đơn COD `PENDING / UNPAID`, snapshot bất biến, phí 30.000đ, expires_at = created_at + 24 giờ, lịch sử và `order_created`; tăng reserved, xóa đúng cart_items đã chọn và lưu kết quả idempotency trong cùng transaction.
+5. Tạo đơn COD `PENDING / UNPAID`, snapshot bất biến, phí 1.000đ, expires_at = created_at + 24 giờ, lịch sử và `order_created`; tăng reserved, xóa đúng cart_items đã chọn và lưu kết quả idempotency trong cùng transaction.
 6. Gửi lại cùng key/payload lấy đúng đơn đã commit; unique constraint khiến request đồng thời cùng key chờ kết quả của request trước. GET tra cứu có thể chưa thấy transaction chưa commit; khi đó client retry POST với cùng key/payload để nhận kết quả an toàn.
 
 ### 9.3. Chuyển trạng thái đơn
@@ -837,7 +837,7 @@ Mọi thao tác có version kỳ vọng và idempotency key; khóa order trướ
 | PENDING           | Customer/Admin hủy hoặc hệ thống hết hạn | CANCELLED       | Chỉ UNPAID; reserved −q, RELEASE                                                  |
 | CONFIRMED         | Admin hủy có lý do                       | CANCELLED       | Chỉ UNPAID; reserved −q, RELEASE                                                  |
 | CONFIRMED         | Admin bắt đầu giao                       | SHIPPING        | on_hand −q, reserved −q, SHIP                                                     |
-| PENDING/CONFIRMED | Webhook payOS hợp lệ                     | Giữ trạng thái  | Chỉ PAYOS UNPAID, chữ ký/mã đơn/số tiền khớp; PAID, paid_at, transaction mỗi dòng |
+| PENDING           | Thanh toán payOS hợp lệ                  | CONFIRMED       | Chỉ PAYOS UNPAID, chữ ký/mã đơn/số tiền khớp; PAID, paid_at, confirmed_at, history, transaction |
 | SHIPPING          | Xác nhận giao + đã thu COD               | DELIVERED       | COD: PAID, paid_at, transaction mỗi dòng                                          |
 | SHIPPING          | Xác nhận giao payOS đã PAID              | DELIVERED       | Giữ PAID; không ghi transaction trùng                                             |
 | SHIPPING          | Báo giao thất bại có lý do               | DELIVERY_FAILED | Không đổi; giao lại, không hoàn tiền trong phạm vi này                            |
